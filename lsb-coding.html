@@ -1,0 +1,89 @@
+<html>
+  <head>
+    <title>LSB Encoding &amp; Decoding</title>
+  </head>
+  <body>
+  <h2>LSB Text Encoding & Decoding</h2>
+  <input type="text" id="text" placeholder="Enter text to encode"><br>
+  <input type="file" id="imageFile" accept="image/*" onchange="document.getElementById('image').src = window.URL.createObjectURL(this.files[0])"><br>
+  <button onclick="encodeText()">Encode Text</button><br>
+  <img id="image" src="" alt="Image"><br>
+   <button onclick="decodeText()">Decode Text</button><br>
+  <h3>Decoded Text:</h3>
+  <div id="decodedText"></div>
+  <script>
+    
+function encodeText() {
+  var text = document.getElementById("text").value;
+  console.log("Original Text:", text);
+
+  // Convert text to UTF-8 binary for comparison
+  var encoder = new TextEncoder();
+  var binaryText = encoder.encode(text);
+
+  // Append a null byte (00000000) to the end of the binary text
+  binaryText = Uint8Array.from([...binaryText, 0x00]);
+
+  var img = document.getElementById("image");
+  var canvas = document.createElement("canvas");
+  var ctx = canvas.getContext("2d");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  ctx.drawImage(img, 0, 0);
+
+  var x = 0;
+
+  for (var i = 0; i < binaryText.length; i++) {
+    var byte = binaryText[i];
+    
+    for (var j = 7; j >= 0; j--) {
+      var bit = (byte >> j) & 1;
+      var pixel = ctx.getImageData(x, 0, 1, 1);
+      pixel.data[0] = (pixel.data[0] & 0xFE) | bit;
+      ctx.putImageData(pixel, x, 0);
+      x++;
+    }
+  }
+
+  var encodedImage = canvas.toDataURL();
+  img.src = encodedImage; // Update original image with encoded image
+
+  console.log("Encoded Text");
+}
+
+
+function decodeText() {
+  var img = document.getElementById("image");
+  var canvas = document.createElement("canvas");
+  var ctx = canvas.getContext("2d");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  ctx.drawImage(img, 0, 0);
+
+  var binaryText = [];
+  var x = 0;
+
+  while (true) {
+    var byte = 0;
+
+    for (var j = 7; j >= 0; j--) {
+      var pixel = ctx.getImageData(x, 0, 1, 1);
+      var bit = pixel.data[0] & 1;
+      byte = (byte << 1) | bit;
+      x++;
+    }
+
+    if (byte === 0) break; // Check for null byte
+    binaryText.push(byte);
+  }
+
+  var decoder = new TextDecoder("utf-8");
+  var decodedText = decoder.decode(Uint8Array.from(binaryText));
+  document.getElementById("decodedText").textContent = decodedText; // Set the decoded text
+
+  console.log("Decoded Text:", decodedText);
+  return decodedText
+}
+  </script>
+  </body>
+</html>
