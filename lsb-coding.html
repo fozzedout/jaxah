@@ -20,8 +20,8 @@
       <div class="flex justify-center">
           <!-- Picture Upload Section -->
           <div class="w-1/2">
-              <h2 class="text-lg font-semibold mb-4">Upload Picture</h2>
-              <div class="bg-gray-200 dark:bg-slate-800 p-4 shadow-md rounded-md mb-4">
+            <div class="bg-gray-200 dark:bg-slate-800 p-4 shadow-md rounded-md mb-4">
+                <h2 class="text-lg font-semibold mb-4">Upload Picture</h2>
 <input type="file" id="imageFile" accept="image/*"  class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" onchange="document.getElementById('image').src = window.URL.createObjectURL(this.files[0])">
                 <div class="overflow-scroll">
 <img id="image" src="" alt="Image">
@@ -31,14 +31,20 @@
           </div>
           <!-- Text Entry Section -->
           <div class="w-1/2">
-              <h2 class="text-lg font-semibold mb-4">Enter Text</h2>
-              <div class="bg-gray-200 dark:bg-slate-800 p-4 shadow-md rounded-md">
+            <div class="bg-gray-200 dark:bg-slate-800 p-4 shadow-md rounded-md">
+                <h2 class="text-lg font-semibold mb-4">Enter Text</h2>
                   <textarea id="text" class="bg-gray-200 dark:bg-slate-800 w-full h-32 resize-none border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
 
                 <h2>LSB Text Encoding & Decoding</h2>
-<button class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" onclick="document.getElementById('text').value=generatePassword(8);">Generate Text</button>
-<button class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"  onclick="encodeText()">Encode Text</button><br>
- <button class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"  onclick="decodeText()">Decode Text</button>
+<button 
+  class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
+  onclick="document.getElementById('text').value += generatePassword(10);">Generate Password</button>
+<button 
+  class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"  
+  onclick="encodeText()">Encode Text</button>
+ <button 
+  class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"  
+  onclick="decodeText()">Decode Text</button>
 
               </div>
           </div>
@@ -54,7 +60,7 @@
   var canvas = document.createElement("canvas");
   var ctx = canvas.getContext("2d");
   canvas.width = img.naturalWidth;
-  canvas.height = img.naturalWidth;
+  canvas.height = img.naturalHeight;
   ctx.drawImage(img, 0, 0);
   
   console.log(canvas.width,canvas.height);
@@ -150,7 +156,7 @@ function generateRandomPassword(length) {
 function generatePassword(length) {
   const vowels = ["a", "e", "i", "o", "u", "oo", "ee", "ea", "ou"];
   const consonants = "bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ";
-  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?'~¦`¬£€\\/";
   let password = "";
 
   for (let i = 0; i < length; i++) {
