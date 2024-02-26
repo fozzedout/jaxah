@@ -1,47 +1,87 @@
 <html>
   <head>
     <title>LSB Encoding &amp; Decoding</title>
+
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" />
   </head>
   <body>
-  <h2>LSB Text Encoding & Decoding</h2>
-  <input type="text" id="text" placeholder="Enter text to encode"><br>
-  <input type="file" id="imageFile" accept="image/*" onchange="document.getElementById('image').src = window.URL.createObjectURL(this.files[0])"><br>
-  <button onclick="encodeText()">Encode Text</button><br>
-  <img id="image" src="" alt="Image"><br>
-   <button onclick="decodeText()">Decode Text</button><br>
-  <h3>Decoded Text:</h3>
-  <div id="decodedText"></div>
-  <script>
+    <div class="container mx-auto py-8">
+      <div class="flex justify-center">
+          <!-- Picture Upload Section -->
+          <div class="w-1/2">
+              <h2 class="text-lg font-semibold mb-4">Upload Picture</h2>
+              <div class="bg-white p-4 shadow-md rounded-md mb-4">
+<input type="file" id="imageFile" accept="image/*"  class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" onchange="document.getElementById('image').src = window.URL.createObjectURL(this.files[0])">
+                <div class="overflow-auto">
+<img id="image" src="" alt="Image">
+                </div>
+
+            </div>
+          </div>
+          <!-- Text Entry Section -->
+          <div class="w-1/2">
+              <h2 class="text-lg font-semibold mb-4">Enter Text</h2>
+              <div class="bg-white p-4 shadow-md rounded-md">
+                  <textarea id="text" class="w-full h-32 resize-none border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+
+                <h2>LSB Text Encoding & Decoding</h2>
+<button class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" onclick="document.getElementById('text').value=generatePassword(8);">Generate Text</button>
+<button class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"  onclick="encodeText()">Encode Text</button><br>
+ <button class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"  onclick="decodeText()">Decode Text</button>
+
+              </div>
+          </div>
+      </div>
+  </div>
+
+
+
+
+
     
+  <script>
 function encodeText() {
-  var text = document.getElementById("text").value;
-  console.log("Original Text:", text);
-
-  // Convert text to UTF-8 binary for comparison
-  var encoder = new TextEncoder();
-  var binaryText = encoder.encode(text);
-
-  // Append a null byte (00000000) to the end of the binary text
-  binaryText = Uint8Array.from([...binaryText, 0x00]);
-
   var img = document.getElementById("image");
   var canvas = document.createElement("canvas");
   var ctx = canvas.getContext("2d");
-  canvas.width = img.width;
-  canvas.height = img.height;
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalWidth;
   ctx.drawImage(img, 0, 0);
+  
+  console.log(canvas.width,canvas.height);
 
-  var x = 0;
+  // Split the string into lines
+  const lines = (document.getElementById("text").value + "\nEND").split("\n");
 
-  for (var i = 0; i < binaryText.length; i++) {
-    var byte = binaryText[i];
-    
-    for (var j = 7; j >= 0; j--) {
-      var bit = (byte >> j) & 1;
-      var pixel = ctx.getImageData(x, 0, 1, 1);
-      pixel.data[0] = (pixel.data[0] & 0xFE) | bit;
-      ctx.putImageData(pixel, x, 0);
-      x++;
+  var encoder = new TextEncoder();
+
+  // Iterate through the lines by line number
+  for (let y = 0; y < lines.length; y++) {
+    var text = lines[y];
+    console.log(y, "  :  ", text);
+
+    // Convert text to UTF-8 binary for comparison
+    var binaryText = encoder.encode(text);
+
+    // Append a null byte (00000000) to the end of the binary text
+    binaryText = Uint8Array.from([...binaryText, 0x00]);
+
+    var x = 0;
+
+    for (var i = 0; i < binaryText.length; i++) {
+      var byte = binaryText[i];
+
+      for (var j = 7; j >= 0; j--) {
+        var bit = (byte >> j) & 1;
+        var pixel = ctx.getImageData(x, y, 1, 1);
+        pixel.data[0] = (pixel.data[0] & 0xfe) | bit;
+        ctx.putImageData(pixel, x, y);
+        x++;
+      }
     }
   }
 
@@ -51,7 +91,6 @@ function encodeText() {
   console.log("Encoded Text");
 }
 
-
 function decodeText() {
   var img = document.getElementById("image");
   var canvas = document.createElement("canvas");
@@ -60,30 +99,84 @@ function decodeText() {
   canvas.height = img.height;
   ctx.drawImage(img, 0, 0);
 
-  var binaryText = [];
-  var x = 0;
+  var y = 0;
+  var decodedText = "";
+  var decoder = new TextDecoder("utf-8");
 
-  while (true) {
-    var byte = 0;
+  while (y < img.height) {
+    var binaryText = [];
+    var x = 0;
+    
+    while (x < img.width) {
+      var byte = 0;
 
-    for (var j = 7; j >= 0; j--) {
-      var pixel = ctx.getImageData(x, 0, 1, 1);
-      var bit = pixel.data[0] & 1;
-      byte = (byte << 1) | bit;
-      x++;
+      for (var j = 7; j >= 0; j--) {
+        var pixel = ctx.getImageData(x, y, 1, 1);
+        var bit = pixel.data[0] & 1;
+        byte = (byte << 1) | bit;
+        x++;
+      }
+
+      if (byte === 0) break; // Check for null byte
+      binaryText.push(byte);
     }
 
-    if (byte === 0) break; // Check for null byte
-    binaryText.push(byte);
+    var decodedLine = decoder.decode(Uint8Array.from(binaryText));
+    if (decodedLine === "END") break;
+
+    decodedText += decodedLine + "\n";
+    y++;
   }
 
-  var decoder = new TextDecoder("utf-8");
-  var decodedText = decoder.decode(Uint8Array.from(binaryText));
-  document.getElementById("decodedText").textContent = decodedText; // Set the decoded text
+  document.getElementById("text").value = decodedText; // Set the decoded text
 
-  console.log("Decoded Text:", decodedText);
-  return decodedText
+  console.log("Decoded Text");
+  return decodedText;
 }
+
+function generateRandomPassword(length) {
+  const characters = Array.from({ length: length }, () => {
+    const randomNumber = Math.floor(Math.random() * (0x10ffff - 0x20) + 0x20);
+    return String.fromCharCode(randomNumber);
+  });
+  return characters.join("");
+}
+
+function generatePassword(length) {
+  const vowels = ["a", "e", "i", "o", "u", "oo", "ee", "ea", "ou"];
+  const consonants = "bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ";
+  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+  let password = "";
+
+  for (let i = 0; i < length; i++) {
+    if (i % 2 === 0) {
+      // Even index, add a consonant
+      password += consonants[Math.floor(Math.random() * consonants.length)];
+    } else {
+      // Odd index, add a vowel
+      const randomIndex = Math.floor(Math.random() * vowels.length);
+      password += vowels[randomIndex];
+    }
+
+    // Add an odd number or symbol every 3rd character
+    if (i % 4 === 3) {
+      if (Math.random() < 0.5) {
+        // 50% chance of adding a symbol
+        password += symbols[Math.floor(Math.random() * symbols.length)];
+      } else {
+        // 50% chance of adding an odd number
+        password += Math.floor(Math.random() * 10); // Generate numbers
+      }
+    }
+
+    if (i % 4 === 0) {
+      password[i] = password[i].toUpperCase();
+    }
+  }
+
+  return password;
+}
+
   </script>
   </body>
 </html>
