@@ -1,90 +1,30 @@
 <html>
 <head>
   <title>Repo</title>
-  <link href="https://fonts.googleapis.com/css?family=Raleway:200,100,400" rel="stylesheet" type="text/css" />
-  <style>
-html,body {
-  font-family: sans-serif;
-  padding: 0 1em;
-  font-size: 19px;
-  background: #222;
-  color: #aaa;
-  text-align:center;
-}
 
-p {
-  margin: 1.5em 0;
-  color: #aaa;
-}
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-img {
-  max-height: 50vh;
-}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+      }
+    }
+  </script>
 
-a {
-  color: inherit;
-}
-
-a:hover {
-  color: #bbb;
-}
-
-.italic { font-style: italic; }
-.small { font-size: 0.8em; }
-
-/** LIGHTBOX MARKUP **/
-
-.lightbox {
-  /* Default to hidden */
-  display: none;
-
-  /* Overlay entire screen */
-  position: fixed;
-  z-index: 999;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  
-  /* A bit of padding around image */
-  padding: 1em;
-
-  /* Translucent background */
-  background: rgba(0, 0, 0, 0.8);
-}
-
-/* Unhide the lightbox when it's the target */
-.lightbox:target {
-  display: block;
-}
-
-.lightbox span {
-  /* Full width and height */
-  display: block;
-  width: 100%;
-  height: 100%;
-
-  /* Size and position background image */
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-}    
-  </style>
-</head>
-<body>
-  <!-- Lightbox usage markup -->
+  </head>
+  <body class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lgring-1 ring-slate-900/5 shadow-xl">
+<div class="max-w-md mx-auto rounded-xl shadow-md overflow-hidden text-center px-6 py-10 ">
 <p>Nothing to see here, move along</p>
 
-<!-- thumbnail image wrapped in a link -->
-<a href="#img1">
-  <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHcwYWxpaWVrODR1MzZjbjB5M2Via2Zud2VsM3F2YnUyZjZ3ZW52NyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xUStFKHmuFPYk/giphy.gif">
-</a>
+<div><img class="py-8" src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHcwYWxpaWVrODR1MzZjbjB5M2Via2Zud2VsM3F2YnUyZjZ3ZW52NyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xUStFKHmuFPYk/giphy.gif" /></div>
 
-<!-- lightbox container hidden with CSS -->
-<a href="#" class="lightbox" id="img1">
-  <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHcwYWxpaWVrODR1MzZjbjB5M2Via2Zud2VsM3F2YnUyZjZ3ZW52NyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xUStFKHmuFPYk/giphy.gif" width="480" height="275" frameBorder="0" class="giphy-embed" allowFullScreen>
-</a>
-
-<p><a href="lsb-coding.html">LSB Encoding & Decoding Tests</a></p>
+  <a 
+	class="my-5 py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
+	href="lsb-coding.html">LSB Encoding & Decoding Tests
+  </a>
+	</div>
 </body>
 </html>

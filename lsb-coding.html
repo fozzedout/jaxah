@@ -17,9 +17,9 @@
   </head>
   <body  class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg px-6 py-8 ring-1 ring-slate-900/5 shadow-xl">
     <div class="container mx-auto py-8">
-      <div class="flex justify-center">
+      <div class="flex flex-wrap">
           <!-- Picture Upload Section -->
-          <div class="w-1/2">
+          <div class="flex-auto px-2">
             <div class="bg-gray-200 dark:bg-slate-800 p-4 shadow-md rounded-md mb-4">
                 <h2 class="text-lg font-semibold mb-4">Upload Picture</h2>
 <input type="file" id="imageFile" accept="image/*"  class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" onchange="document.getElementById('image').src = window.URL.createObjectURL(this.files[0])">
@@ -30,10 +30,10 @@
             </div>
           </div>
           <!-- Text Entry Section -->
-          <div class="w-1/2">
+          <div class="flex-auto px-2">
             <div class="bg-gray-200 dark:bg-slate-800 p-4 shadow-md rounded-md">
                 <h2 class="text-lg font-semibold mb-4">Enter Text</h2>
-                  <textarea id="text" class="bg-gray-200 dark:bg-slate-800 w-full h-32 resize-none border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                  <textarea id="text" rows="25" class="font-mono bg-gray-200 dark:bg-slate-800 w-full h-128 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
 
                 <h2>LSB Text Encoding & Decoding</h2>
 <button 
