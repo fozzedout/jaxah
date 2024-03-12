@@ -1,7 +1,7 @@
 function encodeText() {
   var img = document.getElementById("image");
   var canvas = document.createElement("canvas");
-  var ctx = canvas.getContext("2d");
+  var ctx = canvas.getContext("2d", { willReadFrequently: true });
   canvas.width = img.naturalWidth;
   canvas.height = img.naturalHeight;
   ctx.drawImage(img, 0, 0);
@@ -16,7 +16,7 @@ function encodeText() {
   // Iterate through the lines by line number
   for (let y = 0; y < lines.length; y++) {
     var text = lines[y];
-    console.log(y, "  :  ", text);
+    //console.log(y, "  :  ", text);
 
     // Convert text to UTF-8 binary for comparison
     var binaryText = encoder.encode(text);
@@ -48,7 +48,7 @@ function encodeText() {
 function decodeText() {
   var img = document.getElementById("image");
   var canvas = document.createElement("canvas");
-  var ctx = canvas.getContext("2d");
+  var ctx = canvas.getContext("2d", { willReadFrequently: true });
   canvas.width = img.width;
   canvas.height = img.height;
   ctx.drawImage(img, 0, 0);
