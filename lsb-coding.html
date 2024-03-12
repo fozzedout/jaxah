@@ -5,189 +5,61 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-      }
-    }
-  </script>
-
+    <link rel="stylesheet" href="lsb-coding.css" />
   </head>
-  <body  class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg px-6 py-8 ring-1 ring-slate-900/5 shadow-xl">
-    <div class="container mx-auto py-8">
-      <div class="flex flex-wrap">
+  <body>
+    <div class="bg-white px-6 py-8 text-slate-900 dark:bg-slate-900 dark:text-white">
+      <div class="container mx-auto py-8">
+        <div class="flex flex-wrap">
           <!-- Picture Upload Section -->
           <div class="flex-auto px-2">
-            <div class="bg-gray-200 dark:bg-slate-800 p-4 shadow-md rounded-md mb-4">
-                <h2 class="text-lg font-semibold mb-4">Upload Picture</h2>
-<input type="file" id="imageFile" accept="image/*"  class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" onchange="document.getElementById('image').src = window.URL.createObjectURL(this.files[0])">
-                <div class="overflow-scroll">
-<img id="image" src="" alt="Image">
-                </div>
-
+            <div class="mb-4 rounded-md bg-gray-200 p-4 shadow-md dark:bg-slate-800">
+              <h2 class="mb-4 text-lg font-semibold">Upload Picture</h2>
+              <input type="file" id="imageFile" accept="image/*" class="block w-full cursor-pointer rounded-lg border border-gray-300 bg-gray-50 text-sm text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:placeholder-gray-400" onchange="document.getElementById('image').src = window.URL.createObjectURL(this.files[0])" />
+              <div class="overflow-scroll">
+                <img id="image" src="" alt="Image" />
+              </div>
             </div>
           </div>
           <!-- Text Entry Section -->
           <div class="flex-auto px-2">
-            <div class="bg-gray-200 dark:bg-slate-800 p-4 shadow-md rounded-md">
-                <h2 class="text-lg font-semibold mb-4">Enter Text</h2>
-                  <textarea id="text" rows="25" class="font-mono bg-gray-200 dark:bg-slate-800 w-full h-128 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-
-                <h2>LSB Text Encoding & Decoding</h2>
-<button 
-  class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
-  onclick="document.getElementById('text').value += generatePassword(10);">Generate Password</button>
-<button 
-  class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"  
-  onclick="encodeText()">Encode Text</button>
- <button 
-  class="py-2.5 px-5 me-2 mb-2 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700"  
-  onclick="decodeText()">Decode Text</button>
-
-              </div>
+            <div class="rounded-md bg-gray-200 p-4 shadow-md dark:bg-slate-800">
+              <h2>LSB Text Encoding & Decoding</h2>
+              <button 
+                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
+                onclick="document.getElementById('text').value += generatePassword(16);"
+                >Generate Password</button>
+              <button
+                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
+                onclick="encodeText()"
+                >Encode Text (R1 LSB)</button>
+              <button 
+                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
+                onclick="decodeText()"
+                >Decode Text (R1 LSB)</button>
+    
+              <h2 class="mb-4 text-lg font-semibold">Enter Text</h2> :: Selected: <span id="lblSelectedLength">0</span>
+              <textarea id="text" rows="25" class="h-128 w-full rounded-md border bg-gray-200 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800"></textarea>
+            </div>
           </div>
+        </div>
       </div>
-  </div>
+    </div>
+    
+      </body>
 
-
+      <script>
+        document.getElementById("text").addEventListener('mouseup', function () {
+          document.getElementById("lblSelectedLength").innerText = this.selectionEnd - this.selectionStart;
+        });
+        document.getElementById("text").addEventListener('mouseleave', function () {
+          document.getElementById("lblSelectedLength").innerText = this.selectionEnd - this.selectionStart;
+        });
+        document.getElementById("text").addEventListener('keyup', function () {
+          document.getElementById("lblSelectedLength").innerText = this.selectionEnd - this.selectionStart;
+        });
 
     
-  <script>
-    function encodeText() {
-  var img = document.getElementById("image");
-  var canvas = document.createElement("canvas");
-  var ctx = canvas.getContext("2d");
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  ctx.drawImage(img, 0, 0);
-  
-  console.log(canvas.width,canvas.height);
-
-  // Split the string into lines
-  const lines = (document.getElementById("text").value + "\nEND").split("\n");
-
-  var encoder = new TextEncoder();
-
-  // Iterate through the lines by line number
-  for (let y = 0; y < lines.length; y++) {
-    var text = lines[y];
-    console.log(y, "  :  ", text);
-
-    // Convert text to UTF-8 binary for comparison
-    var binaryText = encoder.encode(text);
-
-    // Append a null byte (00000000) to the end of the binary text
-    binaryText = Uint8Array.from([...binaryText, 0x00]);
-
-    var x = 0;
-
-    for (var i = 0; i < binaryText.length; i++) {
-      var byte = binaryText[i];
-
-      for (var j = 7; j >= 0; j--) {
-        var bit = (byte >> j) & 1;
-        var pixel = ctx.getImageData(x, y, 1, 1);
-        pixel.data[0] = (pixel.data[0] & 0xfe) | bit;
-        ctx.putImageData(pixel, x, y);
-        x++;
-      }
-    }
-  }
-
-  var encodedImage = canvas.toDataURL();
-  img.src = encodedImage; // Update original image with encoded image
-
-  console.log("Encoded Text");
-}
-
-function decodeText() {
-  var img = document.getElementById("image");
-  var canvas = document.createElement("canvas");
-  var ctx = canvas.getContext("2d");
-  canvas.width = img.width;
-  canvas.height = img.height;
-  ctx.drawImage(img, 0, 0);
-
-  var y = 0;
-  var decodedText = "";
-  var decoder = new TextDecoder("utf-8");
-
-  while (y < img.height) {
-    var binaryText = [];
-    var x = 0;
-    
-    while (x < img.width) {
-      var byte = 0;
-
-      for (var j = 7; j >= 0; j--) {
-        var pixel = ctx.getImageData(x, y, 1, 1);
-        var bit = pixel.data[0] & 1;
-        byte = (byte << 1) | bit;
-        x++;
-      }
-
-      if (byte === 0) break; // Check for null byte
-      binaryText.push(byte);
-    }
-
-    var decodedLine = decoder.decode(Uint8Array.from(binaryText));
-    if (decodedLine === "END") break;
-
-    decodedText += decodedLine + "\n";
-    y++;
-  }
-
-  document.getElementById("text").value = decodedText; // Set the decoded text
-
-  console.log("Decoded Text");
-  return decodedText;
-}
-
-function generateRandomPassword(length) {
-  const characters = Array.from({ length: length }, () => {
-    const randomNumber = Math.floor(Math.random() * (0x10ffff - 0x20) + 0x20);
-    return String.fromCharCode(randomNumber);
-  });
-  return characters.join("");
-}
-
-function generatePassword(length) {
-  const vowels = ["a", "e", "i", "o", "u", "oo", "ee", "ea", "ou"];
-  const consonants = "bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ";
-  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?'~¦`¬£€\\/";
-  let password = "";
-
-  for (let i = 0; i < length; i++) {
-    if (i % 2 === 0) {
-      // Even index, add a consonant
-      password += consonants[Math.floor(Math.random() * consonants.length)];
-    } else {
-      // Odd index, add a vowel
-      const randomIndex = Math.floor(Math.random() * vowels.length);
-      password += vowels[randomIndex];
-    }
-
-    // Add an odd number or symbol every 3rd character
-    if (i % 4 === 3) {
-      if (Math.random() < 0.5) {
-        // 50% chance of adding a symbol
-        password += symbols[Math.floor(Math.random() * symbols.length)];
-      } else {
-        // 50% chance of adding an odd number
-        password += Math.floor(Math.random() * 10); // Generate numbers
-      }
-    }
-
-    if (i % 4 === 0) {
-      password[i] = password[i].toUpperCase();
-    }
-  }
-
-  return password;
-}
-
-  </script>
-  </body>
-</html>
+      </script>
+      <script src="lsb-coding.js" />
+    </html>
