@@ -37,6 +37,14 @@
                 class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
                 onclick="decodeText()"
                 >Decode Text (R1 LSB)</button>
+              <button
+                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
+                onclick="encodeRandom()"
+                >Encode Text (Random LSB)</button>
+              <button 
+                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
+                onclick="decodeRandom()"
+                >Decode Text (Random LSB)</button>
     
               <h2 class="mb-4 text-lg font-semibold">Enter Text</h2> :: Selected: <span id="lblSelectedLength">0</span>
               <textarea id="text" rows="25" class="h-128 w-full rounded-md border bg-gray-200 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800"></textarea>
