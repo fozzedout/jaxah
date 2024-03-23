@@ -610,6 +610,9 @@ video {
 .overflow-scroll{
   overflow: scroll
 }
+.overflow-auto{
+  overflow: auto
+}
 
 .rounded-lg{
   border-radius: 0.5rem

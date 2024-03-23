@@ -15,7 +15,12 @@
           <div class="flex-auto px-2">
             <div class="mb-4 rounded-md bg-gray-200 p-4 shadow-md dark:bg-slate-800">
               <h2 class="mb-4 text-lg font-semibold">Upload Picture</h2>
-              <input type="file" id="imageFile" accept="image/*" class="block w-full cursor-pointer rounded-lg border border-gray-300 bg-gray-50 text-sm text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:placeholder-gray-400" onchange="document.getElementById('image').src = window.URL.createObjectURL(this.files[0])" />
+              <input
+                type="file" 
+                id="imageFile" 
+                accept="image/*" 
+                class="block w-full cursor-pointer rounded-lg border border-gray-300 bg-gray-50 text-sm text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:placeholder-gray-400" 
+                onchange="previewImage(this)" />
               <div class="overflow-scroll">
                 <img id="image" src="" alt="Image" />
               </div>
@@ -46,7 +51,7 @@
                 onclick="decodeRandom()"
                 >Decode Text (Random LSB)</button>
     
-              <h2 class="mb-4 text-lg font-semibold">Enter Text</h2> :: Selected: <span id="lblSelectedLength">0</span>
+              <h2 class="mb-4 text-lg font-semibold">Enter Text</h2> :: Selected: <span id="lblSelectedLength">0</span> :: Available space: <span id="lblSpace">0</span>
               <textarea id="text" rows="25" class="h-128 w-full rounded-md border bg-gray-200 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800"></textarea>
             </div>
           </div>
