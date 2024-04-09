@@ -97,18 +97,7 @@ function generateRandomPassword(length) {
 }
 
 function generatePassword(length) {
-  const vowels = [
-    "a",
-    "e",
-    "i",
-    "o",
-    "u",
-    "ai",
-    "oo",
-    "ee",
-    "ea",
-    "ou"
-  ];
+  const vowels = ["a", "e", "i", "o", "u", "ai", "oo", "ee", "ea", "ou"];
   const consonants = "bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ";
   const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?'~¦`¬£€\\/";
   let password = "";
@@ -157,25 +146,27 @@ function rand(a, b, c, d) {
    * Generates a random number between 0 and 1.
    * @returns {number} - The generated random number.
    */
-  return function() {
+  return function () {
     // Ensure seeds are integers
-    a |= 0; b |= 0; c |= 0; d |= 0;
+    a |= 0;
+    b |= 0;
+    c |= 0;
+    d |= 0;
     // Calculate intermediate value
-    let t = (a + b | 0) + d | 0;
+    let t = (((a + b) | 0) + d) | 0;
     // Update seed d
-    d = d + 1 | 0;
+    d = (d + 1) | 0;
     // Update seed a
-    a = b ^ b >>> 9;
+    a = b ^ (b >>> 9);
     // Update seed b
-    b = c + (c << 3) | 0;
+    b = (c + (c << 3)) | 0;
     // Update seed c
-    c = (c << 21 | c >>> 11);
-    c = c + t | 0;
+    c = (c << 21) | (c >>> 11);
+    c = (c + t) | 0;
     // Return random number
     return (t >>> 0) / 4294967296;
-  }
+  };
 }
-
 
 /**
  * Generates unique coordinates without repetition using a fixed seed.
@@ -188,7 +179,15 @@ function rand(a, b, c, d) {
  * @param {Function} random - A seeded random number generator function.
  * @returns {number[][]} - An array of unique coordinates represented as [x, y, z].
  */
-function generateUniqueCoordinatesWithSeed(numCoordinates, ignoreX, ignoreY, maxX, maxY, maxZ, random) {
+function generateUniqueCoordinatesWithSeed(
+  numCoordinates,
+  ignoreX,
+  ignoreY,
+  maxX,
+  maxY,
+  maxZ,
+  random
+) {
   /**
    * Set to store generated coordinates.
    * @type {Set<string>}
@@ -203,21 +202,20 @@ function generateUniqueCoordinatesWithSeed(numCoordinates, ignoreX, ignoreY, max
     const z = Math.floor(random() * (maxZ + 1));
 
     // Ignore coordinates that match ignoreX and ignoreY
-    if (x === ignoreX && y === ignoreY)
-      continue;
+    if (x === ignoreX && y === ignoreY) continue;
 
     // Add unique coordinate to the set
     coordinates.add(`${x},${y},${z}`);
   }
 
   // Convert set of coordinates to array and parse each coordinate to number
-  return Array.from(coordinates).map(coord => coord.split(',').map(Number));
+  return Array.from(coordinates).map((coord) => coord.split(",").map(Number));
 }
 
 function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
   }
 }
 
@@ -232,17 +230,29 @@ function shuffleArray(array) {
  * @param {Function} random - A seeded random number generator function.
  * @returns {number[][]} - An array of unique coordinates represented as [x, y, z].
  */
-function generateUniqueCoordinatesWithSeedWeak(numCoordinates, ignoreX, ignoreY, maxX, maxY, random) {
+function generateUniqueCoordinatesWithSeedWeak(
+  numCoordinates,
+  ignoreX,
+  ignoreY,
+  maxX,
+  maxY,
+  random
+) {
   const coordinates = new Set();
-  
+
   /**
    * Array to store unique coordinates.
    * @type {number[][]}
    */
   const uniqueCoordinates = [];
 
-  if (numCoordinates > (maxX+1) * (maxY+1) * 3) {
-    console.log("Not enough space. Requested:",numCoordinates,"    Available:", maxX * maxY * 3);
+  if (numCoordinates > (maxX + 1) * (maxY + 1) * 3) {
+    console.log(
+      "Not enough space. Requested:",
+      numCoordinates,
+      "    Available:",
+      maxX * maxY * 3
+    );
     return false;
   }
 
@@ -260,8 +270,7 @@ function generateUniqueCoordinatesWithSeedWeak(numCoordinates, ignoreX, ignoreY,
       // 50% of space is taken randomly, fill in the
       // remainder space linearly
       ix++;
-      if (ix > maxX || iy === -1)
-      {
+      if (ix > maxX || iy === -1) {
         ix = 0;
         iy++;
 
@@ -269,27 +278,23 @@ function generateUniqueCoordinatesWithSeedWeak(numCoordinates, ignoreX, ignoreY,
           console.log("exceeded image space");
           return false;
         }
-
       }
       x = ix;
       y = iy;
     }
 
-
     // Ignore coordinates that match ignoreX and ignoreY
-    if (x === ignoreX && y === ignoreY)
-      continue;
+    if (x === ignoreX && y === ignoreY) continue;
 
     // Check if the coordinate is already in the set
     //const coordinate = [x, y, z];
-    const coordinate = (x * maxX) + y;
-    if (coordinates.has(coordinate))
-      continue;
+    const coordinate = x * maxX + y;
+    if (coordinates.has(coordinate)) continue;
 
     // Add unique coordinate to the set and array
     coordinates.add(coordinate);
     uniqueCoordinates.push([x, y, 0]);
-    
+
     if (uniqueCoordinates.length < numCoordinates)
       uniqueCoordinates.push([x, y, 1]);
 
@@ -308,9 +313,13 @@ function generateUniqueCoordinatesWithSeedWeak(numCoordinates, ignoreX, ignoreY,
  * @returns {number[][]} - An array of unique coordinates represented as [x, y, z].
  */
 function generateUniqueCoordinates(numCoordinates, maxX, maxY) {
-
-  if (numCoordinates > (maxX+1) * (maxY+1) * 3) {
-    console.log("Not enough space. Requested:",numCoordinates,"    Available:", maxX * maxY * 3);
+  if (numCoordinates > (maxX + 1) * (maxY + 1) * 3) {
+    console.log(
+      "Not enough space. Requested:",
+      numCoordinates,
+      "    Available:",
+      maxX * maxY * 3
+    );
     return false;
   }
 
@@ -324,23 +333,21 @@ function generateUniqueCoordinates(numCoordinates, maxX, maxY) {
   var y = 0;
   // Loop until desired number of unique coordinates are generated
   while (uniqueCoordinates.length < numCoordinates) {
-      x++;
-      if (x > maxX || y === -1)
-      {
-        ix = 0;
-        iy++;
+    x++;
+    if (x > maxX || y === -1) {
+      ix = 0;
+      iy++;
 
-        if (iy > maxY) {
-          console.log("exceeded image space");
-          return false;
-        }
-
+      if (iy > maxY) {
+        console.log("exceeded image space");
+        return false;
       }
+    }
 
     // Add unique coordinate to the set and array
     coordinates.add(coordinate);
     uniqueCoordinates.push([x, y, 0]);
-    
+
     if (uniqueCoordinates.length < numCoordinates)
       uniqueCoordinates.push([x, y, 1]);
 
@@ -351,6 +358,35 @@ function generateUniqueCoordinates(numCoordinates, maxX, maxY) {
   return uniqueCoordinates;
 }
 
+function scatterPoints(maxX, maxY, maxZ, length, ignoreX, ignoreY, random) {
+  // guard against too much allocation (length + ignore pixel)
+  if ((maxX+1) * (maxY+1) * (maxZ+1) < length+3) {
+    console.log("Not enougn space in image. Has ", (maxX+1) * (maxY+1) * (maxZ+1), "   needs ", length+3);
+    return false;
+  }
+
+  // Generate a list of all possible points within the specified ranges
+  let allPoints = [];
+  for (let x = 0; x <= maxX; x++) {
+    for (let y = 0; y <= maxY; y++) {
+      if (!(x === ignoreX && y === ignoreY)) {
+        for (let z = 0; z <= maxZ; z++) {
+          allPoints.push({ x: x, y: y, z: z });
+        }
+      }
+    }
+  }
+
+  // Shuffle the list of points
+  for (let i = allPoints.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [allPoints[i], allPoints[j]] = [allPoints[j], allPoints[i]];
+  }
+
+  // Truncate the list to the specified length
+  const truncatedPoints = allPoints.slice(0, length);
+  return truncatedPoints;
+}
 
 /**
  * Encodes text into an image using a seeded random process.
@@ -402,26 +438,43 @@ function encodeRandom() {
 
   // Create a Uint8Array to store the length and binary text
   var lengthArray = new Uint8Array(4); // 4 bytes for a 32-bit number
-  lengthArray[0] = binaryText.length >> 24 & 0xFF;
-  lengthArray[1] = binaryText.length >> 16 & 0xFF;
-  lengthArray[2] = binaryText.length >> 8 & 0xFF;
-  lengthArray[3] = binaryText.length & 0xFF;
+  lengthArray[0] = (binaryText.length >> 24) & 0xff;
+  lengthArray[1] = (binaryText.length >> 16) & 0xff;
+  lengthArray[2] = (binaryText.length >> 8) & 0xff;
+  lengthArray[3] = binaryText.length & 0xff;
 
   // Concatenate lengthArray and binaryText
-  var concatenatedArray = new Uint8Array(lengthArray.length + binaryText.length);
+  var concatenatedArray = new Uint8Array(
+    lengthArray.length + binaryText.length
+  );
   concatenatedArray.set(lengthArray, 0); // Copy lengthArray to the beginning
   concatenatedArray.set(binaryText, lengthArray.length); // Copy binaryText after the length
 
   // Initialize a seeded random number generator
-  const random = new rand(seed.data[0],seed.data[1],seed.data[2],seed.data[3]);
+  const random = new rand(
+    seed.data[0],
+    seed.data[1],
+    seed.data[2],
+    seed.data[3]
+  );
 
   // Allow randomness to settle in by calling random function multiple times
-  random(); random(); random(); random();
+  random();
+  random();
+  random();
+  random();
 
   // Generate unique coordinates for encoding using seeded random generator
-  const uc = generateUniqueCoordinatesWithSeedWeak(concatenatedArray.length * 8, ignoreX, ignoreY, canvas.width-1, canvas.height-1, random);
-  if (uc === false)
-    return;
+  const uc = scatterPoints(
+    canvas.width - 1,
+    canvas.height - 1,
+    2,
+    concatenatedArray.length * 8,
+    ignoreX,
+    ignoreY,
+    random
+  );
+  if (uc === false) return;
 
   var idx = 0;
   for (var i = 0; i < concatenatedArray.length; i++) {
@@ -445,7 +498,6 @@ function encodeRandom() {
   // Display message in the console
   console.log("Encoded Text");
 }
-
 
 /**
  * Decodes text from an image using a seeded random process.
@@ -485,15 +537,24 @@ function decodeRandom() {
   var seed = ctx.getImageData(ignoreX, ignoreY, 1, 1);
 
   // Initialize a seeded random number generator
-  var random = new rand(seed.data[0],seed.data[1],seed.data[2],seed.data[3]);
+  var random = new rand(seed.data[0], seed.data[1], seed.data[2], seed.data[3]);
 
   // Allow randomness to settle in by calling random function multiple times
-  random(); random(); random(); random();
+  random();
+  random();
+  random();
+  random();
 
   // Fetch the data length
-  const ucLength = generateUniqueCoordinatesWithSeedWeak(32, ignoreX, ignoreY, canvas.width-1, canvas.height-1, random);
-  if (uc === false)
-    return;
+  const ucLength = generateUniqueCoordinatesWithSeedWeak(
+    32,
+    ignoreX,
+    ignoreY,
+    canvas.width - 1,
+    canvas.height - 1,
+    random
+  );
+  if (uc === false) return;
 
   // Extract length information from pixel data
   var lengthArray = new Uint8Array(4);
@@ -514,14 +575,29 @@ function decodeRandom() {
   }
 
   // Calculate the length of the encoded data
-  var length = (lengthArray[0] << 24) | (lengthArray[1] << 16) | (lengthArray[2] << 8) | lengthArray[3];
+  var length =
+    (lengthArray[0] << 24) |
+    (lengthArray[1] << 16) |
+    (lengthArray[2] << 8) |
+    lengthArray[3];
 
   // Reset the seed for data decoding
-  var random = new rand(seed.data[0],seed.data[1],seed.data[2],seed.data[3]);
-  random(); random(); random(); random(); // allow randomness to settle in
+  var random = new rand(seed.data[0], seed.data[1], seed.data[2], seed.data[3]);
+  random();
+  random();
+  random();
+  random(); // allow randomness to settle in
 
   // Regenerate unique coordinates including the length to avoid collisions
-  const uc = generateUniqueCoordinatesWithSeed(32 + (length * 8), ignoreX, ignoreY, canvas.width-1, canvas.height-1, 2, random);
+  const uc = generateUniqueCoordinatesWithSeed(
+    32 + length * 8,
+    ignoreX,
+    ignoreY,
+    canvas.width - 1,
+    canvas.height - 1,
+    2,
+    random
+  );
 
   // Extract data section coordinates
   const ucData = uc.slice(32);
@@ -533,8 +609,7 @@ function decodeRandom() {
   byte = 0;
 
   for (var idx = 0; idx < length * 8; idx++) {
-    if (idx % 10000 == 0)
-      console.log("looping through ", idx);
+    if (idx % 10000 == 0) console.log("looping through ", idx);
 
     var pixel = ctx.getImageData(ucData[idx][0], ucData[idx][1], 1, 1);
     var bit = pixel.data[ucData[idx][2]] & 1;
@@ -561,11 +636,13 @@ function decodeRandom() {
 }
 
 
-
 /**
  * Tests for scattering
  */
 function scatterTest() {
+  document.getElementById("lblProgress").innerText = "Scattering...";
+  console.log("Scattering...");
+
   /**
    * Reference to the image element.
    * @type {HTMLImageElement}
@@ -587,65 +664,96 @@ function scatterTest() {
   // Set canvas dimensions to match image natural size
   canvas.width = img.naturalWidth;
   canvas.height = img.naturalHeight;
-
+  
   // Draw the image onto the canvas
   ctx.drawImage(img, 0, 0);
 
-  var idx = 0;
-  var x = -1;
-  var y = -1;
-  var z = -1;
-  for (var i = 0; i < 8078304; i++) {
-    for (var j = 7; j >= 0; j--) {
-      z++;
-      if (z > 2 || x === -1) {
-        x++;
-        z = 0;
-        if (x >= canvas.width || y === -1)
-        {
-          x = 0;
-          y++;
+  // fill test rate
+  fill_rate = img.naturalWidth * img.naturalHeight * 0.75;
+
+  ignoreX = Math.floor(canvas.width / 2);
+  ignoreY = Math.floor(canvas.height / 2);
+
+  // Get pixel data at ignoreX, ignoreY for seed generation
+  var seed = ctx.getImageData(ignoreX, ignoreY, 1, 1);
+
+  // Reset the seed for data decoding
+  var random = new rand(seed.data[0], seed.data[1], seed.data[2], seed.data[3]);
+  random(); random(); random(); random(); // allow randomness to settle in
+
+  var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  var data = imageData.data;
+
+
+  document.getElementById("lblProgress").innerText = "Generating...";
+  console.log("Generating...");
+
+   // Define scatterPoints as a Promise
+   var scatterPromise = new Promise(function(resolve, reject) {
+    resolve(scatterPoints(
+      canvas.width - 1,
+      canvas.height - 1,
+      0,
+      fill_rate,
+      ignoreX,
+      ignoreY,
+      random
+    ));
+  });
+
+  scatterPromise.then(function(uc) {
+    if (uc === false) return;
+
+    document.getElementById("lblProgress").innerText = "Generated";
+    console.log("Generated");
+    
   
-          if (y >= canvas.height) {
-            console.log("exceeded image space");
-            return false;
-          }
-  
-        }
+    var i = 0;
+    var processChunk = function() {
+      for (var j = 0; j < 1000000 && i < uc.length; j++, i++) { // process 100 points per chunk
+        var index = (uc[i].y * canvas.width + uc[i].x) * 4;
+        data[index] = 0xff; // Red channel
+        data[index + 1] = 0xff; // Green channel
+        data[index + 2] = 0xff; // Blue channel
+        data[index + 3] = 0xff; // Alpha channel
       }
+  
+      ctx.putImageData(imageData, 0, 0);
+      if (i < uc.length) {
+        document.getElementById("lblProgress").innerText = Math.floor(i / uc.length * 100).toString() ;
+  
+        requestAnimationFrame(processChunk); // continue processing next chunk
+      } else {
+        var encodedImage = canvas.toDataURL();
+        img.src = encodedImage;
+        document.getElementById("lblProgress").innerText = "...";
+      }
+    };
+  
+    processChunk();
+  });
 
-      var pixel = ctx.getImageData(x, y, 1, 1);
-      pixel.data[z] = 0xFF;
-      ctx.putImageData(pixel, x, y);
-      idx++;
-    }
-  }
-
-  // Get the encoded image data URL
-  var encodedImage = canvas.toDataURL();
-
-  // Update the original image with the encoded image
-  img.src = encodedImage;
 }
+
 
 
 function previewImage(input) {
   if (input.files && input.files[0]) {
     var reader = new FileReader();
 
-    reader.onload = function(e) {
-      var image = document.getElementById('image');
+    reader.onload = function (e) {
+      var image = document.getElementById("image");
       image.src = e.target.result;
       displayImageInfo(image);
-    }
+    };
 
     reader.readAsDataURL(input.files[0]);
   }
 }
 
 function displayImageInfo(image) {
-  const area = (image.naturalWidth * image.naturalHeight) - 1; // remove 1 pixel for the seed
-  const spaceBits = (area * 3) - 32; // remove 32 bits for the length of the data
+  const area = image.naturalWidth * image.naturalHeight - 1; // remove 1 pixel for the seed
+  const spaceBits = area * 3 - 32; // remove 32 bits for the length of the data
   const spaceBytes = Math.floor(spaceBits / 8); // convert to bytes
-  document.getElementById('lblSpace').innerText = 'Data Space: ' + spaceBytes;
+  document.getElementById("lblSpace").innerText = "Data Space: " + spaceBytes;
 }
