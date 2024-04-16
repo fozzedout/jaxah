@@ -73,7 +73,8 @@
     </div>
     
       </body>
-
+      
+      <script src="lsb-coding.js"></script>
       <script>
         document.getElementById("text").addEventListener('mouseup', function () {
           document.getElementById("lblSelectedLength").innerText = this.selectionEnd - this.selectionStart;
@@ -84,8 +85,7 @@
         document.getElementById("text").addEventListener('keyup', function () {
           document.getElementById("lblSelectedLength").innerText = this.selectionEnd - this.selectionStart;
         });
-
+        scatterPoints(1,1,0,0,0,0,new fastRand(1));
     
       </script>
-      <script src="lsb-coding.js"></script>
     </html>
