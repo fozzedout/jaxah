@@ -298,18 +298,7 @@ function encodeRandom() {
   concatenatedArray.set(binaryText, lengthArray.length); // Copy binaryText after the length
 
   // Initialize a seeded random number generator
-  const random = new rand(
-    seed.data[0],
-    seed.data[1],
-    seed.data[2],
-    seed.data[3]
-  );
-
-  // Allow randomness to settle in by calling random function multiple times
-  random();
-  random();
-  random();
-  random();
+  const random = new fastRand((seed.data[0] << 24)+(seed.data[1] << 16)+(seed.data[2] << 8)+seed.data[3]);
 
   // Generate unique coordinates for encoding using seeded random generator
   const uc = scatterPoints(
@@ -384,13 +373,7 @@ function decodeRandom() {
   var seed = ctx.getImageData(ignoreX, ignoreY, 1, 1);
 
   // Initialize a seeded random number generator
-  var random = new rand(seed.data[0], seed.data[1], seed.data[2], seed.data[3]);
-
-  // Allow randomness to settle in by calling random function multiple times
-  random();
-  random();
-  random();
-  random();
+  var random = new fastRand((seed.data[0] << 24)+(seed.data[1] << 16)+(seed.data[2] << 8)+seed.data[3]);
 
   // Fetch the data length
   const ucLength = scatterPoints(
@@ -430,11 +413,7 @@ function decodeRandom() {
     lengthArray[3];
 
   // Reset the seed for data decoding
-  var random = new rand(seed.data[0], seed.data[1], seed.data[2], seed.data[3]);
-  random();
-  random();
-  random();
-  random(); // allow randomness to settle in
+  var random = new fastRand((seed.data[0] << 24)+(seed.data[1] << 16)+(seed.data[2] << 8)+seed.data[3]);
 
   // Regenerate unique coordinates including the length to avoid collisions
   const uc = scatterPoints(
@@ -535,7 +514,7 @@ function scatterTest() {
   // Reset the seed for data decoding
   //var random = new rand(seed.data[0], seed.data[1], seed.data[2], seed.data[3]);
   //random(); random(); random(); random(); // allow randomness to settle in
-  var random = new fastRand(seed.data[0]+ seed.data[1]+ seed.data[2]+ seed.data[3])
+  var random = new fastRand((seed.data[0] << 24)+(seed.data[1] << 16)+(seed.data[2] << 8)+seed.data[3]);
 
   var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   var data = imageData.data;
