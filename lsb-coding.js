@@ -176,15 +176,150 @@ function fastRand(seed) {
    * @returns {number} - The generated random number.
    */
   return function () {
-    // Update seed
     seed = seed ^ (seed << 15);
-    // Update seed
     seed = seed ^ (seed >> 17);
-    // Update seed
     seed = seed ^ (seed << 16);
-    // Return random number
+
+    // Return random number as fraction between 0 and 1
     return (seed >>> 0) / 4294967296;
   };
+}
+
+// ---------------------- MS Lite 2024 Improved update,   [Now default PRIG() function in my game software]
+// Miller Shuffle lite, 
+// produces a shuffled Index given a base Index, a random seed and the length of the list being indexed
+// for each inx: 0 to nlim-1, unique indexes are returned in a pseudo "random" order.
+// 
+// This variation of the Miller Shuffle algorithm is for when you need/want minimal coding and processing, 
+// to acheive good randomness along with desirable shuffle characteristics & many millions of permutations.
+// For a any shuffle this works really well; unlike using rand() which does not.  (used by DDesk_Shuffle)
+function MillerShuffle_lite(inx, mixID, nlim) {
+  var si, r1, r2, r3, rx;
+  var p1=3343;
+  var p2=9949, p3=9973;  // listSize must be smaller than these primes
+  var randR;
+
+  randR=mixID+131*Math.floor(inx/nlim);  // have inx overflow effect the mix
+  si=(inx+randR)%nlim;   // cut the deck
+
+  r1 = randR % p3;	// set of fixed randomizing values
+  r2 = randR % p1;
+  r3 = randR % p2;
+  rx = Math.floor(randR/nlim) % nlim + 1;
+
+  // perform conditional multi-faceted mathematical spin-mixing 
+  if (si % 3 == 0) si = (((si / 3) * p1 + r1) % Math.floor((nlim + 2) / 3)) * 3; // spin-mix multiples of 3 
+  if (si % 2 == 0) si = (((si / 2) * p2 + r2) % Math.floor((nlim + 1) / 2)) * 2; // spin-mix multiples of 2 
+  if (si < rx) si = (si * p3 + r2) % rx;                       // mix random half one way
+  else         si = ((si - rx) * p2 + r1) % (nlim - rx) + rx;  // and the other another
+  si = (si * p3 + r3) % nlim;		// relatively prime gears churning operation
+  
+  return(si);  // return 'Shuffled' index
+}
+
+
+function ms_test() {
+  console.log("starting ms_test()");
+  console.time("ms shuffle");
+
+  var si, r1, r2, r3, rx;
+  var p1=3343;
+  var p2=9949, p3=9973;  // listSize must be smaller than these primes
+  var randR;
+  var mixID=73259;
+  var nlim=22875489;
+
+  for(let inx = 0; inx < nlim; inx++) {
+
+    randR=mixID+131*Math.floor(inx/nlim);  // have inx overflow effect the mix
+    si=(inx+randR)%nlim;   // cut the deck
+  
+    r1 = randR % p3;	// set of fixed randomizing values
+    r2 = randR % p1;
+    r3 = randR % p2;
+    rx = Math.floor(randR/nlim) % nlim + 1;
+  
+    // perform conditional multi-faceted mathematical spin-mixing 
+    if (si % 3 == 0) si = (((si / 3) * p1 + r1) % Math.floor((nlim + 2) / 3)) * 3; // spin-mix multiples of 3 
+    if (si % 2 == 0) si = (((si / 2) * p2 + r2) % Math.floor((nlim + 1) / 2)) * 2; // spin-mix multiples of 2 
+    if (si < rx) si = (si * p3 + r2) % rx;                       // mix random half one way
+    else         si = ((si - rx) * p2 + r1) % (nlim - rx) + rx;  // and the other another
+    si = (si * p3 + r3) % nlim;		// relatively prime gears churning operation
+    
+
+  }
+  console.timeEnd("ms shuffle");
+  console.log("done");
+}
+
+function convertXYZtoIndex(x, y, z, width, height) {
+  return x + (y * width) + (z * width * height);
+}
+
+function convertIndexToXYZ(index, width, height) {
+  let z = Math.floor(index / (width * height));
+  let r = index % (width * height);
+  let y = Math.floor(r / height);
+  let x = r % height;
+
+  return {x: x, y: y, z: z};
+}
+
+function scatterPointsFast(maxX, maxY, maxZ, length, seed) {
+  const width = maxX+1;
+  const height = maxY+1;
+  const wh = width*height;
+  const whd = width*height * (maxZ+1);
+
+  var nlim=whd+3; // total loength + ignore pixel
+
+  // guard against too much allocation (length + ignore pixel)
+  if (whd < length+3) {
+    console.log("Not enougn space in image. Has ", whd, "   needs ", length+3);
+    return false;
+  }
+  document.getElementById("lblProgress").innerText = "Generating points";
+
+  console.log("Generating shuffled points");
+  console.time("Generating points");
+  var si, r1, r2, r3, rx;
+  var p1=3343;
+  var p2=9949, p3=9973;  // listSize must be smaller than these primes
+  var randR;
+
+  let allPoints = new Array(length);
+
+  for(let inx = 0; inx < length; inx++) {
+
+    randR=seed+131*Math.floor(inx/nlim);  // have inx overflow effect the mix
+    si=(inx+randR)%nlim;   // cut the deck
+  
+    r1 = randR % p3;	// set of fixed randomizing values
+    r2 = randR % p1;
+    r3 = randR % p2;
+    rx = Math.floor(randR/nlim) % nlim + 1;
+  
+    // perform conditional multi-faceted mathematical spin-mixing 
+    if (si % 3 == 0) si = (((si / 3) * p1 + r1) % Math.floor((nlim + 2) / 3)) * 3; // spin-mix multiples of 3 
+    if (si % 2 == 0) si = (((si / 2) * p2 + r2) % Math.floor((nlim + 1) / 2)) * 2; // spin-mix multiples of 2 
+    if (si < rx) si = (si * p3 + r2) % rx;                       // mix random half one way
+    else         si = ((si - rx) * p2 + r1) % (nlim - rx) + rx;  // and the other another
+    si = (si * p3 + r3) % nlim;		// relatively prime gears churning operation
+    
+    let z = Math.floor(si / wh);
+    let r = si % wh;
+    let y = Math.floor(r / width);
+    let x = r % width;
+  
+    allPoints[inx] = { x: x, y: y, z: z };
+  }
+
+  console.timeEnd("Generating points");
+  console.log("Points: ", length);
+
+  document.getElementById("lblProgress").innerText = "...";
+
+  return allPoints;
 }
 
 
@@ -214,14 +349,10 @@ function scatterPoints(maxX, maxY, maxZ, length, ignoreX, ignoreY, random) {
     }
   }
 
-  console.timeEnd("Generating points");
-  console.log("Points: ", allPoints.length);
-
   document.getElementById("lblProgress").innerText = "Shuffling points";
   console.log("Shuffling points");
 
   // Shuffle the list of points
-  console.time("Shuffled points");
   for (let i = allPoints.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [allPoints[i], allPoints[j]] = [allPoints[j], allPoints[i]];
@@ -229,7 +360,9 @@ function scatterPoints(maxX, maxY, maxZ, length, ignoreX, ignoreY, random) {
 
   // Truncate the list to the specified length
   const truncatedPoints = allPoints.slice(0, length);
-  console.timeEnd("Shuffled points");
+  console.log("Points: ", truncatedPoints.length);
+
+  console.timeEnd("Generating points");
   document.getElementById("lblProgress").innerText = "...";
 
   return truncatedPoints;
@@ -324,6 +457,8 @@ function encodeRandom() {
       idx++;
     }
   }
+
+  concatenatedArray = [];
 
   // Get the encoded image data URL
   var encodedImage = canvas.toDataURL();
@@ -559,8 +694,7 @@ function scatterTest() {
         document.getElementById("lblProgress").innerText = Math.floor(i / sp.length * 100).toString() ;
         requestAnimationFrame(processChunk); // continue processing next chunk
       } else {
-        var encodedImage = canvas.toDataURL();
-        img.src = encodedImage;
+        img.src = canvas.toDataURL();
         document.getElementById("lblProgress").innerText = "...";
       }
     };
@@ -572,6 +706,112 @@ function scatterTest() {
   requestAnimationFrame(myDisplayer);
 
 }
+
+
+
+/**
+ * Tests for scattering
+ */
+function scatterTestFast() {
+  //document.getElementById("lblProgress").innerText = "Scattering...";
+  displayer = "Scattering...";
+  requestAnimationFrame(myDisplayer);
+  console.log("Scattering...");
+
+  /**
+   * Reference to the image element.
+   * @type {HTMLImageElement}
+   */
+  var img = document.getElementById("image");
+
+  if (img.currentSrc === "") {
+    document.getElementById("lblProgress").innerText = "...";
+    return;
+  }
+
+  /**
+   * A dynamically created canvas element.
+   * @type {HTMLCanvasElement}
+   */
+  var canvas = document.createElement("canvas");
+
+  /**
+   * The 2D rendering context of the canvas.
+   * @type {CanvasRenderingContext2D}
+   */
+  var ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  // Set canvas dimensions to match image natural size
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  
+  // Draw the image onto the canvas
+  ctx.drawImage(img, 0, 0);
+
+  // fill test rate
+  fill_rate = canvas.width * canvas.height * 0.5;
+
+  // Get pixel data at ignoreX, ignoreY for seed generation
+  seedX = Math.floor(canvas.width / 2);
+  seedY = Math.floor(canvas.height / 2);
+  var seed = ctx.getImageData(seedX, seedY, 1, 1);
+  var seedNum = ((seed.data[0] & 0xfe) << 16) + ((seed.data[1] & 0xfe) << 8) + (seed.data[2] & 0xfe);
+
+  var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  var data = imageData.data;
+
+
+  //document.getElementById("lblProgress").innerText = "Generating...";
+  displayer = "Generating...";
+  requestAnimationFrame(myDisplayer);
+
+  console.log("Generating...");
+
+   // Define scatterPoints as a Promise
+   var sp = scatterPointsFast(
+      canvas.width - 1,
+      canvas.height - 1,
+      0,
+      fill_rate,
+      seedNum
+    );
+
+    if (sp === false) return;
+
+    //document.getElementById("lblProgress").innerText = "Generated";
+    displayer = "Generated";
+    requestAnimationFrame(myDisplayer);
+    console.log("Generated");
+  
+    var i = 0;
+    var processChunk = function() {
+      for (var j = 0; j < 1000000 && i < sp.length; j++, i++) { // process 100 points per chunk
+        var index = (sp[i].y * canvas.width + sp[i].x) * 4;
+        data[index] = 0xff; // Red channel
+        data[index + 1] = 0xff; // Green channel
+        data[index + 2] = 0xff; // Blue channel
+        data[index + 3] = 0xff; // Alpha channel
+      }
+  
+      ctx.putImageData(imageData, 0, 0);
+      if (i < sp.length) {
+        document.getElementById("lblProgress").innerText = Math.floor(i / sp.length * 100).toString() ;
+        requestAnimationFrame(processChunk); // continue processing next chunk
+      } else {
+        img.src = canvas.toDataURL();
+        document.getElementById("lblProgress").innerText = "...";
+      }
+    };
+  
+    processChunk();
+
+  //document.getElementById("lblProgress").innerText = "...";
+  displayer = "...";
+  requestAnimationFrame(myDisplayer);
+
+}
+
+
 
 let displayer = "...";
 function myDisplayer() {
