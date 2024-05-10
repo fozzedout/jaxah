@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+
+<head>
+  <title>Secure Reveal</title>
+
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="lsb-coding.css" />
+</head>
+
+<body>
+  <div class="bg-white px-6 py-8 text-slate-900 dark:bg-slate-900 dark:text-white">
+    <div class="container mx-auto py-8">
+      <div class="flex flex-wrap">
+        <!-- Picture Upload Section -->
+        <div class="flex-auto px-2">
+          <div class="mb-4 rounded-md bg-gray-200 p-4 shadow-md dark:bg-slate-800">
+            <h2 class="mb-4 text-lg font-semibold">Choose Picture</h2>
+            <input type="file" id="imageFile" accept="image/*"
+              class="block w-full cursor-pointer rounded-lg border border-gray-300 bg-gray-50 text-sm text-gray-900 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:placeholder-gray-400"
+              onchange="previewImage(this)" />
+            <div class="overflow-scroll">
+              <img id="image" src="" alt="Image" />
+            </div>
+          </div>
+        </div>
+        <!-- Text Entry Section -->
+        <div class="flex-auto px-2">
+          <div class="rounded-md bg-gray-200 p-4 shadow-md dark:bg-slate-800">
+            <h2>Load the picture and click Reveal
+              <span id="lblProgress">...</span>
+            </h2>
+            <div>
+              <button
+                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700"
+                onclick="decodeRandom()">Reveal</button>
+            </div>
+
+            <textarea id="text" rows="25"
+              class="h-128 w-full rounded-md border bg-gray-200 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+<script src="lsb-coding.js"></script>
+<script>
+  scatterPoints(1, 1, 0, 0, 0, 0, new fastRand(1));
+</script>
+
+</html>
