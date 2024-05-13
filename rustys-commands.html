@@ -493,6 +493,10 @@ video {
   --tw-border-opacity: 1;
   border-color: rgb(0 0 0 / var(--tw-border-opacity));
 }
+.bg-slate-900 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(15 23 42 / var(--tw-bg-opacity));
+}
 .text-xl {
   font-size: 1.25rem;
   line-height: 1.75rem;
@@ -500,10 +504,13 @@ video {
 .font-bold {
   font-weight: 700;
 }
-
+.text-white {
+  --tw-text-opacity: 1;
+  color: rgb(255 255 255 / var(--tw-text-opacity));
+}
 </style>
 </head>
-<body>
+<body class="text-white bg-slate-900">
 <div class="m-4">
 <div class="text-xl font-bold mb-4">Chat Commands</div>
 <table border="1" class="border-black">
