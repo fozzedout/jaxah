@@ -547,6 +547,9 @@ function decodeRandom() {
     (lengthArray[2] << 8) |
     lengthArray[3];
 
+  console.log("Length: ");
+  console.log(length);
+
   // Reset the seed for data decoding
   var random = new fastRand((seed.data[0] << 24)+(seed.data[1] << 16)+(seed.data[2] << 8)+seed.data[3]);
 
