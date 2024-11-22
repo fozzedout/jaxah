@@ -105,7 +105,7 @@ function generatePassword(length) {
   for (let i = 0; i < length; i++) {
 
     // Add number & symbol
-    if (i > 0 && i % 6 === 0) {
+    if (i > 0 && i % 7 === 0) {
       if (Math.random() < 0.5) {
         // 50% chance of adding a symbol first
         password += symbols[Math.floor(Math.random() * symbols.length)];
