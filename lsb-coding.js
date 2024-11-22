@@ -103,14 +103,6 @@ function generatePassword(length) {
   let password = "";
 
   for (let i = 0; i < length; i++) {
-    if (i % 2 === 0) {
-      // Even index, add a consonant
-      password += consonants[Math.floor(Math.random() * consonants.length)];
-    } else {
-      // Odd index, add a vowel
-      const randomIndex = Math.floor(Math.random() * vowels.length);
-      password += vowels[randomIndex];
-    }
 
     // Add number & symbol
     if (i > 0 && i % 6 === 0) {
@@ -123,6 +115,13 @@ function generatePassword(length) {
         password += Math.floor(Math.random() * 10);
         password += symbols[Math.floor(Math.random() * symbols.length)];
       }
+    } else if (i % 2 === 0) {
+      // Even index, add a consonant
+      password += consonants[Math.floor(Math.random() * consonants.length)];
+    } else {
+      // Odd index, add a vowel
+      const randomIndex = Math.floor(Math.random() * vowels.length);
+      password += vowels[randomIndex];
     }
 
     if (i % 4 === 0) {
