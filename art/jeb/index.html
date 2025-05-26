@@ -122,6 +122,27 @@
             box-shadow: 0 6px 8px rgba(0,0,0,0.15);
             background: var(--button-hover);
         }
+        .nav {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+        .nav a {
+            display: inline-block;
+            padding: 8px 15px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            text-decoration: none;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+            box-shadow: var(--card-shadow);
+            backdrop-filter: blur(5px);
+        }
+        .nav a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
 
         @media (max-width: 768px) {
             body {
@@ -139,6 +160,14 @@
             }
             .purchase-link a {
                 padding: 10px 20px;
+                font-size: 0.9em;
+            }
+            .nav {
+                top: 10px;
+                left: 10px;
+            }
+            .nav a {
+                padding: 6px 12px;
                 font-size: 0.9em;
             }
         }
@@ -159,6 +188,10 @@
     </style>
 </head>
 <body>
+    <div class="nav">
+        <a href="../../index.html">← Home</a>
+    </div>
+
     <div class="header">
         <a href="https://greatmasterpieces.com/index.php" target="_blank">
             <img src="logopiece.png" alt="Jonathon Earl Bowser Logo" class="logo">
