@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jonathon Earl Bowser - Gallery</title>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
+            --text-color: #2c3e50;
+            --card-bg: rgba(255,255,255,0.7);
+            --card-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            --button-gradient: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            --button-hover: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-gradient: linear-gradient(135deg, #1a1a1a 0%, #2d3436 100%);
+                --text-color: #ecf0f1;
+                --card-bg: rgba(44, 62, 80, 0.7);
+                --card-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                --button-gradient: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+                --button-hover: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            }
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: var(--bg-gradient);
+            color: var(--text-color);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
+        }
+        .header::after {
+            content: '';
+            display: block;
+            width: 150px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--text-color), transparent);
+            margin: 20px auto;
+        }
+        .logo {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            margin: 20px auto;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+            padding: 20px;
+            background: var(--card-bg);
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+            box-shadow: var(--card-shadow);
+        }
+        .artwork {
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .artwork:hover {
+            transform: translateY(-5px);
+        }
+        .artwork img {
+            width: 100%;
+            max-width: 150px;
+            height: auto;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border: 1px solid rgba(44, 62, 80, 0.1);
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
+        }
+        .artwork img:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        .bio {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: justify;
+            padding: 30px;
+            background: var(--card-bg);
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+            box-shadow: var(--card-shadow);
+        }
+        h1 {
+            color: var(--text-color);
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .purchase-link {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .purchase-link a {
+            display: inline-block;
+            padding: 12px 25px;
+            background: var(--button-gradient);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            box-shadow: var(--card-shadow);
+        }
+        .purchase-link a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+            background: var(--button-hover);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .gallery {
+                gap: 15px;
+                padding: 15px;
+            }
+            .bio {
+                padding: 20px;
+            }
+            .artwork img {
+                max-width: 120px;
+            }
+            .purchase-link a {
+                padding: 10px 20px;
+                font-size: 0.9em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .gallery {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            .artwork img {
+                max-width: 100%;
+            }
+            .bio {
+                padding: 15px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="https://greatmasterpieces.com/index.php" target="_blank">
+            <img src="logopiece.png" alt="Jonathon Earl Bowser Logo" class="logo">
+        </a>
+    </div>
+
+    <div class="bio">
+        <p>Jonathon Earl Bowser is a renowned Canadian artist known for his distinctive style that blends romanticism, spirituality, and sensuality. His work captures the essence of feminine beauty and strength, often portraying women in harmony with nature. Each piece is meticulously crafted with immaculate attention to detail, featuring vivid colors and near-invisible brushstrokes that echo the techniques of the old Masters.</p>
+    </div>
+
+    <div class="gallery">
+        <div class="artwork">
+            <a href="https://greatmasterpieces.com/index.php" target="_blank">
+                <img src="allmylove150.png" alt="All My Love">
+            </a>
+        </div>
+        <div class="artwork">
+            <a href="https://greatmasterpieces.com/index.php" target="_blank">
+                <img src="appr2150.png" alt="Appr2">
+            </a>
+        </div>
+        <div class="artwork">
+            <a href="https://greatmasterpieces.com/index.php" target="_blank">
+                <img src="discretion150.png" alt="Discretion">
+            </a>
+        </div>
+        <div class="artwork">
+            <a href="https://greatmasterpieces.com/index.php" target="_blank">
+                <img src="marian150.png" alt="Marian">
+            </a>
+        </div>
+        <div class="artwork">
+            <a href="https://greatmasterpieces.com/index.php" target="_blank">
+                <img src="missing150.png" alt="Missing">
+            </a>
+        </div>
+        <div class="artwork">
+            <a href="https://greatmasterpieces.com/index.php" target="_blank">
+                <img src="sincerely150.png" alt="Sincerely">
+            </a>
+        </div>
+    </div>
+
+    <div class="purchase-link">
+        <a href="https://greatmasterpieces.com/index.php" target="_blank">View Full Collection & Purchase Art</a>
+    </div>
+</body>
+</html> 
