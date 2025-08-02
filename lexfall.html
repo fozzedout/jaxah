@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Grid Game</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin: 0; padding: 1em; background: #f0f0f0; }
+    #game { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; max-width: 400px; margin: auto; touch-action: none; }
+    .tile {
+      background: white; border: 2px solid #ccc; font-size: 2em; padding: 20px;
+      user-select: none; border-radius: 8px; transition: background 0.2s;
+    }
+    .tile.selected { background: #aaf; }
+    #wordDisplay, #scoreDisplay, #turnsLeft { margin-top: 1em; font-size: 1.2em; }
+    button { padding: 1em; margin: 0.5em; font-size: 1em; border-radius: 6px; border: none; }
+    #confirm { background: #28a745; color: white; }
+    #reject { background: #dc3545; color: white; }
+  </style>
+</head>
+<body>
+
+<h1>Word Grid</h1>
+<div id="game"></div>
+<div id="wordDisplay">Word: </div>
+<div id="scoreDisplay">Score: 0</div>
+<div id="turnsLeft">Turns Left: 10</div>
+<button id="confirm">✓ Confirm</button>
+<button id="reject">✗ Reject</button>
+
+<script>
+  const LETTER_SCORES = {
+    A:1, B:3, C:3, D:2, E:1, F:4, G:2, H:4, I:1, J:8,
+    K:5, L:1, M:3, N:1, O:1, P:3, Q:10, R:1, S:1, T:1,
+    U:1, V:4, W:4, X:8, Y:4, Z:10
+  };
+
+  let grid = [], selectedTiles = [], score = 0, turns = 10;
+  const gameEl = document.getElementById('game');
+  const wordDisplay = document.getElementById('wordDisplay');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const turnsDisplay = document.getElementById('turnsLeft');
+
+  function randomLetter() {
+    const letters = "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ";
+    return letters[Math.floor(Math.random() * letters.length)];
+  }
+
+  function generateGrid() {
+    gameEl.innerHTML = '';
+    grid = [];
+    for (let i = 0; i < 16; i++) {
+      const letter = randomLetter();
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.dataset.index = i;
+      tile.textContent = letter;
+      tile.addEventListener('touchstart', touchStart);
+      tile.addEventListener('touchmove', touchMove);
+      tile.addEventListener('click', () => selectTile(i));
+      gameEl.appendChild(tile);
+      grid.push({letter, element: tile});
+    }
+  }
+
+  function selectTile(index) {
+    if (selectedTiles.includes(index)) return;
+    if (selectedTiles.length > 0 && !isAdjacent(index, selectedTiles[selectedTiles.length - 1])) return;
+    selectedTiles.push(index);
+    grid[index].element.classList.add('selected');
+    updateWordDisplay();
+  }
+
+  function isAdjacent(i1, i2) {
+    const [r1, c1] = [Math.floor(i1 / 4), i1 % 4];
+    const [r2, c2] = [Math.floor(i2 / 4), i2 % 4];
+    return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
+  }
+
+  function updateWordDisplay() {
+    const word = selectedTiles.map(i => grid[i].letter).join('');
+    wordDisplay.textContent = `Word: ${word}`;
+  }
+
+  function calculateScore(word) {
+    return [...word].reduce((acc, ch) => acc + (LETTER_SCORES[ch] || 0), 0);
+  }
+
+  function confirmWord() {
+    if (selectedTiles.length === 0 || turns === 0) return;
+    const word = selectedTiles.map(i => grid[i].letter).join('');
+    const wordScore = calculateScore(word.toUpperCase());
+    score += wordScore;
+    scoreDisplay.textContent = `Score: ${score}`;
+    turns--;
+    turnsDisplay.textContent = `Turns Left: ${turns}`;
+    clearSelection();
+
+    if (turns === 0) {
+      submitScore(score);
+      alert(`Game over! Final score: ${score}`);
+    }
+  }
+
+  function rejectWord() {
+    clearSelection();
+  }
+
+  function clearSelection() {
+    selectedTiles.forEach(i => grid[i].element.classList.remove('selected'));
+    selectedTiles = [];
+    updateWordDisplay();
+  }
+
+  function submitScore(score) {
+    // Placeholder API integration
+    fetch("https://example.com/api/submit-score", {
+      method: "POST",
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player: "Player1", score: score })
+    }).then(res => {
+      if (!res.ok) console.error("API submission failed");
+    });
+  }
+
+  function touchStart(e) {
+    const tile = e.target.closest('.tile');
+    if (!tile) return;
+    const i = parseInt(tile.dataset.index);
+    selectTile(i);
+  }
+
+  function touchMove(e) {
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!el || !el.classList.contains('tile')) return;
+    const i = parseInt(el.dataset.index);
+    selectTile(i);
+  }
+
+  document.getElementById('confirm').addEventListener('click', confirmWord);
+  document.getElementById('reject').addEventListener('click', rejectWord);
+
+  generateGrid();
+</script>
+
+</body>
+</html>
