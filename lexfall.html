@@ -5,98 +5,105 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <title>Lexfall</title>
   <style>
-    :root { --green:#3bb273; --green-soft:#bff0cf; --red:#dc3545; --blue:#339; --bg:#f0f0f0; --tile-bg:#fff; --tile-border:#ccc; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; text-align:center; margin:0; padding:12px; background:var(--bg); }
-    h1 { margin:6px 0 4px; font-size:1.25rem; }
+  /* Legacy-friendly styles: no CSS variables, flex fallback by default */
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; text-align:center; margin:0; padding:12px; background:#f0f0f0; }
+  h1 { margin:6px 0 4px; font-size:1.25rem; }
 
-    #container { position:relative; width:100%; max-width:420px; margin:0 auto; }
+  #container { position:relative; width:100%; max-width:420px; margin:0 auto; }
 
-    /* Settings icon fixed at top right of the screen */
-    #settingsIcon {
-      position:fixed; top:8px; right:8px; width:36px; height:36px;
-      display:inline-flex; align-items:center; justify-content:center;
-      background:#ffffff; border:2px solid var(--tile-border); border-radius:50%;
-      text-decoration:none; z-index:9999; box-shadow:0 1px 2px rgba(0,0,0,0.08);
-    }
-    #settingsIcon svg { width:18px; height:18px; fill:#333333; }
+  /* Fixed settings icon */
+  #settingsIcon {
+    position:fixed; top:8px; right:8px; width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:#ffffff; border:2px solid #cccccc; border-radius:50%;
+    text-decoration:none; z-index:9999; box-shadow:0 1px 2px rgba(0,0,0,0.08);
+  }
+  #settingsIcon svg { width:18px; height:18px; fill:#333333; }
 
-    /* HUD */
-    #hud { max-width:420px; margin:8px auto 10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    #wordDisplay { grid-column:1 / -1; font-weight:700; }
-    #scoreDisplay, #turnsLeft { font-size:0.95rem; }
+  /* HUD */
+  #hud { max-width:420px; margin:8px auto 10px; }
+  #wordDisplay { font-weight:700; margin-bottom:4px; }
+  #scoreDisplay, #turnsLeft { display:inline-block; width:49%; font-size:0.95rem; }
 
-    /* Game grid */
+  /* Game: flex fallback (default) */
+  #game {
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:space-between;
+    width:100%;
+    position:relative;
+    background:#e0e0e0;
+    border-radius:12px;
+    padding:6px;
+    min-height:320px; /* ensures visibility if JS sizing fails */
+  }
+
+  .tile {
+    background:#ffffff;
+    border:2px solid #cccccc;
+    font-size:2.1em;
+    font-weight:800;
+    user-select:none;
+    border-radius:12px;
+    transition:background .15s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    touch-action:none;
+    width:calc(25% - 8px);
+    margin:4px;
+    /* height will be set equal to width via JS to make squares */
+    overflow:hidden;
+  }
+  .tile.selected { background:#e8f0ff; border-color:#cccccc; }
+  .tile.selected.valid { background:#bff0cf; border-color:#3bb273; }
+  .tile.selected.invalid { background:#ffecec; border-color:#dc3545; }
+  .tile.empty { background:#f9f9f9; border:2px dashed #dddddd; }
+  .tile .score { position:absolute; right:6px; bottom:4px; font-size:.5em; opacity:.8; }
+
+  #overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+
+  #controls { display:flex; justify-content:center; gap:10px; margin:10px auto; }
+  button { padding:.9em 1.1em; margin:.2em; font-size:1em; border-radius:10px; border:none; cursor:pointer; }
+  #confirm { background:#3bb273; color:#fff; display:none; }
+  #reject { background:#dc3545; color:#fff; display:none; }
+
+  /* New Game emphasis */
+  #newGame {
+    display:none; background:#ff8c00; color:#fff; font-weight:800;
+    box-shadow:0 0 0 0 rgba(255,140,0,0.7);
+    animation:pulseGlow 1.7s infinite;
+  }
+  @keyframes pulseGlow {
+    0% { box-shadow:0 0 0 0 rgba(255,140,0,0.7); }
+    70% { box-shadow:0 0 0 16px rgba(255,140,0,0); }
+    100% { box-shadow:0 0 0 0 rgba(255,140,0,0); }
+  }
+
+  #status { max-width:420px; margin:8px auto 0; font-size:.98em; }
+
+  /* If CSS Grid is supported, use it */
+  @supports (display: grid) {
     #game {
       display:grid;
       grid-template-columns:repeat(4,1fr);
       gap:6px;
-      width:100%;
-      /* aspect-ratio is great where supported; JS fallback handles the rest */
-      aspect-ratio:1/1;
-      position:relative;
-      z-index:1;
-      touch-action:none;
-      background:#e0e0e0;
-      border-radius:12px;
       padding:6px;
-      min-height:320px; /* ensures visibility even if aspect-ratio unsupported */
     }
-    .tile {
-      background:var(--tile-bg);
-      border:2px solid var(--tile-border);
-      font-size:2.1em;
-      font-weight:800;
-      user-select:none;
-      border-radius:12px;
-      transition:background .15s, transform .05s;
-      min-width:0;
-      min-height:72px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      position:relative;
-      z-index:2;
-      touch-action:none;
-    }
-    .tile.selected { background:#e8f0ff; border-color:var(--tile-border); }
-    .tile.selected.valid { background:var(--green-soft); border-color:var(--green); }
-    .tile.selected.invalid { background:#ffecec; border-color:var(--red); }
-    .tile.empty { background:#f9f9f9; border:2px dashed #ddd; } /* keep visible even when empty */
-    .tile .score { position:absolute; right:6px; bottom:4px; font-size:.5em; opacity:.8; }
+    .tile { width:auto; margin:0; }
+  }
 
-    #overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5; }
-
-    #controls { display:flex; justify-content:center; gap:10px; margin:10px auto; }
-    button { padding:.9em 1.1em; margin:.2em; font-size:1em; border-radius:10px; border:none; cursor:pointer; }
-    #confirm { background:var(--green); color:#fff; display:none; }
-    #reject { background:var(--red); color:#fff; display:none; }
-
-    /* Make New Game button stand out more */
-    #newGame {
-      display:none; background:#ff8c00; color:#fff; font-weight:800;
-      box-shadow:0 0 0 0 rgba(255,140,0,0.7); transform:translateZ(0);
-      animation:pulseGlow 1.7s infinite;
-    }
-    @keyframes pulseGlow {
-      0% { box-shadow:0 0 0 0 rgba(255,140,0,0.7); }
-      70% { box-shadow:0 0 0 16px rgba(255,140,0,0); }
-      100% { box-shadow:0 0 0 0 rgba(255,140,0,0); }
-    }
-
-    #status { max-width:420px; margin:8px auto 0; font-size:.98em; }
-
-    /* Responsive tweaks */
-    @media (max-width: 380px) {
-      #game { gap:4px; padding:4px; }
-      .tile { min-height:64px; font-size:1.7em; }
-      .tile .score { font-size:.45em; right:4px; bottom:3px; }
-      #settingsIcon { width:32px; height:32px; }
-      #settingsIcon svg { width:16px; height:16px; }
-    }
-    @media (max-width: 330px) {
-      .tile { min-height:56px; font-size:1.55em; }
-    }
-  </style>
+  /* Responsive tweaks */
+  @media (max-width: 380px) {
+    .tile { font-size:1.7em; }
+    #settingsIcon { width:32px; height:32px; }
+    #settingsIcon svg { width:16px; height:16px; }
+  }
+  @media (max-width: 330px) {
+    .tile { font-size:1.55em; }
+  }
+</style>
 </head>
 <body>
 
@@ -225,6 +232,26 @@ function sizeGridSquare(){
 }
 window.addEventListener('resize', sizeGridSquare);
 
+// Make tiles square for legacy browsers (no CSS aspect-ratio or grid)
+function sizeTilesSquare(){
+  try {
+    var tiles = gameEl.getElementsByClassName('tile');
+    if (!tiles || !tiles.length) return;
+    for (var i=0;i<tiles.length;i++){
+      var w = tiles[i].offsetWidth || 0;
+      if (w > 0) { tiles[i].style.height = w + 'px'; }
+    }
+    // Sync overlay box to #game
+    var rect = gameEl.getBoundingClientRect();
+    overlay.setAttribute('width', rect.width);
+    overlay.setAttribute('height', rect.height);
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+  } catch(e){}
+}
+window.addEventListener('resize', sizeTilesSquare);
+
+
 // Letter randomizer
 function randomLetter() {
   var letters = "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ";
@@ -258,6 +285,7 @@ function renderGrid() {
     }
   }
   setTimeout(sizeGridSquare, 0);
+  setTimeout(sizeTilesSquare, 0);
   updateWordDisplay();
   drawPath();
 }
@@ -573,6 +601,7 @@ btnNewGame.addEventListener('click', function(){
   turnsDisplay.textContent = 'Turns Left: ' + turns;
   attachInputListeners();
   sizeGridSquare();
+  sizeTilesSquare();
   ensurePlayableOrReshuffle();
 })();
 </script>
