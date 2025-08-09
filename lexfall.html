@@ -1,142 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Word Grid Game — UI Improved</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Word Grid — Merged (slide + UI + remove)</title>
 <style>
   :root { --green:#3bb273; --green-soft:#bff0cf; --red:#dc3545; --blue:#336; --bg:#f7f7f8; --tile-bg:#fff; --tile-border:#cfcfd4; }
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; text-align: center; margin: 0; padding: 16px; background: var(--bg); color:#111; }
-  h1 { margin: 6px 0 12px; font-size: 1.4rem; font-weight: 700; }
-  #game { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%; max-width: 420px; margin: 0 auto; }
-  .tile { background: var(--tile-bg); border: 2px solid var(--tile-border); border-radius: 14px; display: flex; align-items: center; justify-content: center; user-select: none; position: relative; transition: transform 0.08s ease, box-shadow .12s ease; aspect-ratio: 1/1; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:16px; text-align:center; background:var(--bg); color:#111; }
+  h1 { margin:6px 0 10px; font-size: 1.35rem; }
+
+  #container { width:100%; max-width: 420px; margin: 0 auto; }
+  #current { font-weight:700; margin:6px auto 10px; }
+  #game { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; width:100%; touch-action:none; }
+
+  .tile { background:var(--tile-bg); border:2px solid var(--tile-border); border-radius:14px; position:relative; display:flex; align-items:center; justify-content:center; aspect-ratio:1/1; user-select:none; transition: transform .08s ease, box-shadow .12s ease; }
   .tile:hover { transform: translateY(-2px); }
-  .tile .letter { font-size: 2.1em; font-weight: 800; letter-spacing: .02em; }
-  .tile .score { position: absolute; right: 6px; bottom: 4px; font-size: .72em; opacity: .8; }
+  .tile .letter { font-size:2.1rem; font-weight:800; letter-spacing:.02em; }
+  .tile .score { position:absolute; right:6px; bottom:4px; font-size:.72rem; opacity:.8; }
+
   .tile.selected { box-shadow: 0 0 0 2px rgba(51,102,153,.18) inset; }
-  .tile.selected.valid { background: var(--green-soft); border-color: var(--green); box-shadow: 0 0 0 2px rgba(59,178,115,.35) inset; }
-  .tile.selected.invalid { background: #ffefef; border-color: var(--red); box-shadow: 0 0 0 2px rgba(220,53,69,.25) inset; }
+  .tile.selected.valid { background: var(--green-soft); border-color: var(--green); box-shadow:0 0 0 2px rgba(59,178,115,.35) inset; }
+  .tile.selected.invalid { background:#ffefef; border-color: var(--red); box-shadow:0 0 0 2px rgba(220,53,69,.25) inset; }
 
-  #controls { margin: 12px auto 0; display: flex; gap: 10px; justify-content: center; align-items:center; max-width: 420px; }
-  button { padding: 10px 14px; border-radius: 10px; border: none; cursor: pointer; font-weight: 600; }
-  #confirm { background: var(--green); color:#fff; display:none; }
-  #reject { background: #e9e9ef; color:#111; display:none; }
-  button[disabled] { opacity: .5; cursor: not-allowed; }
+  #controls { margin:12px auto 0; display:flex; gap:10px; justify-content:center; }
+  button { padding:10px 14px; border-radius:10px; border:none; font-weight:600; cursor:pointer; }
+  #confirm { background:var(--green); color:#fff; display:none; }
+  #reject { background:#e9e9ef; color:#111; display:none; }
+  button[disabled]{ opacity:.5; cursor:not-allowed; }
 
-  #status { max-width: 420px; margin: 10px auto 0; text-align: left; }
-  #status .card { background:#fff; border:1px solid #e4e4ea; border-radius: 12px; padding: 10px 12px; }
+  #status { max-width:420px; margin:10px auto 0; text-align:left; }
+  #status .card { background:#fff; border:1px solid #e4e4ea; border-radius:12px; padding:10px 12px; }
 </style>
 </head>
 <body>
-<h1>Word Grid</h1>
-<div id="game"></div>
-<div id="controls">
-  <button id="confirm">Confirm</button>
-  <button id="reject">Clear</button>
-</div>
-<div id="status"><div class="card">Select letters to form a word.</div></div>
-
+  <div id="container">
+    <h1>Word Grid</h1>
+    <div id="current">Word: <span id="currentWord"></span></div>
+    <div id="game"></div>
+    <div id="controls">
+      <button id="confirm">Confirm</button>
+      <button id="reject">Clear</button>
+    </div>
+    <div id="status"><div class="card">Slide or click to select adjacent letters.</div></div>
+  </div>
 <script>
-const ROWS = 4, COLS = 4;
-let grid = [], selectedTiles = [], DICT = new Set();
+// --- Config ---
+const ROWS = 4, COLS = 4, MAX_WORD_LEN = 16;
 const LETTER_SCORES = { A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10 };
 
+// --- State & DOM ---
+let grid = [], selectedTiles = [], pointerActive = false, slidThisGesture = false;
 const gameEl = document.getElementById('game');
 const statusEl = document.getElementById('status');
 const btnConfirm = document.getElementById('confirm');
 const btnReject  = document.getElementById('reject');
+const currentWordEl = document.getElementById('currentWord');
+let DICT = new Set(); let PREFIX = new Set();
 
-function randomLetter() {
+// --- Helpers ---
+function randomLetter(){
   const letters = "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ";
-  return letters[Math.floor(Math.random() * letters.length)];
+  return letters[Math.floor(Math.random()*letters.length)];
 }
+function isAdj(r,c,pr,pc){ return Math.abs(r-pr)<=1 && Math.abs(c-pc)<=1; }
+function currentWord(){ return selectedTiles.map(([r,c])=>grid[r][c].letter).join(''); }
+function calculateScore(word){ return [...word].reduce((s,ch)=>s+(LETTER_SCORES[ch]||0),0); }
 
-function makeGrid() {
+// --- Build & Render ---
+function makeGrid(){
   grid = [];
-  for (let r = 0; r < ROWS; r++) {
-    const row = [];
-    for (let c = 0; c < COLS; c++) row.push({ letter: randomLetter(), element: null });
-    grid.push(row);
-  }
-}
+  for (let r=0;r<ROWS;r++){ const row=[]; for(let c=0;c<COLS;c++) row.push({letter:randomLetter(), element:null}); grid.push(row);} }
 
-function renderGrid() {
+function renderGrid(){
   gameEl.innerHTML = '';
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
+  for (let r=0;r<ROWS;r++){
+    for (let c=0;c<COLS;c++){
       const tile = document.createElement('div');
-      tile.className = 'tile';
-      tile.dataset.row = r; tile.dataset.col = c;
-      const ch = grid[r][c].letter; const val = LETTER_SCORES[ch] || 0;
+      tile.className = 'tile'; tile.dataset.row=r; tile.dataset.col=c;
+      const ch = grid[r][c].letter; const val = LETTER_SCORES[ch]||0;
       tile.innerHTML = `<span class="letter">${ch}</span><span class="score">${val}</span>`;
-      tile.addEventListener('click', () => selectTile(r, c));
+      tile.addEventListener('pointerdown', pointerDown, {passive:false});
+      tile.addEventListener('pointermove', pointerMove, {passive:false});
+      tile.addEventListener('click', ()=> selectTile(r,c)); // click-by-click fallback
       gameEl.appendChild(tile);
       grid[r][c].element = tile;
     }
   }
+  updateUI();
 }
 
-function selectTile(r, c) {
-  // prevent re-selecting the same tile
-  const idx = selectedTiles.findIndex(([rr, cc]) => rr === r && cc === c);
-  if (idx >= 0) return;
-  selectedTiles.push([r, c]);
-  updateSelectionHighlight();
+// --- Selection ---
+function selectTile(r,c){
+  if (selectedTiles.some(([rr,cc])=> rr===r && cc===c)) return;
+  if (selectedTiles.length>0){ const [pr,pc]=selectedTiles[selectedTiles.length-1]; if(!isAdj(r,c,pr,pc)) return; }
+  selectedTiles.push([r,c]);
+  updateUI();
 }
 
-function updateSelectionHighlight() {
-  document.querySelectorAll('.tile').forEach(t => t.classList.remove('selected', 'valid', 'invalid'));
-  const word = currentWord().toUpperCase();
-  const hasSel = selectedTiles.length > 0;
-  const isValid = hasSel && DICT.has(word);
-  selectedTiles.forEach(([r, c]) => {
-    grid[r][c].element.classList.add('selected', isValid ? 'valid' : 'invalid');
-  });
-  updateButtons();
+function tileFromEvent(e){
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const tile = el && (el.classList?.contains('tile') ? el : el.closest?.('.tile'));
+  if (!tile) return null; return [Number(tile.dataset.row), Number(tile.dataset.col)];
 }
+function pointerDown(e){ e.preventDefault(); pointerActive=true; slidThisGesture=false; const t = tileFromEvent(e); if (t) selectTile(t[0],t[1]); }
+function pointerMove(e){ if(!pointerActive) return; e.preventDefault(); const t = tileFromEvent(e); if(!t) return; const [r,c]=t; if(!selectedTiles.some(([rr,cc])=>rr===r&&cc===c)){ if(selectedTiles.length===0) selectTile(r,c); else { const [pr,pc]=selectedTiles[selectedTiles.length-1]; if(isAdj(r,c,pr,pc)){ slidThisGesture=true; selectTile(r,c); } } } }
 
-function updateButtons(){
-  const hasSel = selectedTiles.length > 0;
-  const isValid = hasSel && DICT.has(currentWord().toUpperCase());
+document.addEventListener('pointerup', ()=>{ if(!pointerActive) return; pointerActive=false; if(selectedTiles.length===0) return; if(!slidThisGesture) return; const w=currentWord().toUpperCase(); if(DICT.has(w)) confirmWord(); else clearSelection(); });
+
+// --- UI update ---
+function updateUI(){
+  // classes
+  document.querySelectorAll('.tile').forEach(t=>t.classList.remove('selected','valid','invalid'));
+  const w = currentWord(); const up = w.toUpperCase();
+  const hasSel = selectedTiles.length>0; const isValid = hasSel && DICT.has(up);
+  selectedTiles.forEach(([r,c])=> grid[r][c].element.classList.add('selected', isValid? 'valid':'invalid'));
+  // word display
+  currentWordEl.textContent = w;
+  // buttons
   btnConfirm.style.display = isValid ? 'inline-block' : 'none';
-  btnReject.style.display = hasSel ? 'inline-block' : 'none';
-  btnReject.disabled = !hasSel;
+  btnReject.style.display  = hasSel ? 'inline-block' : 'none';
 }
 
-function currentWord() {
-  return selectedTiles.map(([r, c]) => grid[r][c].letter).join('');
+function clearSelection(){ selectedTiles=[]; updateUI(); }
+
+// --- Confirm + Remove/Drop ---
+function removeAndDropTiles(){
+  selectedTiles.forEach(([r,c])=>{ grid[r][c].letter = null; });
+  for(let c=0;c<COLS;c++){
+    const letters=[]; for(let r=ROWS-1;r>=0;r--) if(grid[r][c].letter) letters.push(grid[r][c].letter);
+    for(let r=ROWS-1;r>=0;r--) grid[r][c].letter = letters[ROWS-1-r] || null;
+    for(let r=0;r<ROWS;r++) if(!grid[r][c].letter) grid[r][c].letter = randomLetter();
+  }
+  renderGrid();
 }
 
-function confirmWord() {
-  const word = currentWord().toUpperCase();
-  if (!DICT.has(word)) return; // shouldn't happen since hidden unless valid
-  statusEl.innerHTML = `<div class="card">Confirmed word: <strong>${word}</strong></div>`;
+function confirmWord(){
+  const w = currentWord().toUpperCase();
+  if(!DICT.has(w)) { statusEl.innerHTML = `<div class='card'>${w} is not valid.</div>`; clearSelection(); return; }
+  const pts = calculateScore(w);
+  statusEl.innerHTML = `<div class='card'>Confirmed: <strong>${w}</strong> (${pts})</div>`;
+  removeAndDropTiles();
   clearSelection();
 }
 
-function rejectWord() {
-  clearSelection();
-  statusEl.innerHTML = `<div class="card">Selection cleared.</div>`;
-}
+function rejectWord(){ clearSelection(); statusEl.innerHTML = `<div class='card'>Selection cleared.</div>`; }
 
-function clearSelection() {
-  selectedTiles = [];
-  updateSelectionHighlight();
-}
-
-async function loadDictionary() {
+// --- Dictionary ---
+async function loadDictionary(){
   const res = await fetch('en-words.txt');
   const text = await res.text();
-  text.split(/\r?\n/).forEach(w => { const t = w.trim().toUpperCase(); if (t) DICT.add(t); });
+  text.split(/\r?\n/).forEach(w=>{ const up=w.trim().toUpperCase(); if(!up || up.length>MAX_WORD_LEN) return; DICT.add(up); for(let i=1;i<=up.length;i++) PREFIX.add(up.slice(0,i)); });
 }
 
+// --- Events ---
 btnConfirm.addEventListener('click', confirmWord);
 btnReject.addEventListener('click', rejectWord);
 
+// --- Boot ---
 (async function init(){
   await loadDictionary();
   makeGrid();
   renderGrid();
-  updateButtons();
 })();
 </script>
 </body>
