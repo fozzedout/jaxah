@@ -116,7 +116,7 @@
   <svg id="overlay"></svg>
 </div>
 <div id="controls">
-  <button id="confirm" onclick="confirmWord(true)">Confirm</button>
+  <button id="confirm" type="button" onclick="confirmWord(true)">Confirm</button>
   <button id="reject">Clear</button>
   <button id="newGame">New Game</button>
 </div>
@@ -299,6 +299,7 @@ function refreshSelectionStyles() {
     else if (isDead) el.className += ' invalid';
   }
   btnConfirm.style.display = (dictionaryReady ? (isValid ? 'inline-block' : 'none') : (meetsLen ? 'inline-block' : 'none'));
+  btnConfirm.disabled = false;
   btnReject.style.display = selectedTiles.length ? 'inline-block' : 'none';
 }
 
@@ -424,16 +425,50 @@ function pointerMove(e) {
 }
 
 function onGestureEnd(){
-  if (!pointerActive) return; pointerActive = false;
-  if (selectedTiles.length === 0) return;
-  if (!slidThisGesture) return; // only auto-confirm on slide gestures
+  if (!pointerActive) return; 
+  pointerActive = false;
+  var wasSlide = !!slidThisGesture;
+  slidThisGesture = false;
+  if (!wasSlide) return; // taps: do nothing (no auto-confirm or auto-cancel)
+
   var word = currentWord().toUpperCase();
   var meetsLen = word.length >= settings.minLen;
+  if (!settings.autoConfirm) return;
+
   var ok = dictionaryReady ? DICT.has(word) : true;
-  if (settings.autoConfirm && meetsLen && ok) confirmWord(true); else if (settings.autoConfirm && dictionaryReady) rejectWord();
+  if (meetsLen && ok) { 
+    confirmWord(true);
+  } else if (dictionaryReady) { 
+    // Only auto-cancel when we know it's invalid via dictionary, and only for slides
+    rejectWord();
+  }
+}
+  } else {
+    // single tap: if the path is dead (not a dictionary prefix), auto-cancel spill; otherwise leave selected
+    if (settings.autoConfirm && dictionaryReady && !okPrefix) {
+      rejectWord();
+    }
+  }
 }
 
 // Attach listeners
+// Simple closest polyfill
+function closestEl(el, selector){
+  while (el && el.nodeType === 1){
+    if ((el.matches && el.matches(selector)) || (el.msMatchesSelector && el.msMatchesSelector(selector))) return el;
+    el = el.parentNode;
+  }
+  return null;
+}
+// Click-to-select fallback (helps Safari/old browsers where pointer events can be finicky)
+gameEl.addEventListener('click', function(e){
+  var t = closestEl(e.target, '.tile');
+  if (!t) return;
+  var r = parseInt(t.getAttribute('data-row'), 10);
+  var c = parseInt(t.getAttribute('data-col'), 10);
+  if (!isNaN(r) && !isNaN(c)) { selectTile(r, c); }
+}, { passive: true });
+
 function attachInputListeners(){
   if (HAS_POINTER) {
     gameEl.addEventListener('pointerdown', function(e){ pointerDown(e); try { if (gameEl.setPointerCapture) gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
