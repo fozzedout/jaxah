@@ -10,6 +10,15 @@
 
     #container { position:relative; width:100%; max-width:420px; margin:0 auto; }
 
+    /* Settings icon fixed at top right of the screen */
+    #settingsIcon {
+      position:fixed; top:8px; right:8px; width:36px; height:36px;
+      display:inline-flex; align-items:center; justify-content:center;
+      background:#ffffff; border:2px solid var(--tile-border); border-radius:50%;
+      text-decoration:none; z-index:9999; box-shadow:0 1px 2px rgba(0,0,0,0.08);
+    }
+    #settingsIcon svg { width:18px; height:18px; fill:#333333; }
+
     /* HUD at the top */
     #hud { max-width:420px; margin:8px auto 10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     #wordDisplay { grid-column:1 / -1; font-weight:700; }
@@ -29,20 +38,28 @@
     button { padding:.9em 1.1em; margin:.2em; font-size:1em; border-radius:10px; border:none; cursor:pointer; }
     #confirm { background:var(--green); color:#fff; display:none; }
     #reject { background:var(--red); color:#fff; display:none; }
-    #newGame { display:none; background:#1f6feb; color:#fff; }
-    #settingsBtn { background:#1f6feb; color:#fff; }
+
+    /* Make New Game button stand out more */
+    #newGame {
+      display:none; background:#ff8c00; color:#fff; font-weight:800;
+      box-shadow:0 0 0 0 rgba(255,140,0,0.7); transform:translateZ(0);
+      animation:pulseGlow 1.7s infinite;
+    }
+    @keyframes pulseGlow {
+      0% { box-shadow:0 0 0 0 rgba(255,140,0,0.7); }
+      70% { box-shadow:0 0 0 16px rgba(255,140,0,0); }
+      100% { box-shadow:0 0 0 0 rgba(255,140,0,0); }
+    }
 
     #status { max-width:420px; margin:8px auto 0; font-size:.98em; }
-
-    /* Settings modal */
-    #settingsModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); align-items:center; justify-content:center; }
-    #settingsModal .panel { background:#fff; padding:16px; border-radius:12px; width:min(420px, 92vw); text-align:left; }
 
     /* Responsive tweaks */
     @media (max-width: 380px) {
       #game { gap:4px; padding:4px; }
       .tile { min-height:72px; font-size:1.7em; }
       .tile .score { font-size:.45em; right:4px; bottom:3px; }
+      #settingsIcon { width:32px; height:32px; }
+      #settingsIcon svg { width:16px; height:16px; }
     }
     @media (max-width: 330px) {
       .tile { min-height:64px; font-size:1.55em; }
@@ -52,6 +69,12 @@
 <body>
 
 <h1>Lexfall</h1>
+<a id="settingsIcon" href="settings.html" aria-label="Settings" title="Settings">
+  <!-- Inline SVG cog icon -->
+  <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+    <path d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zm9.4 3.2c0-.5 0-.9-.1-1.3l2-1.6-2-3.4-2.4 1a8.8 8.8 0 0 0-2.2-1.3l-.3-2.6H9.6l-.3 2.6a8.8 8.8 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6c0 .4-.1 .8-.1 1.3s0 .9 .1 1.3l-2 1.6 2 3.4 2.4-1c.7 .5 1.4 .9 2.2 1.3l.3 2.6h4.6l.3-2.6c.8-.4 1.5-.8 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4 .1-.8 .1-1.3zM12 6.6a5.4 5.4 0 1 1 0 10.8A5.4 5.4 0 0 1 12 6.6z"/>
+  </svg>
+</a>
 <div id="hud">
   <div id="wordDisplay">Word:</div>
   <div id="scoreDisplay">Score: 0</div>
@@ -62,29 +85,11 @@
   <svg id="overlay"></svg>
 </div>
 <div id="controls">
-  <button id="confirm">Confirm</button>
+  <button id="confirm" onclick="confirmWord(true)">Confirm</button>
   <button id="reject">Clear</button>
   <button id="newGame">New Game</button>
-  <button id="settingsBtn">Settings</button>
 </div>
 <div id="status"></div>
-
-<!-- Settings Modal -->
-<div id="settingsModal">
-  <div class="panel">
-    <h3>Settings</h3>
-    <label for="minLen">Minimum word length</label>
-    <div class="row">
-      <input id="minLen" type="number" min="2" max="16" step="1"/>
-      <span>(Dictionary min is 2)</span>
-    </div>
-    <label class="row"><input id="autoConfirm" type="checkbox"/> Auto-confirm on slide release</label>
-    <div class="actions">
-      <button id="saveSettings">Save</button>
-      <button id="closeSettings">Close</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // ---- Config ----
@@ -108,23 +113,43 @@ const statusEl = document.getElementById('status');
 const btnConfirm = document.getElementById('confirm');
 const btnReject = document.getElementById('reject');
 const btnNewGame = document.getElementById('newGame');
-const btnSettings = document.getElementById('settingsBtn');
-const modal = document.getElementById('settingsModal');
-const inputMinLen = document.getElementById('minLen');
-const inputAuto = document.getElementById('autoConfirm');
-const btnSaveSettings = document.getElementById('saveSettings');
-const btnCloseSettings = document.getElementById('closeSettings');
 
+
+// Attach pointer listeners to the grid container for reliable swipe selection
+gameEl.addEventListener('pointerdown', (e) => { pointerDown(e); try { gameEl.setPointerCapture && gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
+gameEl.addEventListener('pointermove', (e) => { pointerMove(e); }, { passive: false });
+
+// Pointer/touch/mouse support
+const HAS_POINTER = !!window.PointerEvent;
+
+// Attach listeners
+function attachInputListeners(){
+  if (HAS_POINTER) {
+    gameEl.addEventListener('pointerdown', (e) => { pointerDown(e); try { gameEl.setPointerCapture && gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
+    gameEl.addEventListener('pointermove', (e) => { pointerMove(e); }, { passive: false });
+    document.addEventListener('pointerup', onGestureEnd, { passive: true });
+  } else {
+    // Touch
+    gameEl.addEventListener('touchstart', (e) => { pointerDown(e); }, { passive: false });
+    gameEl.addEventListener('touchmove', (e) => { pointerMove(e); }, { passive: false });
+    document.addEventListener('touchend', onGestureEnd, { passive: true });
+    // Mouse
+    gameEl.addEventListener('mousedown', (e) => { pointerDown(e); }, { passive: false });
+    gameEl.addEventListener('mousemove', (e) => { pointerMove(e); }, { passive: false });
+    document.addEventListener('mouseup', onGestureEnd, { passive: true });
+  }
+}
 // ---- Game State ----
 let grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
 let pointerActive = false; let paused = false; let slidThisGesture = false;
 let DICT = new Set();
 let PREFIX = new Set();
+let dictionaryReady = false;
 let settings = { minLen: 3, autoConfirm: true };
 
 // ---- Utils ----
 function showStatus(html, type='info') {
-  statusEl.innerHTML = `<div class="${type}">${html}</div>`;
+  statusEl.innerHTML = '<div class="' + type + '">' + html + '</div>';
 }
 function clearStatus() { statusEl.innerHTML = ''; }
 
@@ -187,9 +212,7 @@ function renderGrid() {
       tile.dataset.row = r; tile.dataset.col = c;
       const ch = grid[r][c].letter || '';
       const val = LETTER_SCORES[ch] || 0;
-      tile.innerHTML = `<span class="letter">${ch}</span><span class="score">${val}</span>`;
-      tile.addEventListener('pointerdown', pointerDown, { passive: false });
-      tile.addEventListener('pointermove', pointerMove, { passive: false });
+      tile.innerHTML = '<span class="letter">' + ch + '</span><span class="score">' + val + '</span>';
       gameEl.appendChild(tile);
       grid[r][c].element = tile;
     }
@@ -212,6 +235,7 @@ function selectTile(r, c) {
     if (!isAdjacentForgiving(r, c, pr, pc)) return;
   }
   selectedTiles.push([r, c]);
+  if (selectedTiles.length >= 2) { slidThisGesture = true; }
   grid[r][c].element.classList.add('selected');
   updateWordDisplay();
   drawPath();
@@ -222,8 +246,8 @@ function currentWord() { return selectedTiles.map(([r, c]) => grid[r][c].letter)
 function refreshSelectionStyles() {
   const up = currentWord().toUpperCase();
   const meetsLen = up.length >= settings.minLen;
-  const isValid = up.length > 0 && DICT.has(up) && meetsLen;
-  const isDead = up.length > 0 && !PREFIX.has(up);
+  const isValid = up.length > 0 && meetsLen && (dictionaryReady ? DICT.has(up) : true);
+  const isDead = dictionaryReady && up.length > 0 && !PREFIX.has(up);
   selectedTiles.forEach(([r, c]) => {
     const el = grid[r][c].element;
     el.classList.remove('valid','invalid');
@@ -231,7 +255,7 @@ function refreshSelectionStyles() {
     else if (isDead) el.classList.add('invalid');
   });
   // Toggle buttons
-  btnConfirm.style.display = isValid ? 'inline-block' : 'none';
+  btnConfirm.style.display = (dictionaryReady ? (isValid ? 'inline-block' : 'none') : (meetsLen ? 'inline-block' : 'none'));
   btnReject.style.display = selectedTiles.length ? 'inline-block' : 'none';
 }
 
@@ -242,7 +266,7 @@ function updateWordDisplay() {
     wordDisplay.textContent = 'Word:';
   } else {
     const pts = calculateScore(word.toUpperCase());
-    wordDisplay.textContent = `Word: ${word} (${pts})`;
+    wordDisplay.textContent = 'Word: ' + word + ' (' + pts + ')';
   }
 }
 
@@ -254,18 +278,30 @@ function confirmWord(force=false) {
   const meetsLen = word.length >= settings.minLen;
   if (!force && !(DICT.has(word) && meetsLen)) { rejectWord(); return; }
   const wordScore = calculateScore(word);
-  score += wordScore; scoreDisplay.textContent = `Score: ${score}`;
-  turns--; turnsDisplay.textContent = `Turns Left: ${turns}`;
+  score += wordScore; scoreDisplay.textContent = 'Score: ' + score;
+  turns--; turnsDisplay.textContent = 'Turns Left: ' + turns;
   removeAndDropTiles();
   clearSelection();
   saveState();
   maybeFinishGame();
 }
 
+function showWellDone() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) grid[r][c].letter = '';
+  }
+  const row1 = ['W','E','L','L'];
+  const row2 = ['D','O','N','E'];
+  for (let c = 0; c < COLS; c++) { grid[1][c].letter = row1[c]; }
+  for (let c = 0; c < COLS; c++) { grid[2][c].letter = row2[c]; }
+  renderGrid();
+}
+
 function maybeFinishGame() {
   if (turns <= 0) {
     paused = true;
-    showStatus(`<strong>Congratulations!</strong> Final score: <strong>${score}</strong>.`, 'success');
+    showStatus('<strong>Congratulations!</strong> Final score: <strong>' + score + '</strong>.', 'success');
+    showWellDone();
     btnNewGame.style.display = 'inline-block';
   }
 }
@@ -336,14 +372,16 @@ function pointerMove(e) {
   }
 }
 
-document.addEventListener('pointerup', () => {
+function onGestureEnd(){
   if (!pointerActive) return; pointerActive = false;
   if (selectedTiles.length === 0) return;
   if (!slidThisGesture) return; // only auto-confirm on slide gestures
   const word = currentWord().toUpperCase();
   const meetsLen = word.length >= settings.minLen;
-  if (settings.autoConfirm && DICT.has(word) && meetsLen) confirmWord(true); else if (settings.autoConfirm) rejectWord();
-});
+  const ok = dictionaryReady ? DICT.has(word) : true;
+  if (settings.autoConfirm && meetsLen && ok) confirmWord(true); else if (settings.autoConfirm && dictionaryReady) rejectWord();
+}
+
 
 // --- Path drawing with SVG lines ---
 function drawPath() {
@@ -352,7 +390,7 @@ function drawPath() {
   const points = selectedTiles.map(([r, c]) => getTileCenter(r, c));
   let path = '';
   for (let i = 0; i < points.length - 1; i++) {
-    path += `<line x1="${points[i].x}" y1="${points[i].y}" x2="${points[i+1].x}" y2="${points[i+1].y}" stroke="var(--blue)" stroke-width="5" stroke-linecap="round"/>`;
+    path += '<line x1="' + points[i].x + '" y1="' + points[i].y + '" x2="' + points[i+1].x + '" y2="' + points[i+1].y + '" stroke="var(--blue)" stroke-width="5" stroke-linecap="round"/>';
   }
   overlay.innerHTML = path;
 }
@@ -366,6 +404,10 @@ async function loadDictionary() {
     DICT.add(up);
     for (let i = 1; i <= up.length; i++) PREFIX.add(up.slice(0, i));
   });
+    dictionaryReady = true;
+  } catch(e) {
+    dictionaryReady = false;
+  }
 }
 
 // --- Playability check (ensure at least 1 valid word in grid) ---
@@ -398,7 +440,7 @@ function gridHasAnyWord() {
 function ensurePlayableOrReshuffle() {
   if (gridHasAnyWord()) { clearStatus(); saveState(); return; }
   paused = true; btnConfirm.disabled = true; btnReject.disabled = true;
-  showStatus('<strong>No words found</strong>, reshuffling…', 'warn');
+  showStatus('<strong>No words found</strong>, reshuffling...', 'warn');
   let attempts = 0;
   const tryReshuffle = () => {
     attempts++;
@@ -406,7 +448,6 @@ function ensurePlayableOrReshuffle() {
     if (gridHasAnyWord() || attempts > 50) {
       paused = false; btnConfirm.disabled = false; btnReject.disabled = false; clearStatus(); saveState();
     } else {
-      // keep trying until we get a playable grid
       setTimeout(tryReshuffle, 0);
     }
   };
@@ -414,15 +455,12 @@ function ensurePlayableOrReshuffle() {
 }
 
 // ---- Controls ----
-btnConfirm.addEventListener('click', () => confirmWord());
+btnConfirm.addEventListener('click', () => confirmWord(true));
 btnReject.addEventListener('click', rejectWord);
 btnNewGame.addEventListener('click', () => {
-  score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = `Score: ${score}`; turnsDisplay.textContent = `Turns Left: ${turns}`;
+  score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = 'Score: ' + score; turnsDisplay.textContent = 'Turns Left: ' + turns;
   makeRandomGrid(); renderGrid(); clearSelection(); paused = false; btnNewGame.style.display = 'none'; clearStatus(); ensurePlayableOrReshuffle(); saveState();
 });
-btnSettings.addEventListener('click', () => { inputMinLen.value = settings.minLen; inputAuto.checked = !!settings.autoConfirm; modal.style.display = 'flex'; });
-btnCloseSettings.addEventListener('click', () => { modal.style.display = 'none'; });
-btnSaveSettings.addEventListener('click', () => { settings.minLen = Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10))); settings.autoConfirm = !!inputAuto.checked; persistSettings(); modal.style.display = 'none'; updateWordDisplay(); });
 
 // ---- Boot ----
 (async function init(){
@@ -431,8 +469,9 @@ btnSaveSettings.addEventListener('click', () => { settings.minLen = Math.max(2, 
   const restored = loadState();
   if (!restored) makeRandomGrid();
   renderGrid();
-  scoreDisplay.textContent = `Score: ${score}`;
-  turnsDisplay.textContent = `Turns Left: ${turns}`;
+  scoreDisplay.textContent = 'Score: ' + score;
+  turnsDisplay.textContent = 'Turns Left: ' + turns;
+  attachInputListeners();
   resizeOverlay();
   ensurePlayableOrReshuffle();
 })();
