@@ -85,7 +85,7 @@
   <svg id="overlay"></svg>
 </div>
 <div id="controls">
-  <button id="confirm">Confirm</button>
+  <button id="confirm" onclick="confirmWord(true)">Confirm</button>
   <button id="reject">Clear</button>
   <button id="newGame">New Game</button>
 </div>
@@ -144,6 +144,7 @@ let grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
 let pointerActive = false; let paused = false; let slidThisGesture = false;
 let DICT = new Set();
 let PREFIX = new Set();
+let dictionaryReady = false;
 let settings = { minLen: 3, autoConfirm: true };
 
 // ---- Utils ----
@@ -245,8 +246,8 @@ function currentWord() { return selectedTiles.map(([r, c]) => grid[r][c].letter)
 function refreshSelectionStyles() {
   const up = currentWord().toUpperCase();
   const meetsLen = up.length >= settings.minLen;
-  const isValid = up.length > 0 && DICT.has(up) && meetsLen;
-  const isDead = up.length > 0 && !PREFIX.has(up);
+  const isValid = up.length > 0 && meetsLen && (dictionaryReady ? DICT.has(up) : true);
+  const isDead = dictionaryReady && up.length > 0 && !PREFIX.has(up);
   selectedTiles.forEach(([r, c]) => {
     const el = grid[r][c].element;
     el.classList.remove('valid','invalid');
@@ -254,7 +255,7 @@ function refreshSelectionStyles() {
     else if (isDead) el.classList.add('invalid');
   });
   // Toggle buttons
-  btnConfirm.style.display = isValid ? 'inline-block' : 'none';
+  btnConfirm.style.display = (dictionaryReady ? (isValid ? 'inline-block' : 'none') : (meetsLen ? 'inline-block' : 'none'));
   btnReject.style.display = selectedTiles.length ? 'inline-block' : 'none';
 }
 
@@ -377,7 +378,8 @@ function onGestureEnd(){
   if (!slidThisGesture) return; // only auto-confirm on slide gestures
   const word = currentWord().toUpperCase();
   const meetsLen = word.length >= settings.minLen;
-  if (settings.autoConfirm && DICT.has(word) && meetsLen) confirmWord(true); else if (settings.autoConfirm) rejectWord();
+  const ok = dictionaryReady ? DICT.has(word) : true;
+  if (settings.autoConfirm && meetsLen && ok) confirmWord(true); else if (settings.autoConfirm && dictionaryReady) rejectWord();
 }
 
 
@@ -402,6 +404,10 @@ async function loadDictionary() {
     DICT.add(up);
     for (let i = 1; i <= up.length; i++) PREFIX.add(up.slice(0, i));
   });
+    dictionaryReady = true;
+  } catch(e) {
+    dictionaryReady = false;
+  }
 }
 
 // --- Playability check (ensure at least 1 valid word in grid) ---
