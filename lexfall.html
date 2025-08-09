@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <title>Lexfall</title>
   <style>
     :root { --green:#3bb273; --green-soft:#bff0cf; --red:#dc3545; --blue:#339; --bg:#f0f0f0; --tile-bg:#fff; --tile-border:#ccc; }
@@ -19,17 +20,48 @@
     }
     #settingsIcon svg { width:18px; height:18px; fill:#333333; }
 
-    /* HUD at the top */
+    /* HUD */
     #hud { max-width:420px; margin:8px auto 10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     #wordDisplay { grid-column:1 / -1; font-weight:700; }
     #scoreDisplay, #turnsLeft { font-size:0.95rem; }
 
-    #game { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; width:100%; aspect-ratio:1/1; position:relative; z-index:1; touch-action:none; background:#e0e0e0; border-radius:12px; padding:6px; }
-    .tile { background:var(--tile-bg); border:2px solid var(--tile-border); font-size:2.1em; font-weight:800; user-select:none; border-radius:12px; transition:background .15s, transform .05s; min-width:0; min-height:96px; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; touch-action:none; }
+    /* Game grid */
+    #game {
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:6px;
+      width:100%;
+      /* aspect-ratio is great where supported; JS fallback handles the rest */
+      aspect-ratio:1/1;
+      position:relative;
+      z-index:1;
+      touch-action:none;
+      background:#e0e0e0;
+      border-radius:12px;
+      padding:6px;
+      min-height:320px; /* ensures visibility even if aspect-ratio unsupported */
+    }
+    .tile {
+      background:var(--tile-bg);
+      border:2px solid var(--tile-border);
+      font-size:2.1em;
+      font-weight:800;
+      user-select:none;
+      border-radius:12px;
+      transition:background .15s, transform .05s;
+      min-width:0;
+      min-height:72px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      z-index:2;
+      touch-action:none;
+    }
     .tile.selected { background:#e8f0ff; border-color:var(--tile-border); }
     .tile.selected.valid { background:var(--green-soft); border-color:var(--green); }
     .tile.selected.invalid { background:#ffecec; border-color:var(--red); }
-    .tile.empty { background:transparent; border:none; }
+    .tile.empty { background:#f9f9f9; border:2px dashed #ddd; } /* keep visible even when empty */
     .tile .score { position:absolute; right:6px; bottom:4px; font-size:.5em; opacity:.8; }
 
     #overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5; }
@@ -56,13 +88,13 @@
     /* Responsive tweaks */
     @media (max-width: 380px) {
       #game { gap:4px; padding:4px; }
-      .tile { min-height:72px; font-size:1.7em; }
+      .tile { min-height:64px; font-size:1.7em; }
       .tile .score { font-size:.45em; right:4px; bottom:3px; }
       #settingsIcon { width:32px; height:32px; }
       #settingsIcon svg { width:16px; height:16px; }
     }
     @media (max-width: 330px) {
-      .tile { min-height:64px; font-size:1.55em; }
+      .tile { min-height:56px; font-size:1.55em; }
     }
   </style>
 </head>
@@ -70,7 +102,6 @@
 
 <h1>Lexfall</h1>
 <a id="settingsIcon" href="settings.html" aria-label="Settings" title="Settings">
-  <!-- Inline SVG cog icon -->
   <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
     <path d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zm9.4 3.2c0-.5 0-.9-.1-1.3l2-1.6-2-3.4-2.4 1a8.8 8.8 0 0 0-2.2-1.3l-.3-2.6H9.6l-.3 2.6a8.8 8.8 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6c0 .4-.1 .8-.1 1.3s0 .9 .1 1.3l-2 1.6 2 3.4 2.4-1c.7 .5 1.4 .9 2.2 1.3l.3 2.6h4.6l.3-2.6c.8-.4 1.5-.8 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4 .1-.8 .1-1.3zM12 6.6a5.4 5.4 0 1 1 0 10.8A5.4 5.4 0 0 1 12 6.6z"/>
   </svg>
@@ -92,192 +123,207 @@
 <div id="status"></div>
 
 <script>
+// --- Minimal polyfills for weak browsers ---
+if (!('Math' in window && typeof Math.hypot === 'function')) {
+  Math.hypot = function(){ var s=0; for (var i=0;i<arguments.length;i++){ var n=Number(arguments[i])||0; s+=n*n; } return Math.sqrt(s); };
+}
+if (typeof window.Set === 'undefined') {
+  (function(){
+    function SimpleSet(){ this._o = Object.create(null); }
+    SimpleSet.prototype.add = function(v){ this._o[v] = 1; return this; };
+    SimpleSet.prototype.has = function(v){ return !!this._o[v]; };
+    window.Set = SimpleSet;
+  })();
+}
+
 // ---- Config ----
-const ROWS = 4, COLS = 4;
-const TILE_RADIUS_PX = 35; // virtual circle for selection
-const MAX_WORD_LEN = 16;
-const DEFAULT_TURNS = 10;
-const LETTER_SCORES = {
-  A:1, B:3, C:3, D:2, E:1, F:4, G:2, H:4, I:1, J:8,
-  K:5, L:1, M:3, N:1, O:1, P:3, Q:10, R:1, S:1, T:1,
-  U:1, V:4, W:4, X:8, Y:4, Z:10
-};
+var ROWS = 4, COLS = 4;
+var TILE_RADIUS_PX = 35;
+var MAX_WORD_LEN = 16;
+var DEFAULT_TURNS = 10;
+var LETTER_SCORES = {A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10};
 
 // ---- DOM ----
-const gameEl = document.getElementById('game');
-const overlay = document.getElementById('overlay');
-const wordDisplay = document.getElementById('wordDisplay');
-const scoreDisplay = document.getElementById('scoreDisplay');
-const turnsDisplay = document.getElementById('turnsLeft');
-const statusEl = document.getElementById('status');
-const btnConfirm = document.getElementById('confirm');
-const btnReject = document.getElementById('reject');
-const btnNewGame = document.getElementById('newGame');
-
-
-// Attach pointer listeners to the grid container for reliable swipe selection
-gameEl.addEventListener('pointerdown', (e) => { pointerDown(e); try { gameEl.setPointerCapture && gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
-gameEl.addEventListener('pointermove', (e) => { pointerMove(e); }, { passive: false });
+var gameEl = document.getElementById('game');
+var overlay = document.getElementById('overlay');
+var wordDisplay = document.getElementById('wordDisplay');
+var scoreDisplay = document.getElementById('scoreDisplay');
+var turnsDisplay = document.getElementById('turnsLeft');
+var statusEl = document.getElementById('status');
+var btnConfirm = document.getElementById('confirm');
+var btnReject = document.getElementById('reject');
+var btnNewGame = document.getElementById('newGame');
 
 // Pointer/touch/mouse support
-const HAS_POINTER = !!window.PointerEvent;
+var HAS_POINTER = !!window.PointerEvent;
 
-// Attach listeners
-function attachInputListeners(){
-  if (HAS_POINTER) {
-    gameEl.addEventListener('pointerdown', (e) => { pointerDown(e); try { gameEl.setPointerCapture && gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
-    gameEl.addEventListener('pointermove', (e) => { pointerMove(e); }, { passive: false });
-    document.addEventListener('pointerup', onGestureEnd, { passive: true });
-  } else {
-    // Touch
-    gameEl.addEventListener('touchstart', (e) => { pointerDown(e); }, { passive: false });
-    gameEl.addEventListener('touchmove', (e) => { pointerMove(e); }, { passive: false });
-    document.addEventListener('touchend', onGestureEnd, { passive: true });
-    // Mouse
-    gameEl.addEventListener('mousedown', (e) => { pointerDown(e); }, { passive: false });
-    gameEl.addEventListener('mousemove', (e) => { pointerMove(e); }, { passive: false });
-    document.addEventListener('mouseup', onGestureEnd, { passive: true });
-  }
-}
 // ---- Game State ----
-let grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
-let pointerActive = false; let paused = false; let slidThisGesture = false;
-let DICT = new Set();
-let PREFIX = new Set();
-let dictionaryReady = false;
-let settings = { minLen: 3, autoConfirm: true };
+var grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
+var pointerActive = false, paused = false, slidThisGesture = false;
+var DICT = new Set();
+var PREFIX = new Set();
+var dictionaryReady = false;
+var settings = { minLen: 3, autoConfirm: true };
 
 // ---- Utils ----
-function showStatus(html, type='info') {
-  statusEl.innerHTML = '<div class="' + type + '">' + html + '</div>';
-}
-function clearStatus() { statusEl.innerHTML = ''; }
+function showStatus(html, type){ statusEl.innerHTML = '<div class="' + (type||'info') + '">' + html + '</div>'; }
+function clearStatus(){ statusEl.innerHTML = ''; }
 
 function saveState() {
   try {
-    const letters = grid.map(row => row.map(cell => cell.letter));
-    const state = { letters, score, turns };
+    var letters = grid.map(function(row){ return row.map(function(cell){ return cell.letter; }); });
+    var state = { letters: letters, score: score, turns: turns };
     localStorage.setItem('lexfall_state', JSON.stringify(state));
-  } catch (e) { /* ignore */ }
+  } catch (e) {}
 }
 
 function loadState() {
   try {
-    const raw = localStorage.getItem('lexfall_state');
+    var raw = localStorage.getItem('lexfall_state');
     if (!raw) return false;
-    const s = JSON.parse(raw);
+    var s = JSON.parse(raw);
     if (!s || !Array.isArray(s.letters) || typeof s.score !== 'number' || typeof s.turns !== 'number') return false;
-    grid = s.letters.map((row) => row.map(letter => ({ letter, element: null })));
+    grid = [];
+    for (var r=0; r<ROWS; r++){
+      var row = [];
+      for (var c=0; c<COLS; c++){
+        var letter = (s.letters[r] && s.letters[r][c]) || null;
+        // Sanitize: require A-Z single char, else random
+        if (typeof letter !== 'string' || !/^[A-Z]$/.test(letter)) letter = randomLetter();
+        row.push({ letter: letter, element: null });
+      }
+      grid.push(row);
+    }
     score = s.score; turns = s.turns;
     return true;
   } catch (e) { return false; }
 }
 
-function loadSettings(){ try { const s = JSON.parse(localStorage.getItem('lexfall_settings')||'{}'); if (s && typeof s.minLen==='number') settings.minLen=Math.max(2,Math.min(16,s.minLen)); if (typeof s.autoConfirm==='boolean') settings.autoConfirm=s.autoConfirm; } catch(e){} }
-function persistSettings(){ try { localStorage.setItem('lexfall_settings', JSON.stringify(settings)); } catch(e){} }
+function loadSettings(){
+  try {
+    var s = JSON.parse(localStorage.getItem('lexfall_settings')||'{}');
+    if (s && typeof s.minLen==='number') settings.minLen = Math.max(2, Math.min(16, s.minLen));
+    if (typeof s.autoConfirm==='boolean') settings.autoConfirm = s.autoConfirm;
+  } catch(e){}
+}
 
-// Dynamic size for overlay SVG
-function resizeOverlay() {
-  const rect = gameEl.getBoundingClientRect();
+// Maintain square grid for browsers without aspect-ratio
+function sizeGridSquare(){
+  try {
+    var supportsAspect = (window.CSS && CSS.supports && CSS.supports('aspect-ratio', '1/1'));
+    if (!supportsAspect) {
+      var w = gameEl.clientWidth || 320;
+      gameEl.style.height = w + 'px';
+    }
+  } catch(e){}
+  // Also size overlay to match
+  var rect = gameEl.getBoundingClientRect();
   overlay.setAttribute('width', rect.width);
   overlay.setAttribute('height', rect.height);
   overlay.style.width = rect.width + 'px';
   overlay.style.height = rect.height + 'px';
 }
-window.addEventListener('resize', resizeOverlay);
+window.addEventListener('resize', sizeGridSquare);
 
-// Letter randomizer (English-like frequency)
+// Letter randomizer
 function randomLetter() {
-  const letters = "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ";
+  var letters = "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ";
   return letters[Math.floor(Math.random() * letters.length)];
 }
 
 // Build empty grid and tiles
 function makeRandomGrid() {
   grid = [];
-  for (let r = 0; r < ROWS; r++) {
-    const row = [];
-    for (let c = 0; c < COLS; c++) row.push({ letter: randomLetter(), element: null });
+  for (var r = 0; r < ROWS; r++) {
+    var row = [];
+    for (var c = 0; c < COLS; c++) row.push({ letter: randomLetter(), element: null });
     grid.push(row);
   }
 }
 
 function renderGrid() {
   gameEl.innerHTML = '';
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const tile = document.createElement('div');
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var tile = document.createElement('div');
       tile.className = 'tile';
-      if (!grid[r][c].letter) tile.classList.add('empty');
-      tile.dataset.row = r; tile.dataset.col = c;
-      const ch = grid[r][c].letter || '';
-      const val = LETTER_SCORES[ch] || 0;
+      if (!grid[r][c].letter) tile.className += ' empty';
+      tile.setAttribute('data-row', r);
+      tile.setAttribute('data-col', c);
+      var ch = grid[r][c].letter || '';
+      var val = LETTER_SCORES[ch] || 0;
       tile.innerHTML = '<span class="letter">' + ch + '</span><span class="score">' + val + '</span>';
       gameEl.appendChild(tile);
       grid[r][c].element = tile;
     }
   }
-  setTimeout(resizeOverlay, 40);
+  setTimeout(sizeGridSquare, 0);
   updateWordDisplay();
   drawPath();
 }
 
 function isInBounds(r, c) { return r >= 0 && r < ROWS && c >= 0 && c < COLS; }
-function alreadySelected(r, c) { return selectedTiles.some(([rr, cc]) => rr === r && cc === c); }
-function isAdjacentForgiving(r, c, prevR, prevC) { return Math.abs(r - prevR) <= 1 && Math.abs(c - prevC) <= 1; }
+function alreadySelected(r, c) { for (var i=0;i<selectedTiles.length;i++){ var t=selectedTiles[i]; if (t[0]===r && t[1]===c) return true; } return false; }
+function isAdjacentForgiving(r, c, pr, pc) { return Math.abs(r - pr) <= 1 && Math.abs(c - pc) <= 1; }
 
 function selectTile(r, c) {
   if (!isInBounds(r, c) || paused) return;
   if (alreadySelected(r, c)) return;
   if (!grid[r][c].letter) return;
   if (selectedTiles.length > 0) {
-    const [pr, pc] = selectedTiles[selectedTiles.length - 1];
-    if (!isAdjacentForgiving(r, c, pr, pc)) return;
+    var last = selectedTiles[selectedTiles.length - 1];
+    if (!isAdjacentForgiving(r, c, last[0], last[1])) return;
   }
   selectedTiles.push([r, c]);
   if (selectedTiles.length >= 2) { slidThisGesture = true; }
-  grid[r][c].element.classList.add('selected');
+  grid[r][c].element.className += ' selected';
   updateWordDisplay();
   drawPath();
 }
 
-function currentWord() { return selectedTiles.map(([r, c]) => grid[r][c].letter).join(''); }
+function currentWord() {
+  var out = '';
+  for (var i=0;i<selectedTiles.length;i++){ var t=selectedTiles[i]; out += grid[t[0]][t[1]].letter; }
+  return out;
+}
 
 function refreshSelectionStyles() {
-  const up = currentWord().toUpperCase();
-  const meetsLen = up.length >= settings.minLen;
-  const isValid = up.length > 0 && meetsLen && (dictionaryReady ? DICT.has(up) : true);
-  const isDead = dictionaryReady && up.length > 0 && !PREFIX.has(up);
-  selectedTiles.forEach(([r, c]) => {
-    const el = grid[r][c].element;
-    el.classList.remove('valid','invalid');
-    if (isValid) el.classList.add('valid');
-    else if (isDead) el.classList.add('invalid');
-  });
-  // Toggle buttons
+  var up = currentWord().toUpperCase();
+  var meetsLen = up.length >= settings.minLen;
+  var isValid = up.length > 0 && meetsLen && (dictionaryReady ? DICT.has(up) : true);
+  var isDead = dictionaryReady && up.length > 0 && !PREFIX.has(up);
+  for (var i=0;i<selectedTiles.length;i++){
+    var rc = selectedTiles[i], el = grid[rc[0]][rc[1]].element;
+    el.className = el.className.replace(/\bvalid\b|\binvalid\b/g, '').trim();
+    if (isValid) el.className += ' valid';
+    else if (isDead) el.className += ' invalid';
+  }
   btnConfirm.style.display = (dictionaryReady ? (isValid ? 'inline-block' : 'none') : (meetsLen ? 'inline-block' : 'none'));
   btnReject.style.display = selectedTiles.length ? 'inline-block' : 'none';
 }
 
 function updateWordDisplay() {
-  const word = currentWord();
+  var word = currentWord();
   refreshSelectionStyles();
-  if (!word.length) {
-    wordDisplay.textContent = 'Word:';
-  } else {
-    const pts = calculateScore(word.toUpperCase());
+  if (!word.length) wordDisplay.textContent = 'Word:';
+  else {
+    var pts = calculateScore(word.toUpperCase());
     wordDisplay.textContent = 'Word: ' + word + ' (' + pts + ')';
   }
 }
 
-function calculateScore(word) { return [...word].reduce((acc, ch) => acc + (LETTER_SCORES[ch] || 0), 0); }
+function calculateScore(word) {
+  var acc = 0;
+  for (var i=0;i<word.length;i++){ var ch = word.charAt(i); acc += LETTER_SCORES[ch] || 0; }
+  return acc;
+}
 
-function confirmWord(force=false) {
+function confirmWord(force) {
   if (selectedTiles.length === 0 || turns === 0) return;
-  const word = currentWord().toUpperCase();
-  const meetsLen = word.length >= settings.minLen;
-  if (!force && !(DICT.has(word) && meetsLen)) { rejectWord(); return; }
-  const wordScore = calculateScore(word);
+  var word = currentWord().toUpperCase();
+  var meetsLen = word.length >= settings.minLen;
+  if (!force && !((dictionaryReady ? DICT.has(word) : true) && meetsLen)) { rejectWord(); return; }
+  var wordScore = calculateScore(word);
   score += wordScore; scoreDisplay.textContent = 'Score: ' + score;
   turns--; turnsDisplay.textContent = 'Turns Left: ' + turns;
   removeAndDropTiles();
@@ -287,13 +333,11 @@ function confirmWord(force=false) {
 }
 
 function showWellDone() {
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) grid[r][c].letter = '';
-  }
-  const row1 = ['W','E','L','L'];
-  const row2 = ['D','O','N','E'];
-  for (let c = 0; c < COLS; c++) { grid[1][c].letter = row1[c]; }
-  for (let c = 0; c < COLS; c++) { grid[2][c].letter = row2[c]; }
+  for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) grid[r][c].letter = '';
+  var row1 = ['W','E','L','L'];
+  var row2 = ['D','O','N','E'];
+  for (var c = 0; c < COLS; c++) { grid[1][c].letter = row1[c]; }
+  for (var c = 0; c < COLS; c++) { grid[2][c].letter = row2[c]; }
   renderGrid();
 }
 
@@ -309,7 +353,10 @@ function maybeFinishGame() {
 function rejectWord() { clearSelection(); }
 
 function clearSelection() {
-  selectedTiles.forEach(([r, c]) => grid[r][c].element.classList.remove('selected','valid','invalid'));
+  for (var i=0;i<selectedTiles.length;i++){
+    var rc = selectedTiles[i], el = grid[rc[0]][rc[1]].element;
+    el.className = el.className.replace(/\bselected\b|\bvalid\b|\binvalid\b/g,'').trim();
+  }
   selectedTiles = [];
   updateWordDisplay();
   drawPath();
@@ -318,13 +365,13 @@ function clearSelection() {
 // Remove selected tiles, drop down, refill from top
 function removeAndDropTiles() {
   // Remove
-  selectedTiles.forEach(([r, c]) => grid[r][c].letter = null);
+  for (var i=0;i<selectedTiles.length;i++){ var rc = selectedTiles[i]; grid[rc[0]][rc[1]].letter = null; }
   // Drop down per column
-  for (let c = 0; c < COLS; c++) {
-    const letters = [];
-    for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c].letter) letters.push(grid[r][c].letter);
-    for (let r = ROWS - 1; r >= 0; r--) grid[r][c].letter = letters[ROWS - 1 - r] || null;
-    for (let r = 0; r < ROWS; r++) if (!grid[r][c].letter) grid[r][c].letter = randomLetter();
+  for (var c = 0; c < COLS; c++) {
+    var letters = [];
+    for (var r = ROWS - 1; r >= 0; r--) if (grid[r][c].letter) letters.push(grid[r][c].letter);
+    for (var r = ROWS - 1; r >= 0; r--) grid[r][c].letter = letters[ROWS - 1 - r] || null;
+    for (var r = 0; r < ROWS; r++) if (!grid[r][c].letter) grid[r][c].letter = randomLetter();
   }
   renderGrid();
   ensurePlayableOrReshuffle();
@@ -332,42 +379,46 @@ function removeAndDropTiles() {
 
 // --- Hit testing helpers ---
 function getTileCenter(r, c) {
-  const gridRect = gameEl.getBoundingClientRect();
-  const tile = grid[r][c].element; const tileRect = tile.getBoundingClientRect();
+  var gridRect = gameEl.getBoundingClientRect();
+  var tile = grid[r][c].element; var tileRect = tile.getBoundingClientRect();
   return { x: tileRect.left + tileRect.width / 2 - gridRect.left, y: tileRect.top + tileRect.height / 2 - gridRect.top };
 }
 
 function tileFromPointerEvent(e) {
-  const gridRect = gameEl.getBoundingClientRect();
-  const x = (e.touches ? e.touches[0].clientX : e.clientX) - gridRect.left;
-  const y = (e.touches ? e.touches[0].clientY : e.clientY) - gridRect.top;
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
+  var gridRect = gameEl.getBoundingClientRect();
+  var clientX = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX);
+  var clientY = (e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY);
+  var x = clientX - gridRect.left;
+  var y = clientY - gridRect.top;
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
       if (!grid[r][c].letter) continue;
-      const center = getTileCenter(r, c); const dx = x - center.x; const dy = y - center.y;
+      var center = getTileCenter(r, c); var dx = x - center.x; var dy = y - center.y;
       if (Math.hypot(dx, dy) < TILE_RADIUS_PX) return [r, c];
     }
   }
   return null;
 }
 
-// --- Pointer interactions (auto confirm on slide end) ---
+// --- Pointer interactions ---
 function pointerDown(e) {
   if (paused) return;
-  e.preventDefault(); pointerActive = true; slidThisGesture = false;
-  const tile = tileFromPointerEvent(e);
-  if (tile) selectTile(...tile);
+  if (e && e.preventDefault) e.preventDefault();
+  pointerActive = true; slidThisGesture = false;
+  var tile = tileFromPointerEvent(e);
+  if (tile) selectTile(tile[0], tile[1]);
 }
 
 function pointerMove(e) {
   if (!pointerActive || paused) return;
-  e.preventDefault(); const tile = tileFromPointerEvent(e); if (!tile) return;
-  const [r, c] = tile;
+  if (e && e.preventDefault) e.preventDefault();
+  var tile = tileFromPointerEvent(e); if (!tile) return;
+  var r = tile[0], c = tile[1];
   if (!alreadySelected(r, c)) {
     if (selectedTiles.length === 0) selectTile(r, c);
     else {
-      const [pr, pc] = selectedTiles[selectedTiles.length - 1];
-      if (isAdjacentForgiving(r, c, pr, pc)) { selectTile(r, c); slidThisGesture = true; }
+      var last = selectedTiles[selectedTiles.length - 1];
+      if (isAdjacentForgiving(r, c, last[0], last[1])) { selectTile(r, c); slidThisGesture = true; }
     }
   }
 }
@@ -376,20 +427,36 @@ function onGestureEnd(){
   if (!pointerActive) return; pointerActive = false;
   if (selectedTiles.length === 0) return;
   if (!slidThisGesture) return; // only auto-confirm on slide gestures
-  const word = currentWord().toUpperCase();
-  const meetsLen = word.length >= settings.minLen;
-  const ok = dictionaryReady ? DICT.has(word) : true;
+  var word = currentWord().toUpperCase();
+  var meetsLen = word.length >= settings.minLen;
+  var ok = dictionaryReady ? DICT.has(word) : true;
   if (settings.autoConfirm && meetsLen && ok) confirmWord(true); else if (settings.autoConfirm && dictionaryReady) rejectWord();
 }
 
+// Attach listeners
+function attachInputListeners(){
+  if (HAS_POINTER) {
+    gameEl.addEventListener('pointerdown', function(e){ pointerDown(e); try { if (gameEl.setPointerCapture) gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
+    gameEl.addEventListener('pointermove', function(e){ pointerMove(e); }, { passive: false });
+    document.addEventListener('pointerup', onGestureEnd, { passive: true });
+  } else {
+    gameEl.addEventListener('touchstart', function(e){ pointerDown(e); }, { passive: false });
+    gameEl.addEventListener('touchmove', function(e){ pointerMove(e); }, { passive: false });
+    document.addEventListener('touchend', onGestureEnd, { passive: true });
+    gameEl.addEventListener('mousedown', function(e){ pointerDown(e); }, { passive: false });
+    gameEl.addEventListener('mousemove', function(e){ pointerMove(e); }, { passive: false });
+    document.addEventListener('mouseup', onGestureEnd, { passive: true });
+  }
+}
 
 // --- Path drawing with SVG lines ---
 function drawPath() {
   overlay.innerHTML = '';
   if (selectedTiles.length < 2) return;
-  const points = selectedTiles.map(([r, c]) => getTileCenter(r, c));
-  let path = '';
-  for (let i = 0; i < points.length - 1; i++) {
+  var points = [];
+  for (var i=0;i<selectedTiles.length;i++){ var t=selectedTiles[i]; points.push(getTileCenter(t[0], t[1])); }
+  var path = '';
+  for (var i = 0; i < points.length - 1; i++) {
     path += '<line x1="' + points[i].x + '" y1="' + points[i].y + '" x2="' + points[i+1].x + '" y2="' + points[i+1].y + '" stroke="var(--blue)" stroke-width="5" stroke-linecap="round"/>';
   }
   overlay.innerHTML = path;
@@ -397,52 +464,49 @@ function drawPath() {
 
 // --- Dictionary loading ---
 async function loadDictionary() {
-  const res = await fetch('en-words.txt');
-  const text = await res.text();
-  text.split(/\r?\n/).forEach(w => {
-    w = w.trim(); if (!w) return; const up = w.toUpperCase(); if (up.length > MAX_WORD_LEN) return;
-    DICT.add(up);
-    for (let i = 1; i <= up.length; i++) PREFIX.add(up.slice(0, i));
-  });
+  try {
+    var res = await fetch('en-words.txt');
+    if (!res.ok) throw new Error('fetch failed');
+    var text = await res.text();
+    text.split(/\r?\n/).forEach(function(w){
+      w = (w||'').trim(); if (!w) return; var up = w.toUpperCase(); if (up.length > MAX_WORD_LEN) return;
+      DICT.add(up);
+      for (var i = 1; i <= up.length; i++) PREFIX.add(up.slice(0, i));
+    });
     dictionaryReady = true;
-  } catch(e) {
-    dictionaryReady = false;
-  }
+  } catch(e) { dictionaryReady = false; }
 }
 
-// --- Playability check (ensure at least 1 valid word in grid) ---
+// --- Playability check ---
 function gridHasAnyWord() {
-  const visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
-  const dirs = [-1, 0, 1];
+  var visited = Array(ROWS); for (var r=0;r<ROWS;r++){ visited[r]=Array(COLS); for (var c=0;c<COLS;c++) visited[r][c]=false; }
+  var dirs = [-1, 0, 1];
   function dfs(r, c, prefix) {
-    const next = prefix + grid[r][c].letter;
-    const up = next.toUpperCase();
-    if (!PREFIX.has(up)) return false;
-    if (DICT.has(up)) return true; // found at least one
+    var next = prefix + grid[r][c].letter;
+    var up = next.toUpperCase();
+    if (dictionaryReady && !PREFIX.has(up)) return false;
+    if (dictionaryReady && DICT.has(up)) return true;
     visited[r][c] = true;
-    for (let dr of dirs) for (let dc of dirs) {
+    for (var i=0;i<dirs.length;i++) for (var j=0;j<dirs.length;j++){
+      var dr = dirs[i], dc = dirs[j];
       if (dr === 0 && dc === 0) continue;
-      const nr = r + dr, nc = c + dc;
+      var nr = r + dr, nc = c + dc;
       if (isInBounds(nr, nc) && !visited[nr][nc]) {
         if (dfs(nr, nc, next)) { visited[r][c] = false; return true; }
       }
     }
     visited[r][c] = false; return false;
   }
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (dfs(r, c, '')) return true;
-    }
-  }
-  return false;
+  for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) if (dfs(r, c, '')) return true;
+  return !dictionaryReady; // if no dictionary, assume playable
 }
 
 function ensurePlayableOrReshuffle() {
   if (gridHasAnyWord()) { clearStatus(); saveState(); return; }
   paused = true; btnConfirm.disabled = true; btnReject.disabled = true;
   showStatus('<strong>No words found</strong>, reshuffling...', 'warn');
-  let attempts = 0;
-  const tryReshuffle = () => {
+  var attempts = 0;
+  var tryReshuffle = function () {
     attempts++;
     makeRandomGrid(); renderGrid();
     if (gridHasAnyWord() || attempts > 50) {
@@ -455,24 +519,25 @@ function ensurePlayableOrReshuffle() {
 }
 
 // ---- Controls ----
-btnConfirm.addEventListener('click', () => confirmWord(true));
+btnConfirm.addEventListener('click', function(){ confirmWord(true); });
 btnReject.addEventListener('click', rejectWord);
-btnNewGame.addEventListener('click', () => {
+btnNewGame.addEventListener('click', function(){
   score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = 'Score: ' + score; turnsDisplay.textContent = 'Turns Left: ' + turns;
   makeRandomGrid(); renderGrid(); clearSelection(); paused = false; btnNewGame.style.display = 'none'; clearStatus(); ensurePlayableOrReshuffle(); saveState();
 });
 
 // ---- Boot ----
-(async function init(){
+(function init(){
   loadSettings();
-  await loadDictionary();
-  const restored = loadState();
+  // Load dict but do not block the UI; tiles should render even if it fails
+  try { loadDictionary(); } catch(e) {}
+  var restored = loadState();
   if (!restored) makeRandomGrid();
   renderGrid();
   scoreDisplay.textContent = 'Score: ' + score;
   turnsDisplay.textContent = 'Turns Left: ' + turns;
   attachInputListeners();
-  resizeOverlay();
+  sizeGridSquare();
   ensurePlayableOrReshuffle();
 })();
 </script>
