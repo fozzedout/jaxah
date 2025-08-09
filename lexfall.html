@@ -10,12 +10,12 @@
 
     #container { position:relative; width:100%; max-width:420px; margin:0 auto; }
 
-    /* Settings icon at top right */
+    /* Settings icon fixed at top right of the screen */
     #settingsIcon {
-      position:absolute; top:8px; right:8px; width:36px; height:36px;
+      position:fixed; top:8px; right:8px; width:36px; height:36px;
       display:inline-flex; align-items:center; justify-content:center;
       background:#ffffff; border:2px solid var(--tile-border); border-radius:50%;
-      text-decoration:none; z-index:20; box-shadow:0 1px 2px rgba(0,0,0,0.08);
+      text-decoration:none; z-index:9999; box-shadow:0 1px 2px rgba(0,0,0,0.08);
     }
     #settingsIcon svg { width:18px; height:18px; fill:#333333; }
 
@@ -69,18 +69,18 @@
 <body>
 
 <h1>Lexfall</h1>
+<a id="settingsIcon" href="settings.html" aria-label="Settings" title="Settings">
+  <!-- Inline SVG cog icon -->
+  <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+    <path d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zm9.4 3.2c0-.5 0-.9-.1-1.3l2-1.6-2-3.4-2.4 1a8.8 8.8 0 0 0-2.2-1.3l-.3-2.6H9.6l-.3 2.6a8.8 8.8 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6c0 .4-.1 .8-.1 1.3s0 .9 .1 1.3l-2 1.6 2 3.4 2.4-1c.7 .5 1.4 .9 2.2 1.3l.3 2.6h4.6l.3-2.6c.8-.4 1.5-.8 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4 .1-.8 .1-1.3zM12 6.6a5.4 5.4 0 1 1 0 10.8A5.4 5.4 0 0 1 12 6.6z"/>
+  </svg>
+</a>
 <div id="hud">
   <div id="wordDisplay">Word:</div>
   <div id="scoreDisplay">Score: 0</div>
   <div id="turnsLeft">Turns Left: 10</div>
 </div>
 <div id="container">
-  <a id="settingsIcon" href="settings.html" aria-label="Settings" title="Settings">
-    <!-- Inline SVG cog icon -->
-    <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-      <path d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zm9.4 3.2c0-.5 0-.9-.1-1.3l2-1.6-2-3.4-2.4 1a8.8 8.8 0 0 0-2.2-1.3l-.3-2.6H9.6l-.3 2.6a8.8 8.8 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6c0 .4-.1 .8-.1 1.3s0 .9 .1 1.3l-2 1.6 2 3.4 2.4-1c.7 .5 1.4 .9 2.2 1.3l.3 2.6h4.6l.3-2.6c.8-.4 1.5-.8 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4 .1-.8 .1-1.3zM12 6.6a5.4 5.4 0 1 1 0 10.8A5.4 5.4 0 0 1 12 6.6z"/>
-    </svg>
-  </a>
   <div id="game"></div>
   <svg id="overlay"></svg>
 </div>
@@ -114,6 +114,10 @@ const btnConfirm = document.getElementById('confirm');
 const btnReject = document.getElementById('reject');
 const btnNewGame = document.getElementById('newGame');
 
+
+// Attach pointer listeners to the grid container for reliable swipe selection
+gameEl.addEventListener('pointerdown', (e) => { pointerDown(e); try { gameEl.setPointerCapture && gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
+gameEl.addEventListener('pointermove', (e) => { pointerMove(e); }, { passive: false });
 // ---- Game State ----
 let grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
 let pointerActive = false; let paused = false; let slidThisGesture = false;
@@ -187,8 +191,6 @@ function renderGrid() {
       const ch = grid[r][c].letter || '';
       const val = LETTER_SCORES[ch] || 0;
       tile.innerHTML = '<span class="letter">' + ch + '</span><span class="score">' + val + '</span>';
-      tile.addEventListener('pointerdown', pointerDown, { passive: false });
-      tile.addEventListener('pointermove', pointerMove, { passive: false });
       gameEl.appendChild(tile);
       grid[r][c].element = tile;
     }
@@ -350,7 +352,7 @@ function pointerMove(e) {
 document.addEventListener('pointerup', () => {
   if (!pointerActive) return; pointerActive = false;
   if (selectedTiles.length === 0) return;
-  if (!slidThisGesture) return; // only auto-confirm on slide gestures
+  // auto-confirm on gesture end if selection exists
   const word = currentWord().toUpperCase();
   const meetsLen = word.length >= settings.minLen;
   if (settings.autoConfirm && DICT.has(word) && meetsLen) confirmWord(true); else if (settings.autoConfirm) rejectWord();
@@ -417,7 +419,6 @@ function ensurePlayableOrReshuffle() {
     if (gridHasAnyWord() || attempts > 50) {
       paused = false; btnConfirm.disabled = false; btnReject.disabled = false; clearStatus(); saveState();
     } else {
-      // keep trying until we get a playable grid
       setTimeout(tryReshuffle, 0);
     }
   };
