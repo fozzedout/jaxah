@@ -213,6 +213,7 @@ function selectTile(r, c) {
     if (!isAdjacentForgiving(r, c, pr, pc)) return;
   }
   selectedTiles.push([r, c]);
+  if (selectedTiles.length >= 2) { slidThisGesture = true; }
   grid[r][c].element.classList.add('selected');
   updateWordDisplay();
   drawPath();
@@ -352,7 +353,7 @@ function pointerMove(e) {
 document.addEventListener('pointerup', () => {
   if (!pointerActive) return; pointerActive = false;
   if (selectedTiles.length === 0) return;
-  // auto-confirm on gesture end if selection exists
+  if (!slidThisGesture) return; // only auto-confirm on slide gestures
   const word = currentWord().toUpperCase();
   const meetsLen = word.length >= settings.minLen;
   if (settings.autoConfirm && DICT.has(word) && meetsLen) confirmWord(true); else if (settings.autoConfirm) rejectWord();
