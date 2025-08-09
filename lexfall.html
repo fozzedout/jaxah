@@ -1,508 +1,190 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Word Grid Game</title>
-  <style>
-    :root {
-      --green: #3bb273;
-      --green-soft: #bff0cf;
-      --red: #dc3545;
-      --blue: #339;
-      --bg: #f0f0f0;
-      --tile-bg: #ffffff;
-      --tile-border: #ccc;
-    }
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lexfall — Stable Build</title>
+<style>
+  :root { --green:#3bb273; --green-soft:#bff0cf; --red:#dc3545; --blue:#336; --bg:#f7f7f8; --tile-bg:#fff; --tile-border:#cfcfd4; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:16px; text-align:center; background:var(--bg); color:#111; }
+  h1 { margin:6px 0 10px; font-size: 1.35rem; }
+  #container { width:100%; max-width: 440px; margin: 0 auto; }
+  #current { font-weight:700; margin:6px auto 10px; }
 
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; text-align: center; margin: 0; padding: 1em; background: var(--bg); }
-    #container { position: relative; width: 100vw; max-width: 420px; margin: auto; }
-    #game {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
-      width: 100%; aspect-ratio: 1/1; position: relative;
-      z-index: 1; touch-action: none; background: #e0e0e0; border-radius: 12px; padding: 6px;
-    }
-    .tile {
-      background: var(--tile-bg); border: 2px solid var(--tile-border); font-size: 2.1em; font-weight: 700; 
-      user-select: none; border-radius: 12px; transition: background 0.15s, transform 0.05s; 
-      min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; z-index: 2; touch-action: none;
-    }
-    .tile.selected { background: #e8f0ff; border-color: var(--tile-border); }
-    .tile.selected.valid { background: var(--green-soft); border-color: var(--green); }
-    .tile.selected.invalid { background: #ffecec; border-color: var(--red); }
-    .tile.empty { background: transparent; border: none; }
-
-    #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
-
-    #hud { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center; max-width: 420px; margin: 10px auto; }
-    #wordDisplay, #scoreDisplay, #turnsLeft { font-size: 1.1em; grid-column: 1 / -1; }
-    #controls { display: flex; justify-content: center; gap: 10px; }
-    button { padding: 0.9em 1.1em; margin: 0.2em; font-size: 1em; border-radius: 10px; border: none; cursor: pointer; }
-    #confirm { background: var(--green); color: white; }
-    #reject { background: var(--red); color: white; }
-    #status { max-width: 420px; margin: 8px auto 0; font-size: 0.98em; }
-    #status .info { padding: 10px; background: #fff; border-left: 4px solid var(--blue); border-radius: 8px; text-align: left; }
-    #status .warn { padding: 10px; background: #fff6f6; border-left: 4px solid var(--red); border-radius: 8px; text-align: left; }
-    #status .success { padding: 10px; background: #f0fff6; border-left: 4px solid var(--green); border-radius: 8px; text-align: left; }
-
-    #newGame { display:none; background: #1f6feb; color: #fff; }
-    /* UI/UX enhancements */
-  .tile { position: relative; transition: transform 0.08s ease; }
+  #game { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; width:100%; touch-action:none; }
+  .tile { background:var(--tile-bg); border:2px solid var(--tile-border); border-radius:14px; position:relative; display:flex; align-items:center; justify-content:center; aspect-ratio:1/1; user-select:none; transition: transform .08s ease, box-shadow .12s ease; }
   .tile:hover { transform: translateY(-2px); }
-  .tile .letter { pointer-events: none; }
-  .tile .score { position: absolute; right: 6px; bottom: 4px; font-size: 0.7em; opacity: 0.75; pointer-events: none; }
-  #controls { margin-top: 10px; display: flex; gap: 8px; justify-content: center; }
-  button[disabled] { opacity: 0.5; cursor: not-allowed; }
-  /* UI/UX enhancements */
-  .tile { position: relative; transition: transform 0.08s ease; }
-  .tile:hover { transform: translateY(-2px); }
-  .tile .letter { pointer-events: none; }
-  .tile .score { position: absolute; right: 6px; bottom: 4px; font-size: 0.7em; opacity: 0.75; pointer-events: none; }
-  #controls { margin-top: 10px; display: flex; gap: 8px; justify-content: center; }
-  button[disabled] { opacity: 0.5; cursor: not-allowed; }
-  #game { touch-action: none; }
-  #current { max-width:420px; margin:8px auto 0; font-weight:600; }
-  /* Settings modal & fallbacks */
+  .tile .letter { font-size:2.1rem; font-weight:800; letter-spacing:.02em; }
+  .tile .score { position:absolute; right:6px; bottom:4px; font-size:.72rem; opacity:.8; }
+  .tile.selected { box-shadow: 0 0 0 2px rgba(51,102,153,.18) inset; }
+  .tile.selected.valid { background: var(--green-soft); border-color: var(--green); box-shadow:0 0 0 2px rgba(59,178,115,.35) inset; }
+  .tile.selected.invalid { background:#ffefef; border-color: var(--red); box-shadow:0 0 0 2px rgba(220,53,69,.25) inset; }
+
+  #controls { margin:12px auto 0; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  button { padding:10px 14px; border-radius:10px; border:none; font-weight:600; cursor:pointer; }
+  #confirm { background:var(--green); color:#fff; display:none; }
+  #reject { background:#e9e9ef; color:#111; display:none; }
   #settingsBtn { background:#1f6feb; color:#fff; }
+  button[disabled]{ opacity:.5; cursor:not-allowed; }
+
+  #status { max-width:440px; margin:10px auto 0; text-align:left; }
+  #status .card { background:#fff; border:1px solid #e4e4ea; border-radius:12px; padding:10px 12px; }
+
+  /* Settings modal */
   #settingsModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); align-items:center; justify-content:center; }
-  #settingsModal .panel { background:#fff; padding:16px; border-radius:12px; width: min(420px, 90vw); text-align:left; }
+  #settingsModal .panel { background:#fff; padding:16px; border-radius:12px; width:min(440px, 92vw); text-align:left; }
   #settingsModal label { display:block; margin:8px 0 4px; font-weight:600; }
   #settingsModal .row { display:flex; gap:8px; align-items:center; }
   #settingsModal input[type="number"] { width:80px; }
   #settingsModal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
-  /* very old browsers: no CSS grid */
-  .no-grid { display:flex !important; flex-wrap:wrap; gap:6px; }
-  .no-grid .tile { width: calc(25% - 6px); }
+
+  /* Fallback for very old browsers without CSS Grid */
+  .no-grid { display:flex !important; flex-wrap:wrap; gap:8px; }
+  .no-grid .tile { width: calc(25% - 8px); }
 </style>
 </head>
 <body>
-
-<h1>Word Grid</h1>
-<div id="container">
-  <div id="game"></div>
-  <svg id="overlay"></svg>
-</div>
-<div id="hud">
-  <div id="wordDisplay">Word: </div>
-  <div id="scoreDisplay">Score: 0</div>
-  <div id="turnsLeft">Turns Left: 10</div>
-  <div id="current">Word: <span id="currentWord"></span></div>
-<div id="controls">
-  <button id="confirm">Confirm</button>
-  <button id="reject">Reject</button>
-  <button id="settingsBtn">Settings</button>
-</div>
-<div id="settingsModal">
-  <div class="panel">
-    <h3>Settings</h3>
-    <label for="minLen">Minimum word length</label>
-    <div class="row">
-      <input id="minLen" type="number" min="2" max="16" step="1"/>
-      <span>(Dictionary min is 2)</span>
+  <div id="container">
+    <h1>Lexfall</h1>
+    <div id="current">Word: <span id="currentWord"></span> <span id="currentPts" style="opacity:.75"></span></div>
+    <div id="game"></div>
+    <div id="controls">
+      <button id="confirm">Confirm</button>
+      <button id="reject">Clear</button>
+      <button id="settingsBtn">Settings</button>
     </div>
-    <label class="row"><input id="autoConfirm" type="checkbox"/> Auto-confirm on slide release</label>
-    <div class="actions">
-      <button id="saveSettings">Save</button>
-      <button id="closeSettings">Close</button>
+    <div id="status"><div class="card">Slide or click to select adjacent letters.</div></div>
+  </div>
+
+  <div id="settingsModal">
+    <div class="panel">
+      <h3>Settings</h3>
+      <label for="minLen">Minimum word length</label>
+      <div class="row">
+        <input id="minLen" type="number" min="2" max="16" step="1"/>
+        <span>(Dictionary min is 2)</span>
+      </div>
+      <label class="row"><input id="autoConfirm" type="checkbox"/> Auto-confirm on slide release</label>
+      <div class="actions">
+        <button id="saveSettings">Save</button>
+        <button id="closeSettings">Close</button>
+      </div>
     </div>
   </div>
-</div>
-<div id="status"></div>
 
 <script>
-// ---- Config ----
-const ROWS = 4, COLS = 4;
-const TILE_RADIUS_PX = 35; // virtual circle for selection
-const MAX_WORD_LEN = 16;
-const DEFAULT_TURNS = 10;
-const LETTER_SCORES = { A:1, B:3, C:3, D:2, E:1, F:4, G:2, H:4, I:1, J:8, K:5, L:1, M:3, N:1, O:1, P:3, Q:10, R:1, S:1, T:1, U:1, V:4, W:4, X:8, Y:4, Z:10 };
-function calculateScore(word){ return [...word].reduce((t,ch)=>t+(LETTER_SCORES[ch]||0),0); }
+// --- Config ---
+const ROWS = 4, COLS = 4, MAX_WORD_LEN = 16;
+const LETTER_SCORES = { A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10 };
+function calculateScore(word){ return [...word].reduce((s,ch)=>s+(LETTER_SCORES[ch]||0),0); }
 
-// ---- DOM ----
+// --- State & DOM ---
+let grid = [], selectedTiles = [], pointerActive = false, slidThisGesture = false;
 const gameEl = document.getElementById('game');
-const overlay = document.getElementById('overlay');
-const wordDisplay = document.getElementById('wordDisplay');
-const scoreDisplay = document.getElementById('scoreDisplay');
-const turnsDisplay = document.getElementById('turnsLeft');
 const statusEl = document.getElementById('status');
 const btnConfirm = document.getElementById('confirm');
-const btnReject = document.getElementById('reject');
+const btnReject  = document.getElementById('reject');
 const btnSettings = document.getElementById('settingsBtn');
+const currentWordEl = document.getElementById('currentWord');
+const currentPtsEl = document.getElementById('currentPts');
 const modal = document.getElementById('settingsModal');
 const inputMinLen = document.getElementById('minLen');
 const inputAuto = document.getElementById('autoConfirm');
 const btnSaveSettings = document.getElementById('saveSettings');
 const btnCloseSettings = document.getElementById('closeSettings');
+let DICT = new Set(); let PREFIX = new Set();
 let settings = { minLen: 3, autoConfirm: true };
-function loadSettings(){ try { const s = JSON.parse(localStorage.getItem('lexfall_settings')||'{}'); if (s && typeof s.minLen==='number') settings.minLen = Math.max(2, Math.min(16, s.minLen)); if (typeof s.autoConfirm==='boolean') settings.autoConfirm = s.autoConfirm; } catch(e){} }
+
+function loadSettings(){ try { const s = JSON.parse(localStorage.getItem('lexfall_settings')||'{}'); if (typeof s.minLen==='number') settings.minLen=Math.max(2,Math.min(16,s.minLen)); if (typeof s.autoConfirm==='boolean') settings.autoConfirm=s.autoConfirm; } catch(e){} }
 function persistSettings(){ try { localStorage.setItem('lexfall_settings', JSON.stringify(settings)); } catch(e){} }
-const btnConfirm = document.getElementById('confirm');
-const btnReject = document.getElementById('reject');
-const btnConfirm = document.getElementById('confirm');
-const btnReject = document.getElementById('reject');
-const btnConfirm = document.getElementById('confirm');
-const btnReject = document.getElementById('reject');
-const btnNewGame = document.getElementById('newGame');
 
-// ---- Game State ----
-let grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
-let pointerActive = false; let paused = false; let slidThisGesture = false;
-let DICT = new Set();
-let PREFIX = new Set();
+// Persist/restore board
+function saveState(){ try { const letters = grid.map(row=>row.map(c=>c.letter)); localStorage.setItem('lexfall_state', JSON.stringify({letters})); } catch(e){} }
+function loadState(){ try { const raw=localStorage.getItem('lexfall_state'); if(!raw) return false; const s=JSON.parse(raw); if(!s||!Array.isArray(s.letters)) return false; grid = s.letters.map(row=>row.map(letter=>({letter, element:null}))); return true; } catch(e){ return false; } }
 
-// ---- Utils ----
-function showStatus(html, type='info') {
-  statusEl.innerHTML = `<div class="${type}">${html}</div>`;
-}
-function clearStatus() { statusEl.innerHTML = ''; }
+// --- Helpers ---
+function randomLetter(){ const letters = "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ"; return letters[Math.floor(Math.random()*letters.length)]; }
+function isAdj(r,c,pr,pc){ return Math.abs(r-pr)<=1 && Math.abs(c-pc)<=1; }
+function currentWord(){ return selectedTiles.map(([r,c])=>grid[r][c].letter).join(''); }
 
-function saveState() {
-  try {
-    const letters = grid.map(row => row.map(cell => cell.letter));
-    const state = { letters, score, turns };
-    localStorage.setItem('lexfall_state', JSON.stringify(state));
-  } catch (e) { /* ignore */ }
-}
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem('lexfall_state');
-    if (!raw) return false;
-    const s = JSON.parse(raw);
-    if (!s || !Array.isArray(s.letters) || typeof s.score !== 'number' || typeof s.turns !== 'number') return false;
-    grid = s.letters.map((row) => row.map(letter => ({ letter, element: null })));
-    score = s.score; turns = s.turns;
-    return true;
-  } catch (e) { return false; }
-}
-
-// Dynamic size for overlay SVG
-function resizeOverlay() {
-  const rect = gameEl.getBoundingClientRect();
-  overlay.setAttribute('width', rect.width);
-  overlay.setAttribute('height', rect.height);
-  overlay.style.width = rect.width + 'px';
-  overlay.style.height = rect.height + 'px';
-}
-window.addEventListener('resize', resizeOverlay);
-
-// Letter randomizer (English-like frequency)
-function randomLetter() {
-  const letters = "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIIOOOOOOOONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGBBCCMMPPFFHHVVWWYYKJXQZ";
-  return letters[Math.floor(Math.random() * letters.length)];
-}
-
-// Build empty grid and tiles
-function makeRandomGrid() {
-  grid = [];
-  for (let r = 0; r < ROWS; r++) {
-    const row = [];
-    for (let c = 0; c < COLS; c++) row.push({ letter: randomLetter(), element: null });
-    grid.push(row);
-  }
-}
-
-function renderGrid() {
+// --- Build & Render ---
+function makeGrid(){ grid=[]; for(let r=0;r<ROWS;r++){ const row=[]; for(let c=0;c<COLS;c++) row.push({letter:randomLetter(), element:null}); grid.push(row);} }
+function renderGrid(){
   gameEl.innerHTML = '';
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
+  for (let r=0;r<ROWS;r++){
+    for (let c=0;c<COLS;c++){
       const tile = document.createElement('div');
-      tile.className = 'tile';
-      if (!grid[r][c].letter) tile.classList.add('empty');
-      tile.dataset.row = r; tile.dataset.col = c; const ch = grid[r][c].letter;
-      const val = LETTER_SCORES[ch] || 0;
-      tile.innerHTML = `<span class="letter">${ch}</span><span class="score">${val}</span>`; || '';
-      tile.addEventListener('pointerdown', pointerDown, { passive: false });
-      tile.addEventListener('pointermove', pointerMove, { passive: false });
+      tile.className='tile'; tile.dataset.row=r; tile.dataset.col=c;
+      const ch = grid[r][c].letter; const val = LETTER_SCORES[ch]||0;
+      tile.innerHTML = `<span class="letter">${ch}</span><span class="score">${val}</span>`;
+      tile.addEventListener('pointerdown', pointerDown, {passive:false});
+      tile.addEventListener('pointermove', pointerMove, {passive:false});
+      tile.addEventListener('click', ()=> selectTile(r,c));
       gameEl.appendChild(tile);
       grid[r][c].element = tile;
     }
   }
-  setTimeout(resizeOverlay, 40);
-  updateWordDisplay();
-  drawPath();
-}
-
-function isInBounds(r, c) { return r >= 0 && r < ROWS && c >= 0 && c < COLS; }
-function alreadySelected(r, c) { return selectedTiles.some(([rr, cc]) => rr === r && cc === c); }
-function isAdjacentForgiving(r, c, prevR, prevC) { return Math.abs(r - prevR) <= 1 && Math.abs(c - prevC) <= 1; }
-
-function selectTile(r, c) {
-  if (selectedTiles.find(([rr, cc]) => rr === r && cc === c)) return;
-  if (selectedTiles.length > 0) {
-    const [pr, pc] = selectedTiles[selectedTiles.length - 1];
-    if (Math.abs(r - pr) > 1 || Math.abs(c - pc) > 1) return; // enforce adjacency
-  }
-  selectedTiles.push([r, c]);
-  updateSelectionHighlight();
-}
-  selectedTiles.push([r, c]);
-  grid[r][c].element.classList.add('selected');
-  updateWordDisplay();
-  drawPath();
-}
-  drawPath();
-}
-
-function currentWord() { return selectedTiles.map(([r, c]) => grid[r][c].letter).join(''); }
-
-function refreshSelectionStyles() {
-  const up = currentWord().toUpperCase();
-  const isValid = up.length > 0 && DICT.has(up);
-  const isDead = up.length > 0 && !PREFIX.has(up);
-  selectedTiles.forEach(([r, c]) => {
-    const el = grid[r][c].element;
-    el.classList.remove('valid','invalid');
-    if (isValid) el.classList.add('valid');
-    else if (isDead) el.classList.add('invalid');
-  });
-}
-
-function refreshSelectionStyles() {
-  const up = currentWord().toUpperCase();
-  const isValid = up.length > 0 && DICT.has(up);
-  const isDead = up.length > 0 && !PREFIX.has(up);
-  selectedTiles.forEach(([r, c]) => {
-    const el = grid[r][c].element;
-    el.classList.remove('valid','invalid');
-    if (isValid) el.classList.add('valid');
-    else if (isDead) el.classList.add('invalid');
-  });
-}
-
-function updateWordDisplay() {
-  const word = currentWord();
-  refreshSelectionStyles();
-  if (!word.length) {
-    wordDisplay.textContent = 'Word:';
-  } else {
-    wordDisplay.textContent = `Word: ${word}`;
-  }
-}
-
-
-
-function calculateScore(word) { return [...word].reduce((acc, ch) => acc + (LETTER_SCORES[ch] || 0), 0); }
-
-function confirmWord(force=false) {
-  if (selectedTiles.length === 0 || turns === 0) return;
-  const word = currentWord().toUpperCase();
-  if (!force && !DICT.has(word)) { rejectWord(); return; }
-  const wordScore = calculateScore(word);
-  score += wordScore; scoreDisplay.textContent = `Score: ${score}`;
-  turns--; turnsDisplay.textContent = `Turns Left: ${turns}`;
-  removeAndDropTiles();
-  clearSelection();
+  updateUI();
   saveState();
-  maybeFinishGame();
 }
 
-function maybeFinishGame() {
-  if (turns <= 0) {
-    paused = true;
-    showStatus(`<strong>Congratulations!</strong> Final score: <strong>${score}</strong>.`, 'success');
-    btnNewGame.style.display = 'inline-block';
-  }
+// --- Selection ---
+function selectTile(r,c){
+  if (selectedTiles.some(([rr,cc])=> rr===r && cc===c)) return;
+  if (selectedTiles.length>0){ const [pr,pc]=selectedTiles[selectedTiles.length-1]; if(!isAdj(r,c,pr,pc)) return; }
+  selectedTiles.push([r,c]);
+  updateUI();
 }
-
-function rejectWord() { clearSelection(); }
-
-function clearSelection() {
-  selectedTiles.forEach(([r, c]) => grid[r][c].element.classList.remove('selected','valid','invalid'));
-  selectedTiles = [];
-  updateWordDisplay();
-  drawPath();
+function tileFromEvent(e){
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const tile = el && (el.classList?.contains('tile') ? el : el.closest?.('.tile'));
+  if (!tile) return null; return [Number(tile.dataset.row), Number(tile.dataset.col)];
 }
+function pointerDown(e){ e.preventDefault(); pointerActive=true; slidThisGesture=false; const t = tileFromEvent(e); if (t) selectTile(t[0],t[1]); }
+function pointerMove(e){ if(!pointerActive) return; e.preventDefault(); const t = tileFromEvent(e); if(!t) return; const [r,c]=t; if(!selectedTiles.some(([rr,cc])=>rr===r&&cc===c)){ if(selectedTiles.length===0) selectTile(r,c); else { const [pr,pc]=selectedTiles[selectedTiles.length-1]; if(isAdj(r,c,pr,pc)){ slidThisGesture=true; selectTile(r,c); } } } }
 
-// Remove selected tiles, drop down, refill from top
-function removeAndDropTiles() {
-  // Remove
-  selectedTiles.forEach(([r, c]) => grid[r][c].letter = null);
-  // Drop down per column
-  for (let c = 0; c < COLS; c++) {
-    const letters = [];
-    for (let r = ROWS - 1; r >= 0; r--) if (grid[r][c].letter) letters.push(grid[r][c].letter);
-    for (let r = ROWS - 1; r >= 0; r--) grid[r][c].letter = letters[ROWS - 1 - r] || null;
-    for (let r = 0; r < ROWS; r++) if (!grid[r][c].letter) grid[r][c].letter = randomLetter();
+document.addEventListener('pointerup', ()=>{ if(!pointerActive) return; pointerActive=false; if(selectedTiles.length===0) return; if(!slidThisGesture) return; const w=currentWord().toUpperCase(); const valid = DICT.has(w) && w.length>=settings.minLen; if(settings.autoConfirm && valid) confirmWord(); else if (settings.autoConfirm) clearSelection(); });
+
+// --- UI update ---
+function updateUI(){
+  document.querySelectorAll('.tile').forEach(t=>t.classList.remove('selected','valid','invalid'));
+  const w = currentWord(); const up = w.toUpperCase(); const hasSel = selectedTiles.length>0; const isValid = hasSel && DICT.has(up) && up.length>=settings.minLen;
+  selectedTiles.forEach(([r,c])=> grid[r][c].element.classList.add('selected', isValid? 'valid':'invalid'));
+  currentWordEl.textContent = w; currentPtsEl.textContent = w? `(${calculateScore(up)})`:'';
+  btnConfirm.style.display = isValid ? 'inline-block' : 'none';
+  btnReject.style.display  = hasSel ? 'inline-block' : 'none';
+}
+function clearSelection(){ selectedTiles=[]; updateUI(); }
+
+// --- Confirm + Remove/Drop ---
+function removeAndDropTiles(){
+  selectedTiles.forEach(([r,c])=>{ grid[r][c].letter = null; });
+  for(let c=0;c<COLS;c++){
+    const letters=[]; for(let r=ROWS-1;r>=0;r--) if(grid[r][c].letter) letters.push(grid[r][c].letter);
+    for(let r=ROWS-1;r>=0;r--) grid[r][c].letter = letters[ROWS-1-r] || null;
+    for(let r=0;r<ROWS;r++) if(!grid[r][c].letter) grid[r][c].letter = randomLetter();
   }
   renderGrid();
-  ensurePlayableOrReshuffle();
 }
+function confirmWord(){ const w=currentWord().toUpperCase(); if(!(DICT.has(w) && w.length>=settings.minLen)) { clearSelection(); return; } const pts=calculateScore(w); statusEl.innerHTML = `<div class='card'>Confirmed: <strong>${w}</strong> (${pts})</div>`; removeAndDropTiles(); clearSelection(); }
+function rejectWord(){ clearSelection(); statusEl.innerHTML = `<div class='card'>Selection cleared.</div>`; }
 
-// Leaderboard stub (left as-is but not essential to flow)
-function submitScore(score) {
-  fetch('https://example.com/api/submit-score', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player: 'Player1', score })
-  }).catch(()=>{});
-}
+// --- Dictionary ---
+async function loadDictionary(){ const res=await fetch('en-words.txt'); const text=await res.text(); text.split(/\r?\n/).forEach(w=>{ const up=w.trim().toUpperCase(); if(!up||up.length>MAX_WORD_LEN) return; DICT.add(up); for(let i=1;i<=up.length;i++) PREFIX.add(up.slice(0,i)); }); }
 
-// --- Hit testing helpers ---
-function getTileCenter(r, c) {
-  const gridRect = gameEl.getBoundingClientRect();
-  const tile = grid[r][c].element; const tileRect = tile.getBoundingClientRect();
-  return { x: tileRect.left + tileRect.width / 2 - gridRect.left, y: tileRect.top + tileRect.height / 2 - gridRect.top };
-}
-
-function tileFromPointerEvent(e) {
-  const gridRect = gameEl.getBoundingClientRect();
-  const x = (e.touches ? e.touches[0].clientX : e.clientX) - gridRect.left;
-  const y = (e.touches ? e.touches[0].clientY : e.clientY) - gridRect.top;
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (!grid[r][c].letter) continue;
-      const center = getTileCenter(r, c); const dx = x - center.x; const dy = y - center.y;
-      if (Math.hypot(dx, dy) < TILE_RADIUS_PX) return [r, c];
-    }
-  }
-  return null;
-}
-
-// --- Pointer interactions (auto confirm on slide end) ---
-function pointerDown(e) {
-  if (paused) return;
-  e.preventDefault(); pointerActive = true; slidThisGesture = false;
-  const tile = tileFromPointerEvent(e);
-  if (tile) selectTile(...tile);
-}
-
-function pointerMove(e) {
-  if (!pointerActive || paused) return;
-  e.preventDefault(); const tile = tileFromPointerEvent(e); if (!tile) return;
-  const [r, c] = tile;
-  if (!alreadySelected(r, c)) {
-    if (selectedTiles.length === 0) selectTile(r, c);
-    else {
-      const [pr, pc] = selectedTiles[selectedTiles.length - 1];
-      if (isAdjacentForgiving(r, c, pr, pc)) { selectTile(r, c); slidThisGesture = true; }
-    }
-  }
-}
-
-document.addEventListener('pointerup', () => {
-  if (!pointerActive) return; pointerActive = false;
-  if (!slidThisGesture) return; // only sliding gestures considered for auto
-  const word = currentWord().toUpperCase();
-  const isValid = DICT.has(word) && word.length >= settings.minLen;
-  if (settings.autoConfirm && isValid) confirmWord(); else if (settings.autoConfirm) rejectWord();
-});
-  if (DICT.has(word)) confirmWord(true); else rejectWord();
-});
-
-// --- Path drawing with SVG lines ---
-function drawPath() {
-  overlay.innerHTML = '';
-  if (selectedTiles.length < 2) return;
-  const points = selectedTiles.map(([r, c]) => getTileCenter(r, c));
-  let path = '';
-  for (let i = 0; i < points.length - 1; i++) {
-    path += `<line x1="${points[i].x}" y1="${points[i].y}" x2="${points[i+1].x}" y2="${points[i+1].y}" stroke="var(--blue)" stroke-width="5" stroke-linecap="round"/>`;
-  }
-  overlay.innerHTML = path;
-}
-
-// --- Dictionary loading ---
-function tileFromEvent(e) {
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  const tile = el && (el.classList && el.classList.contains('tile') ? el : el.closest ? el.closest('.tile') : null);
-  if (!tile) return null;
-  return [Number(tile.dataset.row), Number(tile.dataset.col)];
-}
-function pointerDown(e) {
-  e.preventDefault(); pointerActive = true; slidThisGesture = false;
-  const t = tileFromEvent(e); if (t) selectTile(t[0], t[1]);
-}
-function pointerMove(e) {
-  if (!pointerActive) return; e.preventDefault(); const t = tileFromEvent(e); if (!t) return;
-  const [r, c] = t;
-  if (!selectedTiles.find(([rr, cc]) => rr === r && cc === c)) {
-    if (selectedTiles.length === 0) selectTile(r, c);
-    else {
-      const [pr, pc] = selectedTiles[selectedTiles.length - 1];
-      if (Math.abs(r - pr) <= 1 && Math.abs(c - pc) <= 1) { slidThisGesture = true; selectTile(r, c); }
-    }
-  }
-}
-document.addEventListener('pointerup', () => {
-  if (!pointerActive) return; pointerActive = false;
-  if (selectedTiles.length === 0) return;
-  if (!slidThisGesture) return; // only auto on slide
-  const word = currentWord().toUpperCase();
-  if (DICT.has(word)) confirmWord(); else clearSelection();
-});
-
-async function loadDictionary() {
-  const res = await fetch('en-words.txt');
-  const text = await res.text();
-  text.split(/\r?\n/).forEach(w => {
-    const t = w.trim().toUpperCase();
-    if (!t) return;
-    DICT.add(t);
-    for (let i=1;i<=t.length;i++) PREFIX.add(t.slice(0,i));
-  });
-});
-}
-
-// --- Playability check (ensure at least 1 valid word in grid) ---
-function gridHasAnyWord() {
-  const visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
-  const dirs = [-1, 0, 1];
-  function dfs(r, c, prefix) {
-    const next = prefix + grid[r][c].letter;
-    const up = next.toUpperCase();
-    if (!PREFIX.has(up)) return false;
-    if (DICT.has(up)) return true; // found at least one
-    visited[r][c] = true;
-    for (let dr of dirs) for (let dc of dirs) {
-      if (dr === 0 && dc === 0) continue;
-      const nr = r + dr, nc = c + dc;
-      if (isInBounds(nr, nc) && !visited[nr][nc]) {
-        if (dfs(nr, nc, next)) { visited[r][c] = false; return true; }
-      }
-    }
-    visited[r][c] = false; return false;
-  }
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (dfs(r, c, '')) return true;
-    }
-  }
-  return false;
-}
-
-function ensurePlayableOrReshuffle() {
-  if (gridHasAnyWord()) { clearStatus(); saveState(); return; }
-  paused = true; btnConfirm.disabled = true; btnReject.disabled = true;
-  showStatus('<strong>No words found</strong>, reshuffling…', 'warn');
-  let attempts = 0;
-  const tryReshuffle = () => {
-    attempts++;
-    makeRandomGrid(); renderGrid();
-    if (gridHasAnyWord() || attempts > 50) {
-      paused = false; btnConfirm.disabled = false; btnReject.disabled = false; clearStatus(); saveState();
-    } else {
-      // keep trying until we get a playable grid
-      setTimeout(tryReshuffle, 0);
-    }
-  };
-  tryReshuffle();
-}
-
-// ---- Controls ----
-btnConfirm.addEventListener('click', () => confirmWord());
+// --- Events ---
+btnConfirm.addEventListener('click', confirmWord);
 btnReject.addEventListener('click', rejectWord);
 btnSettings.addEventListener('click', ()=>{ inputMinLen.value = settings.minLen; inputAuto.checked = !!settings.autoConfirm; modal.style.display = 'flex'; });
 btnCloseSettings.addEventListener('click', ()=>{ modal.style.display = 'none'; });
-btnSaveSettings.addEventListener('click', ()=>{ settings.minLen = Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10))); settings.autoConfirm = !!inputAuto.checked; persistSettings(); modal.style.display = 'none'; updateSelectionHighlight(); });
-btnNewGame.addEventListener('click', () => {
-  score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = `Score: ${score}`; turnsDisplay.textContent = `Turns Left: ${turns}`;
-  makeRandomGrid(); renderGrid(); clearSelection(); paused = false; btnNewGame.style.display = 'none'; clearStatus(); ensurePlayableOrReshuffle(); saveState();
-});
+btnSaveSettings.addEventListener('click', ()=>{ settings.minLen = Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10))); settings.autoConfirm = !!inputAuto.checked; persistSettings(); modal.style.display = 'none'; updateUI(); });
 
-// ---- Boot ----
+// --- Boot ---
 (async function init(){
   loadSettings();
   await loadDictionary();
-  makeGrid();
-  // fallback for very old browsers with no CSS grid support
+  const restored = loadState();
+  if (!restored) makeGrid();
+  // fallback if CSS Grid not supported
   try { if (!(window.CSS && CSS.supports && CSS.supports('display','grid'))) { gameEl.classList.add('no-grid'); } } catch(e){ gameEl.classList.add('no-grid'); }
   renderGrid();
 })();
