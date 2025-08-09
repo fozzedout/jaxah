@@ -118,6 +118,27 @@ const btnNewGame = document.getElementById('newGame');
 // Attach pointer listeners to the grid container for reliable swipe selection
 gameEl.addEventListener('pointerdown', (e) => { pointerDown(e); try { gameEl.setPointerCapture && gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
 gameEl.addEventListener('pointermove', (e) => { pointerMove(e); }, { passive: false });
+
+// Pointer/touch/mouse support
+const HAS_POINTER = !!window.PointerEvent;
+
+// Attach listeners
+function attachInputListeners(){
+  if (HAS_POINTER) {
+    gameEl.addEventListener('pointerdown', (e) => { pointerDown(e); try { gameEl.setPointerCapture && gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
+    gameEl.addEventListener('pointermove', (e) => { pointerMove(e); }, { passive: false });
+    document.addEventListener('pointerup', onGestureEnd, { passive: true });
+  } else {
+    // Touch
+    gameEl.addEventListener('touchstart', (e) => { pointerDown(e); }, { passive: false });
+    gameEl.addEventListener('touchmove', (e) => { pointerMove(e); }, { passive: false });
+    document.addEventListener('touchend', onGestureEnd, { passive: true });
+    // Mouse
+    gameEl.addEventListener('mousedown', (e) => { pointerDown(e); }, { passive: false });
+    gameEl.addEventListener('mousemove', (e) => { pointerMove(e); }, { passive: false });
+    document.addEventListener('mouseup', onGestureEnd, { passive: true });
+  }
+}
 // ---- Game State ----
 let grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
 let pointerActive = false; let paused = false; let slidThisGesture = false;
@@ -350,14 +371,15 @@ function pointerMove(e) {
   }
 }
 
-document.addEventListener('pointerup', () => {
+function onGestureEnd(){
   if (!pointerActive) return; pointerActive = false;
   if (selectedTiles.length === 0) return;
   if (!slidThisGesture) return; // only auto-confirm on slide gestures
   const word = currentWord().toUpperCase();
   const meetsLen = word.length >= settings.minLen;
   if (settings.autoConfirm && DICT.has(word) && meetsLen) confirmWord(true); else if (settings.autoConfirm) rejectWord();
-});
+}
+
 
 // --- Path drawing with SVG lines ---
 function drawPath() {
@@ -427,7 +449,7 @@ function ensurePlayableOrReshuffle() {
 }
 
 // ---- Controls ----
-btnConfirm.addEventListener('click', () => confirmWord());
+btnConfirm.addEventListener('click', () => confirmWord(true));
 btnReject.addEventListener('click', rejectWord);
 btnNewGame.addEventListener('click', () => {
   score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = 'Score: ' + score; turnsDisplay.textContent = 'Turns Left: ' + turns;
@@ -443,6 +465,7 @@ btnNewGame.addEventListener('click', () => {
   renderGrid();
   scoreDisplay.textContent = 'Score: ' + score;
   turnsDisplay.textContent = 'Turns Left: ' + turns;
+  attachInputListeners();
   resizeOverlay();
   ensurePlayableOrReshuffle();
 })();
