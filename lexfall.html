@@ -494,7 +494,6 @@ function confirmWord(force) {
   score += wordScore; scoreDisplay.textContent = 'Score: ' + score;
   turns--; turnsDisplay.textContent = 'Turns Left: ' + turns;
   removeAndDropTiles();
-  clearSelection();
   saveState();
   maybeFinishGame();
 }
@@ -590,47 +589,54 @@ function removeAndDropTiles() {
 }
 
 function performTileDropAndRefill() {
-  // Store original grid state to track what actually moves
-  var originalGrid = [];
-  for (var r = 0; r < ROWS; r++) {
-    originalGrid[r] = [];
-    for (var c = 0; c < COLS; c++) {
-      originalGrid[r][c] = grid[r][c].letter;
-    }
+  // Store which tiles were selected before removing them
+  var affectedColumns = {};
+  for (var i = 0; i < selectedTiles.length; i++) {
+    affectedColumns[selectedTiles[i][1]] = true;
   }
   
   // Remove selected tiles
   for (var i=0;i<selectedTiles.length;i++){ var rc = selectedTiles[i]; grid[rc[0]][rc[1]].letter = null; }
   
-  // Drop down per column and track changes
-  for (var c = 0; c < COLS; c++) {
-    var letters = [];
-    for (var r = ROWS - 1; r >= 0; r--) if (grid[r][c].letter) letters.push(grid[r][c].letter);
-    for (var r = ROWS - 1; r >= 0; r--) grid[r][c].letter = letters[ROWS - 1 - r] || null;
-    for (var r = 0; r < ROWS; r++) if (!grid[r][c].letter) grid[r][c].letter = randomLetter();
-  }
+  // Clear selection now that tiles are removed
+  clearSelection();
   
-  // Determine which tiles are new vs dropped for animations
+  // Drop down per column and track new positions
   var newTiles = [];
   var droppingTiles = [];
   
-  if (ENHANCED_BROWSER) {
+  for (var c = 0; c < COLS; c++) {
+    if (!affectedColumns[c]) continue; // Skip columns that weren't affected
+    
+    // Collect existing letters from bottom to top
+    var letters = [];
+    for (var r = ROWS - 1; r >= 0; r--) {
+      if (grid[r][c].letter) letters.push(grid[r][c].letter);
+    }
+    
+    // Clear the column
     for (var r = 0; r < ROWS; r++) {
-      for (var c = 0; c < COLS; c++) {
-        var currentLetter = grid[r][c].letter;
-        var originalLetter = originalGrid[r][c];
-        
-        if (currentLetter && !originalLetter) {
-          // This is a completely new tile (spawned from top)
-          newTiles.push([r, c]);
-        } else if (currentLetter && originalLetter && currentLetter !== originalLetter) {
-          // This tile's letter changed, so it dropped from above
-          droppingTiles.push([r, c]);
-        }
-        // If currentLetter === originalLetter, tile didn't move, no animation
+      grid[r][c].letter = null;
+    }
+    
+    // Place existing letters at bottom
+    for (var i = 0; i < letters.length; i++) {
+      grid[ROWS - 1 - i][c].letter = letters[i];
+      if (ENHANCED_BROWSER) {
+        droppingTiles.push([ROWS - 1 - i, c]);
       }
     }
     
+    // Fill empty spaces at top with new letters
+    for (var r = 0; r < ROWS - letters.length; r++) {
+      grid[r][c].letter = randomLetter();
+      if (ENHANCED_BROWSER) {
+        newTiles.push([r, c]);
+      }
+    }
+  }
+  
+  if (ENHANCED_BROWSER) {
     renderGridWithAnimations(newTiles, droppingTiles);
   } else {
     renderGrid();
