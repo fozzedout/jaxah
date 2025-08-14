@@ -56,6 +56,97 @@
     /* height will be set equal to width via JS to make squares */
     overflow:hidden;
   }
+  
+  /* Enhanced animations for capable browsers */
+  .enhanced .tile {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s;
+  }
+  .enhanced .tile:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .enhanced .tile.selected {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  }
+  
+  /* Tile removal animations */
+  .enhanced .tile.removing {
+    animation: tileRemove 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+  .enhanced .tile.dropping {
+    animation: tileDrop 0.6s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  }
+  .enhanced .tile.spawning {
+    animation: tileSpawn 0.5s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  }
+  
+  @keyframes tileRemove {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(0.8) rotateZ(10deg); opacity: 0.5; }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  
+  @keyframes tileDrop {
+    from { transform: translateY(-100px) scale(0.9); opacity: 0.7; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  
+  @keyframes tileSpawn {
+    from { transform: scale(0) rotateZ(180deg); opacity: 0; }
+    60% { transform: scale(1.1) rotateZ(0deg); opacity: 0.8; }
+    to { transform: scale(1) rotateZ(0deg); opacity: 1; }
+  }
+  
+  /* Game completion effects */
+  .enhanced .celebration {
+    animation: celebrate 2s ease-in-out infinite;
+  }
+  
+  .enhanced .confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #ff6b6b;
+    border-radius: 50%;
+    animation: confettiFall 3s linear infinite;
+  }
+  
+  .enhanced .confetti:nth-child(2n) { background: #4ecdc4; animation-delay: 0.5s; }
+  .enhanced .confetti:nth-child(3n) { background: #45b7d1; animation-delay: 1s; }
+  .enhanced .confetti:nth-child(4n) { background: #96ceb4; animation-delay: 1.5s; }
+  .enhanced .confetti:nth-child(5n) { background: #ffd93d; animation-delay: 2s; }
+  
+  @keyframes celebrate {
+    0%, 100% { transform: scale(1) rotateZ(0deg); }
+    25% { transform: scale(1.1) rotateZ(5deg); }
+    75% { transform: scale(1.1) rotateZ(-5deg); }
+  }
+  
+  @keyframes confettiFall {
+    0% {
+      transform: translateY(-100vh) rotateZ(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100vh) rotateZ(720deg);
+      opacity: 0;
+    }
+  }
+  
+  /* Enhanced game completion background effect */
+  .enhanced .game-complete {
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #ffd93d);
+    background-size: 400% 400%;
+    animation: gradientShift 3s ease infinite;
+    border-radius: 20px;
+  }
+  
+  @keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
   .tile.selected { background:#e8f0ff; border-color:#cccccc; }
   .tile.selected.valid { background:#bff0cf; border-color:#3bb273; }
   .tile.selected.invalid { background:#ffecec; border-color:#dc3545; }
@@ -161,8 +252,19 @@ var btnConfirm = document.getElementById('confirm');
 var btnReject = document.getElementById('reject');
 var btnNewGame = document.getElementById('newGame');
 
-// Pointer/touch/mouse support
+// Browser capability detection
 var HAS_POINTER = !!window.PointerEvent;
+var ENHANCED_BROWSER = (function() {
+  try {
+    // Check for modern CSS features and reasonable performance
+    return !!(window.CSS && CSS.supports && 
+             CSS.supports('transform', 'scale(1)') &&
+             CSS.supports('transition', 'all 0.3s') &&
+             CSS.supports('animation', 'none') &&
+             window.requestAnimationFrame &&
+             !navigator.userAgent.toLowerCase().includes('kindle'));
+  } catch(e) { return false; }
+})();
 
 // ---- Game State ----
 var grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
@@ -282,6 +384,12 @@ function renderGrid() {
       tile.innerHTML = '<span class="letter">' + ch + '</span><span class="score">' + val + '</span>';
       gameEl.appendChild(tile);
       grid[r][c].element = tile;
+      
+      // Add spawn animation for enhanced browsers
+      if (ENHANCED_BROWSER && ch) {
+        tile.classList.add('spawning');
+        (function(t){ setTimeout(function(){ t.classList.remove('spawning'); }, 500); })(tile);
+      }
     }
   }
   setTimeout(sizeGridSquare, 0);
@@ -368,6 +476,46 @@ function showWellDone() {
   for (var c = 0; c < COLS; c++) { grid[1][c].letter = row1[c]; }
   for (var c = 0; c < COLS; c++) { grid[2][c].letter = row2[c]; }
   renderGrid();
+  
+  if (ENHANCED_BROWSER) {
+    // Add celebration effects
+    gameEl.classList.add('game-complete');
+    
+    // Add celebration class to WELL DONE tiles
+    setTimeout(function() {
+      for (var r = 1; r <= 2; r++) {
+        for (var c = 0; c < COLS; c++) {
+          if (grid[r][c].element) {
+            grid[r][c].element.classList.add('celebration');
+          }
+        }
+      }
+    }, 100);
+    
+    // Create confetti effect
+    createConfetti();
+  }
+}
+
+function createConfetti() {
+  if (!ENHANCED_BROWSER) return;
+  
+  var container = document.getElementById('container');
+  var confettiCount = 50;
+  
+  for (var i = 0; i < confettiCount; i++) {
+    var confetti = document.createElement('div');
+    confetti.className = 'confetti';
+    confetti.style.left = Math.random() * 100 + '%';
+    confetti.style.animationDelay = Math.random() * 3 + 's';
+    confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+    container.appendChild(confetti);
+    
+    // Remove confetti after animation
+    setTimeout(function(c) {
+      if (c.parentNode) c.parentNode.removeChild(c);
+    }, 5000, confetti);
+  }
 }
 
 function maybeFinishGame() {
@@ -393,8 +541,44 @@ function clearSelection() {
 
 // Remove selected tiles, drop down, refill from top
 function removeAndDropTiles() {
+  if (ENHANCED_BROWSER) {
+    // Animate removal first
+    for (var i = 0; i < selectedTiles.length; i++) {
+      var rc = selectedTiles[i];
+      var tile = grid[rc[0]][rc[1]].element;
+      tile.classList.add('removing');
+    }
+    
+    // Wait for removal animation, then drop and refill
+    setTimeout(function() {
+      performTileDropAndRefill();
+    }, 400);
+  } else {
+    // Immediate update for e-ink browsers
+    performTileDropAndRefill();
+  }
+}
+
+function performTileDropAndRefill() {
   // Remove
   for (var i=0;i<selectedTiles.length;i++){ var rc = selectedTiles[i]; grid[rc[0]][rc[1]].letter = null; }
+  
+  // Store which tiles will need drop animation
+  var droppingTiles = [];
+  if (ENHANCED_BROWSER) {
+    for (var c = 0; c < COLS; c++) {
+      var nonEmptyCount = 0;
+      for (var r = ROWS - 1; r >= 0; r--) {
+        if (grid[r][c].letter) {
+          nonEmptyCount++;
+          if (nonEmptyCount > 0) {
+            droppingTiles.push([r, c]);
+          }
+        }
+      }
+    }
+  }
+  
   // Drop down per column
   for (var c = 0; c < COLS; c++) {
     var letters = [];
@@ -402,7 +586,24 @@ function removeAndDropTiles() {
     for (var r = ROWS - 1; r >= 0; r--) grid[r][c].letter = letters[ROWS - 1 - r] || null;
     for (var r = 0; r < ROWS; r++) if (!grid[r][c].letter) grid[r][c].letter = randomLetter();
   }
+  
   renderGrid();
+  
+  // Add dropping animations for enhanced browsers
+  if (ENHANCED_BROWSER) {
+    setTimeout(function() {
+      for (var i = 0; i < droppingTiles.length; i++) {
+        var rc = droppingTiles[i];
+        if (grid[rc[0]] && grid[rc[0]][rc[1]] && grid[rc[0]][rc[1]].element) {
+          grid[rc[0]][rc[1]].element.classList.add('dropping');
+          (function(tile){ 
+            setTimeout(function(){ tile.classList.remove('dropping'); }, 600); 
+          })(grid[rc[0]][rc[1]].element);
+        }
+      }
+    }, 50);
+  }
+  
   ensurePlayableOrReshuffle();
 }
 
@@ -603,12 +804,29 @@ btnConfirm.addEventListener('click', function(){ confirmWord(true); });
 btnReject.addEventListener('click', rejectWord);
 btnNewGame.addEventListener('click', function(){
   score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = 'Score: ' + score; turnsDisplay.textContent = 'Turns Left: ' + turns;
+  
+  // Reset special effects for enhanced browsers
+  if (ENHANCED_BROWSER) {
+    gameEl.classList.remove('game-complete');
+    // Remove any remaining confetti
+    var confettis = document.querySelectorAll('.confetti');
+    for (var i = 0; i < confettis.length; i++) {
+      if (confettis[i].parentNode) confettis[i].parentNode.removeChild(confettis[i]);
+    }
+  }
+  
   makeRandomGrid(); renderGrid(); clearSelection(); paused = false; btnNewGame.style.display = 'none'; clearStatus(); ensurePlayableOrReshuffle(); saveState();
 });
 
 // ---- Boot ----
 (function init(){
   loadSettings();
+  
+  // Apply enhanced class for capable browsers
+  if (ENHANCED_BROWSER) {
+    document.body.classList.add('enhanced');
+  }
+  
   // Load dict but do not block the UI; tiles should render even if it fails
   try { loadDictionary(); } catch(e) {}
   var restored = loadState();
