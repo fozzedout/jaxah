@@ -492,9 +492,21 @@ function confirmWord(force) {
   var wordScore = calculateScore(word);
   score += wordScore; scoreDisplay.textContent = 'Score: ' + score;
   turns--; turnsDisplay.textContent = 'Turns Left: ' + turns;
+  
+  // Check if game should end BEFORE processing tile removal
+  if (turns <= 0) {
+    // Game is ending - clear selection and show end game immediately
+    clearSelection();
+    paused = true;
+    showStatus('<strong>Congratulations!</strong> Final score: <strong>' + score + '</strong>.', 'success');
+    showWellDone();
+    saveState();
+    return;
+  }
+  
+  // Game continues - process tile removal normally
   removeAndDropTiles();
   saveState();
-  maybeFinishGame();
 }
 
 function showWellDone() {
@@ -582,6 +594,8 @@ function createConfetti() {
 }
 
 function maybeFinishGame() {
+  // This function is now handled in confirmWord() to prevent tile processing after game ends
+  // Kept for any future use cases where we might need to check game end from other contexts
   if (turns <= 0) {
     paused = true;
     showStatus('<strong>Congratulations!</strong> Final score: <strong>' + score + '</strong>.', 'success');
