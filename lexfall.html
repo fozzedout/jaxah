@@ -593,6 +593,17 @@ function performTileDropAndRefill() {
     affectedColumns[selectedTiles[i][1]] = true;
   }
   
+  // Store original positions of all tiles before any changes
+  var originalPositions = {};
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      if (grid[r][c].letter) {
+        var key = grid[r][c].letter + '_' + r + '_' + c + '_' + Math.random();
+        originalPositions[key] = { letter: grid[r][c].letter, row: r, col: c };
+      }
+    }
+  }
+  
   // Remove selected tiles
   for (var i=0;i<selectedTiles.length;i++){ var rc = selectedTiles[i]; grid[rc[0]][rc[1]].letter = null; }
   
@@ -606,10 +617,12 @@ function performTileDropAndRefill() {
   for (var c = 0; c < COLS; c++) {
     if (!affectedColumns[c]) continue; // Skip columns that weren't affected
     
-    // Collect existing letters from bottom to top
-    var letters = [];
+    // Collect existing letters with their original positions
+    var lettersWithPositions = [];
     for (var r = ROWS - 1; r >= 0; r--) {
-      if (grid[r][c].letter) letters.push(grid[r][c].letter);
+      if (grid[r][c].letter) {
+        lettersWithPositions.push({ letter: grid[r][c].letter, originalRow: r });
+      }
     }
     
     // Clear the column
@@ -617,16 +630,19 @@ function performTileDropAndRefill() {
       grid[r][c].letter = null;
     }
     
-    // Place existing letters at bottom
-    for (var i = 0; i < letters.length; i++) {
-      grid[ROWS - 1 - i][c].letter = letters[i];
-      if (ENHANCED_BROWSER) {
-        droppingTiles.push([ROWS - 1 - i, c]);
+    // Place existing letters at bottom and track if they actually moved
+    for (var i = 0; i < lettersWithPositions.length; i++) {
+      var newRow = ROWS - 1 - i;
+      grid[newRow][c].letter = lettersWithPositions[i].letter;
+      
+      // Only animate if the tile actually moved down from its original position
+      if (ENHANCED_BROWSER && lettersWithPositions[i].originalRow < newRow) {
+        droppingTiles.push([newRow, c]);
       }
     }
     
     // Fill empty spaces at top with new letters
-    for (var r = 0; r < ROWS - letters.length; r++) {
+    for (var r = 0; r < ROWS - lettersWithPositions.length; r++) {
       grid[r][c].letter = randomLetter();
       if (ENHANCED_BROWSER) {
         newTiles.push([r, c]);
