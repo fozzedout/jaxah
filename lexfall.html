@@ -498,20 +498,49 @@ function confirmWord(force) {
 }
 
 function showWellDone() {
-  // Clear all tiles properly (set to null, not empty string)
-  for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) grid[r][c].letter = null;
+  // Clear all tiles properly - set to empty string instead of null to avoid empty class
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      grid[r][c].letter = '';
+    }
+  }
   
+  // Set WELL DONE letters in center rows
   var row1 = ['W','E','L','L'];
   var row2 = ['D','O','N','E'];
-  for (var c = 0; c < COLS; c++) { grid[1][c].letter = row1[c]; }
-  for (var c = 0; c < COLS; c++) { grid[2][c].letter = row2[c]; }
+  for (var c = 0; c < COLS; c++) { 
+    grid[1][c].letter = row1[c]; 
+    grid[2][c].letter = row2[c]; 
+  }
+  
+  // Render the grid with WELL DONE tiles and empty tiles elsewhere
   renderGrid();
+  
+  // Hide empty tiles and show only WELL DONE tiles
+  setTimeout(function() {
+    var tiles = gameEl.getElementsByClassName('tile');
+    for (var i = 0; i < tiles.length; i++) {
+      var tile = tiles[i];
+      var row = parseInt(tile.getAttribute('data-row'), 10);
+      var col = parseInt(tile.getAttribute('data-col'), 10);
+      
+      if ((row === 1 || row === 2) && grid[row][col].letter) {
+        // Show WELL DONE tiles
+        tile.style.visibility = 'visible';
+        tile.style.opacity = '1';
+      } else {
+        // Hide all other tiles
+        tile.style.visibility = 'hidden';
+        tile.style.opacity = '0';
+      }
+    }
+  }, 50);
   
   if (ENHANCED_BROWSER) {
     // Add celebration effects
     gameEl.classList.add('game-complete');
     
-    // Add celebration class to WELL DONE tiles after render completes
+    // Add celebration class to WELL DONE tiles after they're made visible
     setTimeout(function() {
       var tiles = gameEl.getElementsByClassName('tile');
       for (var i = 0; i < tiles.length; i++) {
@@ -524,7 +553,7 @@ function showWellDone() {
           tile.classList.add('celebration');
         }
       }
-    }, 100);
+    }, 150);
     
     // Create confetti effect
     createConfetti();
@@ -878,6 +907,14 @@ btnNewGame.addEventListener('click', function(){
     for (var i = 0; i < confettis.length; i++) {
       if (confettis[i].parentNode) confettis[i].parentNode.removeChild(confettis[i]);
     }
+  }
+  
+  // Reset tile visibility and remove celebration effects
+  var tiles = gameEl.getElementsByClassName('tile');
+  for (var i = 0; i < tiles.length; i++) {
+    tiles[i].style.visibility = 'visible';
+    tiles[i].style.opacity = '1';
+    tiles[i].classList.remove('celebration');
   }
   
   makeRandomGrid(); renderGrid(); clearSelection(); paused = false; clearStatus(); ensurePlayableOrReshuffle(); saveState();
