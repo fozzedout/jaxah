@@ -443,7 +443,31 @@ function pointerMove(e) {
   if (e && e.preventDefault) e.preventDefault();
   var tile = tileFromPointerEvent(e); if (!tile) return;
   var r = tile[0], c = tile[1];
-  if (!alreadySelected(r, c)) {
+  
+  // Check if this tile is already selected
+  var selectedIndex = -1;
+  for (var i = 0; i < selectedTiles.length; i++) {
+    if (selectedTiles[i][0] === r && selectedTiles[i][1] === c) {
+      selectedIndex = i;
+      break;
+    }
+  }
+  
+  if (selectedIndex !== -1) {
+    // Tile is already selected - allow retracing by unselecting tiles after this one
+    if (selectedIndex < selectedTiles.length - 1) {
+      // Remove all tiles after this one (retrace back to this tile)
+      for (var i = selectedIndex + 1; i < selectedTiles.length; i++) {
+        var rc = selectedTiles[i];
+        var el = grid[rc[0]][rc[1]].element;
+        el.className = el.className.replace(/\bselected\b|\bvalid\b|\binvalid\b/g, '').trim();
+      }
+      selectedTiles = selectedTiles.slice(0, selectedIndex + 1);
+      updateWordDisplay();
+      drawPath();
+    }
+  } else {
+    // Tile is not selected - try to select it
     if (selectedTiles.length === 0) selectTile(r, c);
     else {
       var last = selectedTiles[selectedTiles.length - 1];
