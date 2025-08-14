@@ -162,9 +162,8 @@
 
   /* New Game emphasis */
   #newGame {
-    display:none; background:#ff8c00; color:#fff; font-weight:800;
-    box-shadow:0 0 0 0 rgba(255,140,0,0.7);
-    animation:pulseGlow 1.7s infinite;
+    background:#ff8c00; color:#fff; font-weight:bold;
+    border:2px solid #e67e00;
   }
   @keyframes pulseGlow {
     0% { box-shadow:0 0 0 0 rgba(255,140,0,0.7); }
@@ -552,7 +551,6 @@ function maybeFinishGame() {
     paused = true;
     showStatus('<strong>Congratulations!</strong> Final score: <strong>' + score + '</strong>.', 'success');
     showWellDone();
-    btnNewGame.style.display = 'inline-block';
   }
 }
 
@@ -841,6 +839,13 @@ function ensurePlayableOrReshuffle() {
 btnConfirm.addEventListener('click', function(){ confirmWord(true); });
 btnReject.addEventListener('click', rejectWord);
 btnNewGame.addEventListener('click', function(){
+  // Only confirm if game is in progress (not finished)
+  if (turns > 0 && (score > 0 || selectedTiles.length > 0)) {
+    if (!confirm('Start a new game? Your current progress will be lost.')) {
+      return;
+    }
+  }
+  
   score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = 'Score: ' + score; turnsDisplay.textContent = 'Turns Left: ' + turns;
   
   // Reset special effects for enhanced browsers
@@ -853,7 +858,7 @@ btnNewGame.addEventListener('click', function(){
     }
   }
   
-  makeRandomGrid(); renderGrid(); clearSelection(); paused = false; btnNewGame.style.display = 'none'; clearStatus(); ensurePlayableOrReshuffle(); saveState();
+  makeRandomGrid(); renderGrid(); clearSelection(); paused = false; clearStatus(); ensurePlayableOrReshuffle(); saveState();
 });
 
 // ---- Boot ----
