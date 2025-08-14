@@ -384,11 +384,41 @@ function renderGrid() {
       tile.innerHTML = '<span class="letter">' + ch + '</span><span class="score">' + val + '</span>';
       gameEl.appendChild(tile);
       grid[r][c].element = tile;
+    }
+  }
+  setTimeout(sizeGridSquare, 0);
+  setTimeout(sizeTilesSquare, 0);
+  updateWordDisplay();
+  drawPath();
+}
+
+function renderGridWithAnimations(newTiles, droppingTiles) {
+  gameEl.innerHTML = '';
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var tile = document.createElement('div');
+      tile.className = 'tile';
+      if (!grid[r][c].letter) tile.className += ' empty';
+      tile.setAttribute('data-row', r);
+      tile.setAttribute('data-col', c);
+      var ch = grid[r][c].letter || '';
+      var val = LETTER_SCORES[ch] || 0;
+      tile.innerHTML = '<span class="letter">' + ch + '</span><span class="score">' + val + '</span>';
+      gameEl.appendChild(tile);
+      grid[r][c].element = tile;
       
-      // Add spawn animation for enhanced browsers
+      // Add appropriate animations for enhanced browsers
       if (ENHANCED_BROWSER && ch) {
-        tile.classList.add('spawning');
-        (function(t){ setTimeout(function(){ t.classList.remove('spawning'); }, 500); })(tile);
+        var isNewTile = newTiles && newTiles.some(function(nt) { return nt[0] === r && nt[1] === c; });
+        var isDroppingTile = droppingTiles && droppingTiles.some(function(dt) { return dt[0] === r && dt[1] === c; });
+        
+        if (isNewTile) {
+          tile.classList.add('spawning');
+          (function(t){ setTimeout(function(){ t.classList.remove('spawning'); }, 500); })(tile);
+        } else if (isDroppingTile) {
+          tile.classList.add('dropping');
+          (function(t){ setTimeout(function(){ t.classList.remove('dropping'); }, 600); })(tile);
+        }
       }
     }
   }
@@ -560,26 +590,19 @@ function removeAndDropTiles() {
 }
 
 function performTileDropAndRefill() {
-  // Remove
-  for (var i=0;i<selectedTiles.length;i++){ var rc = selectedTiles[i]; grid[rc[0]][rc[1]].letter = null; }
-  
-  // Store which tiles will need drop animation
-  var droppingTiles = [];
-  if (ENHANCED_BROWSER) {
+  // Store original grid state to track what actually moves
+  var originalGrid = [];
+  for (var r = 0; r < ROWS; r++) {
+    originalGrid[r] = [];
     for (var c = 0; c < COLS; c++) {
-      var nonEmptyCount = 0;
-      for (var r = ROWS - 1; r >= 0; r--) {
-        if (grid[r][c].letter) {
-          nonEmptyCount++;
-          if (nonEmptyCount > 0) {
-            droppingTiles.push([r, c]);
-          }
-        }
-      }
+      originalGrid[r][c] = grid[r][c].letter;
     }
   }
   
-  // Drop down per column
+  // Remove selected tiles
+  for (var i=0;i<selectedTiles.length;i++){ var rc = selectedTiles[i]; grid[rc[0]][rc[1]].letter = null; }
+  
+  // Drop down per column and track changes
   for (var c = 0; c < COLS; c++) {
     var letters = [];
     for (var r = ROWS - 1; r >= 0; r--) if (grid[r][c].letter) letters.push(grid[r][c].letter);
@@ -587,21 +610,30 @@ function performTileDropAndRefill() {
     for (var r = 0; r < ROWS; r++) if (!grid[r][c].letter) grid[r][c].letter = randomLetter();
   }
   
-  renderGrid();
+  // Determine which tiles are new vs dropped for animations
+  var newTiles = [];
+  var droppingTiles = [];
   
-  // Add dropping animations for enhanced browsers
   if (ENHANCED_BROWSER) {
-    setTimeout(function() {
-      for (var i = 0; i < droppingTiles.length; i++) {
-        var rc = droppingTiles[i];
-        if (grid[rc[0]] && grid[rc[0]][rc[1]] && grid[rc[0]][rc[1]].element) {
-          grid[rc[0]][rc[1]].element.classList.add('dropping');
-          (function(tile){ 
-            setTimeout(function(){ tile.classList.remove('dropping'); }, 600); 
-          })(grid[rc[0]][rc[1]].element);
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        var currentLetter = grid[r][c].letter;
+        var originalLetter = originalGrid[r][c];
+        
+        if (currentLetter && !originalLetter) {
+          // This is a completely new tile (spawned from top)
+          newTiles.push([r, c]);
+        } else if (currentLetter && originalLetter && currentLetter !== originalLetter) {
+          // This tile's letter changed, so it dropped from above
+          droppingTiles.push([r, c]);
         }
+        // If currentLetter === originalLetter, tile didn't move, no animation
       }
-    }, 50);
+    }
+    
+    renderGridWithAnimations(newTiles, droppingTiles);
+  } else {
+    renderGrid();
   }
   
   ensurePlayableOrReshuffle();
