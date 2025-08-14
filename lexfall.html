@@ -471,13 +471,6 @@ function onGestureEnd(){
     rejectWord();
   }
 }
-  } else {
-    // single tap: if the path is dead (not a dictionary prefix), auto-cancel spill; otherwise leave selected
-    if (settings.autoConfirm && dictionaryReady && !okPrefix) {
-      rejectWord();
-    }
-  }
-}
 
 // Attach listeners
 // Simple closest polyfill
@@ -520,7 +513,7 @@ function drawPath() {
   for (var i=0;i<selectedTiles.length;i++){ var t=selectedTiles[i]; points.push(getTileCenter(t[0], t[1])); }
   var path = '';
   for (var i = 0; i < points.length - 1; i++) {
-    path += '<line x1="' + points[i].x + '" y1="' + points[i].y + '" x2="' + points[i+1].x + '" y2="' + points[i+1].y + '" stroke="var(--blue)" stroke-width="5" stroke-linecap="round"/>';
+    path += '<line x1="' + points[i].x + '" y1="' + points[i].y + '" x2="' + points[i+1].x + '" y2="' + points[i+1].y + '" stroke="#007bff" stroke-width="5" stroke-linecap="round"/>';
   }
   overlay.innerHTML = path;
 }
