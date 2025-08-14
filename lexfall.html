@@ -498,7 +498,9 @@ function confirmWord(force) {
 }
 
 function showWellDone() {
-  for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) grid[r][c].letter = '';
+  // Clear all tiles properly (set to null, not empty string)
+  for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) grid[r][c].letter = null;
+  
   var row1 = ['W','E','L','L'];
   var row2 = ['D','O','N','E'];
   for (var c = 0; c < COLS; c++) { grid[1][c].letter = row1[c]; }
@@ -509,13 +511,17 @@ function showWellDone() {
     // Add celebration effects
     gameEl.classList.add('game-complete');
     
-    // Add celebration class to WELL DONE tiles
+    // Add celebration class to WELL DONE tiles after render completes
     setTimeout(function() {
-      for (var r = 1; r <= 2; r++) {
-        for (var c = 0; c < COLS; c++) {
-          if (grid[r][c].element) {
-            grid[r][c].element.classList.add('celebration');
-          }
+      var tiles = gameEl.getElementsByClassName('tile');
+      for (var i = 0; i < tiles.length; i++) {
+        var tile = tiles[i];
+        var row = parseInt(tile.getAttribute('data-row'), 10);
+        var col = parseInt(tile.getAttribute('data-col'), 10);
+        
+        // Only animate tiles that have WELL DONE letters (rows 1 and 2)
+        if ((row === 1 || row === 2) && grid[row][col].letter) {
+          tile.classList.add('celebration');
         }
       }
     }, 100);
