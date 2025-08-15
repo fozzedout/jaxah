@@ -225,7 +225,7 @@
 </div>
 <div id="status"></div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.0.22</div>
+<div id="version">v1.0.23</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -528,7 +528,8 @@ function refreshSelectionStyles() {
     if (isValid) el.className += ' valid';
     else if (isDead) el.className += ' invalid';
   }
-  btnConfirm.style.display = (dictionaryReady ? (isValid ? 'inline-block' : 'none') : (meetsLen ? 'inline-block' : 'none'));
+  var canConfirm = (turns > 0) && (dictionaryReady ? isValid : meetsLen);
+  btnConfirm.style.display = canConfirm ? 'inline-block' : 'none';
   btnConfirm.disabled = false;
   btnReject.style.display = selectedTiles.length ? 'inline-block' : 'none';
 }
@@ -1065,6 +1066,12 @@ btnNewGame.addEventListener('click', function(){
   renderGrid();
   scoreDisplay.textContent = 'Score: ' + score;
   turnsDisplay.textContent = 'Turns Left: ' + turns;
+  if (turns <= 0) {
+    paused = true;
+    dbg('BOOT_T0');
+    showStatus('<strong>Out of turns.</strong> Tap <em>New Game</em> to play again.', 'warn');
+    btnConfirm.style.display = 'none';
+  }
   attachInputListeners();
   sizeGridSquare();
   sizeTilesSquare();
