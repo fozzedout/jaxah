@@ -96,7 +96,7 @@
     background:#e0e0e0;
     border-radius:12px;
     padding:6px;
-    min-height:320px; /* ensures visibility if JS sizing fails */
+    min-height:340px; /* ensures visibility if JS sizing fails, extra height for e-ink devices */
   }
 
   .tile {
@@ -416,7 +416,9 @@ function sizeGridSquare(){
     var supportsAspect = (window.CSS && CSS.supports && CSS.supports('aspect-ratio', '1/1'));
     if (!supportsAspect) {
       var w = gameEl.clientWidth || 320;
-      gameEl.style.height = w + 'px';
+      // Add extra height for Kindle/e-ink devices to prevent bottom row cutoff
+      var extraHeight = LOW_END_MODE ? 20 : 12;
+      gameEl.style.height = (w + extraHeight) + 'px';
     }
   } catch(e){}
   // Also size overlay to match
