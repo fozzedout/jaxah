@@ -466,7 +466,7 @@ function makeRandomGrid() {
 
 /**
  * Renders tiles in one atomic swap for non-animation mode to avoid flicker.
- * We construct a DocumentFragment off-DOM, then replaceChildren() once.
+ * We construct a DocumentFragment off-DOM, then replace content for Kindle compatibility.
  */
 function renderGridNoAnim() {
   var frag = document.createDocumentFragment();
@@ -484,8 +484,9 @@ function renderGridNoAnim() {
       grid[r][c].element = tile;
     }
   }
-  // Single paint: swap all children at once
-  gameEl.replaceChildren(frag);
+  // Kindle-compatible: clear and append fragment
+  gameEl.innerHTML = '';
+  gameEl.appendChild(frag);
   // Defer sizing to next tick to let layout settle once
   setTimeout(function(){ sizeGridSquare(); sizeTilesSquare(); updateWordDisplay(); drawPath(); }, 0);
 }
