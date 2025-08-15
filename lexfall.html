@@ -217,7 +217,7 @@
   <button id="newGame">New Game</button>
 </div>
 <div id="status"></div>
-<div id="version">v1.0.19</div>
+<div id="version">v1.0.20</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -269,6 +269,7 @@ var ENHANCED_BROWSER = (function() {
 var grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
 var pointerActive = false, paused = false, slidThisGesture = false;
 var selectionStartLen = 0; // NEW: selection size at the start of the gesture
+var interactionMode = null; var lastSelectVia = null; // NEW: session-level input mode lock
 var DICT = new Set();
 var PREFIX = new Set();
 var dictionaryReady = false;
@@ -434,8 +435,9 @@ function isAdjacentForgiving(r, c, pr, pc) { return Math.abs(r - pr) <= 1 && Mat
 
 function selectTile(r, c) {
   if (!isInBounds(r, c) || paused) return;
-  if (alreadySelected(r, c)) return;
   if (!grid[r][c].letter) return;
+  if (alreadySelected(r, c)) return;
+  if (interactionMode === 'drag') return;
   
   // Always enforce adjacency for valid word formation
   if (selectedTiles.length > 0) {
@@ -444,6 +446,7 @@ function selectTile(r, c) {
   }
   
   selectedTiles.push([r, c]);
+  maybeLockInteractionMode();
   
   // Click/tap path: never auto-confirm/cancel
   grid[r][c].element.className += ' selected';
@@ -452,6 +455,7 @@ function selectTile(r, c) {
 }
 
 function selectTileForDrag(r, c) {
+  if (interactionMode === 'tap') return;
   if (!isInBounds(r, c) || paused) return;
   if (alreadySelected(r, c)) return;
   if (!grid[r][c].letter) return;
@@ -463,6 +467,7 @@ function selectTileForDrag(r, c) {
   }
   
   selectedTiles.push([r, c]);
+  maybeLockInteractionMode();
   
   // NOTE: We intentionally DO NOT set slidThisGesture here.
   // Drag is detected only when selection grows during pointerMove.
@@ -470,6 +475,13 @@ function selectTileForDrag(r, c) {
   grid[r][c].element.className += ' selected';
   updateWordDisplay();
   drawPath();
+}
+
+function maybeLockInteractionMode() {
+  if (interactionMode) return;
+  if (selectedTiles.length >= 2) {
+    interactionMode = (lastSelectVia === 'drag' || pointerActive) ? 'drag' : 'tap';
+  }
 }
 
 function currentWord() {
@@ -637,6 +649,7 @@ function clearSelection() {
     el.className = el.className.replace(/\bselected\b|\bvalid\b|\binvalid\b/g,'').trim();
   }
   selectedTiles = [];
+  interactionMode = null; lastSelectVia = null;
   updateWordDisplay();
   drawPath();
 }
@@ -764,7 +777,7 @@ function pointerDown(e) {
   pointerActive = true; slidThisGesture = false;
   selectionStartLen = selectedTiles.length; // NEW: snapshot length at start of gesture
   var tile = tileFromPointerEvent(e);
-  if (tile) selectTileForDrag(tile[0], tile[1]);
+  if (tile) { lastSelectVia='drag'; selectTileForDrag(tile[0], tile[1]); }
 }
 
 function pointerMove(e) {
@@ -798,11 +811,11 @@ function pointerMove(e) {
     }
   } else {
     // Tile is not selected - try to select it
-    if (selectedTiles.length === 0) selectTileForDrag(r, c);
+    if (selectedTiles.length === 0) { lastSelectVia='drag'; selectTileForDrag(r, c); }
     else {
       var last = selectedTiles[selectedTiles.length - 1];
       if (isAdjacentForgiving(r, c, last[0], last[1])) { 
-        selectTileForDrag(r, c); 
+        lastSelectVia='drag'; selectTileForDrag(r, c); 
       }
     }
   }
@@ -863,6 +876,8 @@ gameEl.addEventListener('click', function(e) {
   var r = parseInt(t.getAttribute('data-row'), 10);
   var c = parseInt(t.getAttribute('data-col'), 10);
   if (!isNaN(r) && !isNaN(c)) {
+    if (interactionMode === 'drag') return;
+    lastSelectVia='tap';
     selectTile(r, c);
   }
 }, { passive: true });
