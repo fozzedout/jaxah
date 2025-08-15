@@ -161,7 +161,7 @@
   button { padding:.9em 1.1em; margin:.2em; font-size:1em; border-radius:10px; border:none; cursor:pointer; }
   #confirm { background:#3bb273; color:#fff; display:none; }
   #reject { background:#dc3545; color:#fff; display:none; }
-
+  
   /* New Game emphasis */
   #newGame {
     background:#ff8c00; color:#fff; font-weight:bold;
@@ -225,7 +225,7 @@
 </div>
 <div id="status"></div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.0.23</div>
+<div id="version">v1.0.25</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -303,6 +303,10 @@ function dbg(code, info){
 window.onerror=function(msg,src,ln,col,err){ try{ dbg('E', (msg||'')+' @'+ln+':'+col); }catch(_e){} };
 
 // ---- Utils ----
+var UPDATE_SUSPENDED = false;
+function suspendUpdates(){ try{ UPDATE_SUSPENDED = true; if (gameEl) gameEl.style.visibility='hidden'; if (overlay) overlay.style.display='none'; dbg('BATCH','start'); }catch(e){} }
+function resumeUpdates(){ try{ UPDATE_SUSPENDED = false; if (gameEl) gameEl.style.visibility='visible'; if (overlay) overlay.style.display='block'; dbg('BATCH','end'); }catch(e){} }
+
 function showStatus(html, type){ statusEl.innerHTML = '<div class="' + (type||'info') + '">' + html + '</div>'; }
 function clearStatus(){ statusEl.innerHTML = ''; }
 
@@ -398,7 +402,35 @@ function makeRandomGrid() {
   }
 }
 
+/**
+ * Renders tiles in one atomic swap for non-animation mode to avoid flicker.
+ * We construct a DocumentFragment off-DOM, then replaceChildren() once.
+ */
+function renderGridNoAnim() {
+  var frag = document.createDocumentFragment();
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var tile = document.createElement('div');
+      tile.className = 'tile';
+      if (!grid[r][c].letter) tile.className += ' empty';
+      tile.setAttribute('data-row', r);
+      tile.setAttribute('data-col', c);
+      var ch = grid[r][c].letter || '';
+      var val = LETTER_SCORES[ch] || 0;
+      tile.innerHTML = '<span class="letter">' + ch + '</span><span class="score">' + val + '</span>';
+      frag.appendChild(tile);
+      grid[r][c].element = tile;
+    }
+  }
+  // Single paint: swap all children at once
+  gameEl.replaceChildren(frag);
+  // Defer sizing to next tick to let layout settle once
+  setTimeout(function(){ sizeGridSquare(); sizeTilesSquare(); updateWordDisplay(); drawPath(); }, 0);
+}
+
+// Original simple renderer (used at boot and when ANIM==true)
 function renderGrid() {
+  if (!ANIM) { return renderGridNoAnim(); }
   gameEl.innerHTML = '';
   for (var r = 0; r < ROWS; r++) {
     for (var c = 0; c < COLS; c++) {
@@ -704,7 +736,7 @@ function removeAndDropTiles() {
       performTileDropAndRefill();
     }, 400);
   } else {
-    // Immediate update for e-ink browsers
+    // Non-animation mode: avoid flicker by doing atomic DOM swap only
     performTileDropAndRefill();
   }
 }
@@ -777,7 +809,7 @@ function performTileDropAndRefill() {
   if (ANIM) {
     renderGridWithAnimations(newTiles, droppingTiles);
   } else {
-    renderGrid();
+    renderGridNoAnim();
   }
   
   dbg('RENDER', ANIM?'anim':'none');
