@@ -62,11 +62,9 @@
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s;
   }
   .enhanced .tile:hover {
-    transform: scale(1.05);
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   }
   .enhanced .tile.selected {
-    transform: scale(1.1);
     box-shadow: 0 6px 20px rgba(0,0,0,0.2);
   }
   
@@ -172,6 +170,7 @@
   }
 
   #status { max-width:420px; margin:8px auto 0; font-size:.98em; }
+  #version { position:fixed; bottom:8px; right:8px; font-size:0.75em; color:#666; z-index:1000; }
 
   /* If CSS Grid is supported, use it */
   @supports (display: grid) {
@@ -218,6 +217,7 @@
   <button id="newGame">New Game</button>
 </div>
 <div id="status"></div>
+<div id="version">v1.0.19</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -268,6 +268,7 @@ var ENHANCED_BROWSER = (function() {
 // ---- Game State ----
 var grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
 var pointerActive = false, paused = false, slidThisGesture = false;
+var selectionStartLen = 0; // NEW: selection size at the start of the gesture
 var DICT = new Set();
 var PREFIX = new Set();
 var dictionaryReady = false;
@@ -435,12 +436,37 @@ function selectTile(r, c) {
   if (!isInBounds(r, c) || paused) return;
   if (alreadySelected(r, c)) return;
   if (!grid[r][c].letter) return;
+  
+  // Always enforce adjacency for valid word formation
   if (selectedTiles.length > 0) {
     var last = selectedTiles[selectedTiles.length - 1];
     if (!isAdjacentForgiving(r, c, last[0], last[1])) return;
   }
+  
   selectedTiles.push([r, c]);
-  if (selectedTiles.length >= 2) { slidThisGesture = true; }
+  
+  // Click/tap path: never auto-confirm/cancel
+  grid[r][c].element.className += ' selected';
+  updateWordDisplay();
+  drawPath();
+}
+
+function selectTileForDrag(r, c) {
+  if (!isInBounds(r, c) || paused) return;
+  if (alreadySelected(r, c)) return;
+  if (!grid[r][c].letter) return;
+  
+  // Always enforce adjacency for valid word formation
+  if (selectedTiles.length > 0) {
+    var last = selectedTiles[selectedTiles.length - 1];
+    if (!isAdjacentForgiving(r, c, last[0], last[1])) return;
+  }
+  
+  selectedTiles.push([r, c]);
+  
+  // NOTE: We intentionally DO NOT set slidThisGesture here.
+  // Drag is detected only when selection grows during pointerMove.
+  
   grid[r][c].element.className += ' selected';
   updateWordDisplay();
   drawPath();
@@ -733,16 +759,18 @@ function tileFromPointerEvent(e) {
 
 // --- Pointer interactions ---
 function pointerDown(e) {
-  if (paused) return;
+  if (paused || preventPointerEvents) return;
   if (e && e.preventDefault) e.preventDefault();
   pointerActive = true; slidThisGesture = false;
+  selectionStartLen = selectedTiles.length; // NEW: snapshot length at start of gesture
   var tile = tileFromPointerEvent(e);
-  if (tile) selectTile(tile[0], tile[1]);
+  if (tile) selectTileForDrag(tile[0], tile[1]);
 }
 
 function pointerMove(e) {
-  if (!pointerActive || paused) return;
+  if (!pointerActive || paused || preventPointerEvents) return;
   if (e && e.preventDefault) e.preventDefault();
+  var preLen = selectedTiles.length; // track length before this move
   var tile = tileFromPointerEvent(e); if (!tile) return;
   var r = tile[0], c = tile[1];
   
@@ -770,27 +798,38 @@ function pointerMove(e) {
     }
   } else {
     // Tile is not selected - try to select it
-    if (selectedTiles.length === 0) selectTile(r, c);
+    if (selectedTiles.length === 0) selectTileForDrag(r, c);
     else {
       var last = selectedTiles[selectedTiles.length - 1];
-      if (isAdjacentForgiving(r, c, last[0], last[1])) { selectTile(r, c); slidThisGesture = true; }
+      if (isAdjacentForgiving(r, c, last[0], last[1])) { 
+        selectTileForDrag(r, c); 
+      }
     }
+  }
+
+  // NEW: mark this as a slide only if selection grew during movement
+  if (!slidThisGesture && selectedTiles.length > preLen) {
+    slidThisGesture = true;
   }
 }
 
 function onGestureEnd(){
-  if (!pointerActive) return; 
+  if (!pointerActive || preventPointerEvents) return;
   pointerActive = false;
   var wasSlide = !!slidThisGesture;
   slidThisGesture = false;
-  if (!wasSlide) return; // taps: do nothing (no auto-confirm or auto-cancel)
+  
+  // For taps, do nothing - let the user build words manually
+  if (!wasSlide) return;
 
+  // Only auto-confirm/cancel for slide gestures
   var word = currentWord().toUpperCase();
   var meetsLen = word.length >= settings.minLen;
   if (!settings.autoConfirm) return;
 
   var ok = dictionaryReady ? DICT.has(word) : true;
   if (meetsLen && ok) { 
+    // Auto-confirm immediately for slide gestures only
     confirmWord(true);
   } else if (dictionaryReady) { 
     // Only auto-cancel when we know it's invalid via dictionary, and only for slides
@@ -807,18 +846,34 @@ function closestEl(el, selector){
   }
   return null;
 }
-// Click-to-select fallback (helps Safari/old browsers where pointer events can be finicky)
-gameEl.addEventListener('click', function(e){
+// Simple click handler for tile selection
+var preventPointerEvents = false;
+
+gameEl.addEventListener('mousedown', function(e) {
+  // Prevent pointer events from firing for mouse clicks
+  preventPointerEvents = true;
+  setTimeout(function() {
+    preventPointerEvents = false;
+  }, 100);
+}, { passive: true });
+
+gameEl.addEventListener('click', function(e) {
   var t = closestEl(e.target, '.tile');
   if (!t) return;
   var r = parseInt(t.getAttribute('data-row'), 10);
   var c = parseInt(t.getAttribute('data-col'), 10);
-  if (!isNaN(r) && !isNaN(c)) { selectTile(r, c); }
+  if (!isNaN(r) && !isNaN(c)) {
+    selectTile(r, c);
+  }
 }, { passive: true });
 
 function attachInputListeners(){
+  // Re-enable pointer events for dragging only
   if (HAS_POINTER) {
-    gameEl.addEventListener('pointerdown', function(e){ pointerDown(e); try { if (gameEl.setPointerCapture) gameEl.setPointerCapture(e.pointerId); } catch(_e){} }, { passive: false });
+    gameEl.addEventListener('pointerdown', function(e){ 
+      pointerDown(e); 
+      try { if (gameEl.setPointerCapture) gameEl.setPointerCapture(e.pointerId); } catch(_e){} 
+    }, { passive: false });
     gameEl.addEventListener('pointermove', function(e){ pointerMove(e); }, { passive: false });
     document.addEventListener('pointerup', onGestureEnd, { passive: true });
   } else {
