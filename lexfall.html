@@ -11,6 +11,63 @@
 
   /* No-anim global kill switch (for e-ink / low-end) */
   .no-anim *, .no-anim .tile, .no-anim .confetti { animation: none !important; transition: none !important; }
+  /* Opacity settings for noanim mode to limit rerendering artifacts */
+  .no-anim .tile { opacity: 1 !important; }
+  .no-anim .tile.empty { opacity: 0 !important; }
+
+  /* High contrast mode for better visibility on e-ink devices */
+  .high-contrast {
+    background: #ffffff !important;
+  }
+  .high-contrast #game {
+    background: #ffffff !important;
+    border: 3px solid #000000 !important;
+  }
+  .high-contrast .tile {
+    background: transparent !important;
+    border: 3px solid #000000 !important;
+    color: #000000 !important;
+    font-weight: 900 !important;
+  }
+  .high-contrast .tile.selected {
+    background: #777777 !important;
+    color: #ffffff !important;
+    border: 3px dashed #ffffff !important;
+  }
+  .high-contrast .tile.selected.valid {
+    background: #000000 !important;
+    color: #ffffff !important;
+    border: 3px dotted #ffffff !important;
+  }
+  .high-contrast .tile.selected.invalid {
+    background: #777777 !important;
+    color: #ffffff !important;
+    border: 3px dashed #ffffff !important;
+  }
+  .high-contrast .tile.empty {
+    background: #ffffff !important;
+    border: 2px dashed #cccccc !important;
+    opacity: 0 !important;
+  }
+  .high-contrast button {
+    background: #000000 !important;
+    color: #ffffff !important;
+    border: 3px solid #000000 !important;
+    font-weight: bold !important;
+  }
+  .high-contrast #confirm {
+    background: #000000 !important;
+    color: #ffffff !important;
+  }
+  .high-contrast #reject {
+    background: #666666 !important;
+    color: #ffffff !important;
+  }
+  .high-contrast #newGame {
+    background: #000000 !important;
+    color: #ffffff !important;
+    border: 4px solid #000000 !important;
+  }
 
 
   #container { position:relative; width:100%; max-width:420px; margin:0 auto; }
@@ -225,7 +282,7 @@
 </div>
 <div id="status"></div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.0.25</div>
+<div id="version">v1.0.26</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -273,9 +330,8 @@ var ENHANCED_BROWSER = (function() {
   } catch(e) { return false; }
 })();
 // Low-end animation switches
-var FORCE_NO_ANIM = (function(){ try { return /(^|&)noanim=1(&|$)/.test((window.location.search||'').slice(1)); } catch(e){ return false; }})();
 var LOW_END_MODE = (function(){ try { var ua=(navigator.userAgent||'').toLowerCase(); return /kindle|silk|kfw|kfa|kft|kfj|kfm|kfx|kfk|kfv|kfs|kfg|kfp/.test(ua); } catch(e){ return false; }})();
-var ANIM = ENHANCED_BROWSER && !FORCE_NO_ANIM && !LOW_END_MODE;
+// ANIM will be determined after loading settings
 
 // ---- Game State ----
 var grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
@@ -285,10 +341,10 @@ var interactionMode = null; var lastSelectVia = null; // NEW: session-level inpu
 var DICT = new Set();
 var PREFIX = new Set();
 var dictionaryReady = false;
-var settings = { minLen: 3, autoConfirm: true };
+var settings = { minLen: 3, autoConfirm: true, noAnim: false, highContrast: false, debug: false };
 
 // --- Debugging (Kindle/e-ink safe) ---
-var DEBUG=(function(){ try{ return LOW_END_MODE || /(^|&)debug=1(&|$)/.test((window.location.search||'').slice(1)); }catch(e){ return LOW_END_MODE; }})();
+var DEBUG = LOW_END_MODE; // Debug mode will be set from settings
 function dbg(code, info){
   if(!DEBUG) return;
   try{
@@ -345,6 +401,12 @@ function loadSettings(){
     var s = JSON.parse(localStorage.getItem('lexfall_settings')||'{}');
     if (s && typeof s.minLen==='number') settings.minLen = Math.max(2, Math.min(16, s.minLen));
     if (typeof s.autoConfirm==='boolean') settings.autoConfirm = s.autoConfirm;
+    if (typeof s.noAnim==='boolean') settings.noAnim = s.noAnim;
+    if (typeof s.highContrast==='boolean') settings.highContrast = s.highContrast;
+    if (typeof s.debug==='boolean') settings.debug = s.debug;
+    
+    // Update global variables based on settings
+    DEBUG = LOW_END_MODE || settings.debug;
   } catch(e){}
 }
 
@@ -1082,14 +1144,26 @@ btnNewGame.addEventListener('click', function(){
 (function init(){
   loadSettings();
   
-  // Apply enhanced class for capable browsers
-  if (ANIM) {
+  // Determine animation and contrast modes based on settings and device capability
+  var useAnimations = ENHANCED_BROWSER && !settings.noAnim && !LOW_END_MODE;
+  var useHighContrast = settings.highContrast || settings.noAnim || LOW_END_MODE;
+  
+  // Apply appropriate classes
+  if (useAnimations) {
     document.body.classList.add('enhanced');
-    dbg('BOOT','ANIM=1 EB='+ENHANCED_BROWSER+' LE='+LOW_END_MODE+' FN='+FORCE_NO_ANIM+' HP='+HAS_POINTER);
+    dbg('BOOT','ANIM=1 EB='+ENHANCED_BROWSER+' LE='+LOW_END_MODE+' NA='+settings.noAnim+' HP='+HAS_POINTER);
   } else {
     document.body.classList.add('no-anim');
-    dbg('BOOT','ANIM=0 EB='+ENHANCED_BROWSER+' LE='+LOW_END_MODE+' FN='+FORCE_NO_ANIM+' HP='+HAS_POINTER);
+    dbg('BOOT','ANIM=0 EB='+ENHANCED_BROWSER+' LE='+LOW_END_MODE+' NA='+settings.noAnim+' HP='+HAS_POINTER);
   }
+  
+  if (useHighContrast) {
+    document.body.classList.add('high-contrast');
+    dbg('BOOT','HC=1');
+  }
+  
+  // Set global ANIM variable for backward compatibility
+  window.ANIM = useAnimations;
   
   // Load dict but do not block the UI; tiles should render even if it fails
   try { loadDictionary(); } catch(e) {}

@@ -26,6 +26,9 @@
       <span class="note">(Dictionary min is 2)</span>
     </div>
     <label class="row"><input id="autoConfirm" type="checkbox"/> Auto-confirm on slide release</label>
+    <label class="row"><input id="noAnim" type="checkbox"/> Disable animations (for e-ink devices)</label>
+    <label class="row"><input id="highContrast" type="checkbox"/> High contrast mode</label>
+    <label class="row"><input id="debug" type="checkbox"/> Debug mode</label>
     <div class="actions">
       <button id="save">Save</button>
       <a class="button secondary" href="lexfall.html">Back</a>
@@ -34,25 +37,38 @@
 
 <script>
 (function(){
-  var settings = { minLen: 3, autoConfirm: true };
+  var settings = { minLen: 3, autoConfirm: true, noAnim: false, highContrast: false, debug: false };
   try {
     var raw = localStorage.getItem('lexfall_settings');
     if (raw) {
       var s = JSON.parse(raw);
       if (s && typeof s.minLen === 'number') settings.minLen = Math.max(2, Math.min(16, s.minLen));
       if (typeof s.autoConfirm === 'boolean') settings.autoConfirm = s.autoConfirm;
+      if (typeof s.noAnim === 'boolean') settings.noAnim = s.noAnim;
+      if (typeof s.highContrast === 'boolean') settings.highContrast = s.highContrast;
+      if (typeof s.debug === 'boolean') settings.debug = s.debug;
     }
   } catch(e){}
 
   var inputMinLen = document.getElementById('minLen');
   var inputAuto = document.getElementById('autoConfirm');
+  var inputNoAnim = document.getElementById('noAnim');
+  var inputHighContrast = document.getElementById('highContrast');
+  var inputDebug = document.getElementById('debug');
+  
   inputMinLen.value = settings.minLen;
   inputAuto.checked = !!settings.autoConfirm;
+  inputNoAnim.checked = !!settings.noAnim;
+  inputHighContrast.checked = !!settings.highContrast;
+  inputDebug.checked = !!settings.debug;
 
   document.getElementById('save').addEventListener('click', function(){
     var next = {
       minLen: Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10))),
-      autoConfirm: !!inputAuto.checked
+      autoConfirm: !!inputAuto.checked,
+      noAnim: !!inputNoAnim.checked,
+      highContrast: !!inputHighContrast.checked,
+      debug: !!inputDebug.checked
     };
     try { localStorage.setItem('lexfall_settings', JSON.stringify(next)); } catch(e){}
     // simple feedback and go back
