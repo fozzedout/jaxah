@@ -176,6 +176,9 @@
   #status { max-width:420px; margin:8px auto 0; font-size:.98em; }
   #version { position:fixed; bottom:8px; right:8px; font-size:0.75em; color:#666; z-index:1000; }
 
+  /* Debug log for low-end browsers */
+  #debugLog { max-width:420px; margin:8px auto; text-align:left; font:12px/1.3 monospace; background:#ffffff; color:#000; border:1px solid #cccccc; padding:6px; border-radius:6px; }
+
   /* If CSS Grid is supported, use it */
   @supports (display: grid) {
     #game {
@@ -221,7 +224,8 @@
   <button id="newGame">New Game</button>
 </div>
 <div id="status"></div>
-<div id="version">v1.0.21</div>
+<div id="debugLog" aria-live="polite"></div>
+<div id="version">v1.0.22</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -282,6 +286,21 @@ var DICT = new Set();
 var PREFIX = new Set();
 var dictionaryReady = false;
 var settings = { minLen: 3, autoConfirm: true };
+
+// --- Debugging (Kindle/e-ink safe) ---
+var DEBUG=(function(){ try{ return LOW_END_MODE || /(^|&)debug=1(&|$)/.test((window.location.search||'').slice(1)); }catch(e){ return LOW_END_MODE; }})();
+function dbg(code, info){
+  if(!DEBUG) return;
+  try{
+    var el=document.getElementById('debugLog'); if(!el) return;
+    var t=(Date.now()%100000).toString(36);
+    var line=(code||'?')+(info?' '+String(info):'');
+    var d=document.createElement('div'); d.textContent=t+' '+line;
+    el.insertBefore(d, el.firstChild);
+    var max=60; while(el.childNodes.length>max) el.removeChild(el.lastChild);
+  }catch(e){}
+}
+window.onerror=function(msg,src,ln,col,err){ try{ dbg('E', (msg||'')+' @'+ln+':'+col); }catch(_e){} };
 
 // ---- Utils ----
 function showStatus(html, type){ statusEl.innerHTML = '<div class="' + (type||'info') + '">' + html + '</div>'; }
@@ -531,13 +550,17 @@ function calculateScore(word) {
 }
 
 function confirmWord(force) {
-  if (selectedTiles.length === 0 || turns === 0) return;
+  dbg('CF_START','sel='+selectedTiles.length+' t='+turns);
+  if (selectedTiles.length === 0) { dbg('CF0','empty'); return; }
+  if (turns === 0) { dbg('CF0','turns0'); return; }
   var word = currentWord().toUpperCase();
   var meetsLen = word.length >= settings.minLen;
-  if (!force && !((dictionaryReady ? DICT.has(word) : true) && meetsLen)) { rejectWord(); return; }
+  if (!force && !((dictionaryReady ? DICT.has(word) : true) && meetsLen)) { dbg('CFX', word); dbg('AUTO_X', word);
+    rejectWord(); return; }
   var wordScore = calculateScore(word);
   score += wordScore; scoreDisplay.textContent = 'Score: ' + score;
   turns--; turnsDisplay.textContent = 'Turns Left: ' + turns;
+  dbg('CFOK', word + ' +' + wordScore + ' S=' + score + ' T=' + turns);
   
   // Check if game should end BEFORE processing tile removal
   if (turns <= 0) {
@@ -546,11 +569,13 @@ function confirmWord(force) {
     paused = true;
     showStatus('<strong>Congratulations!</strong> Final score: <strong>' + score + '</strong>.', 'success');
     showWellDone();
+    dbg('END','T0');
     saveState();
     return;
   }
   
   // Game continues - process tile removal normally
+  dbg('RMD_CALL');
   removeAndDropTiles();
   saveState();
 }
@@ -664,6 +689,7 @@ function clearSelection() {
 
 // Remove selected tiles, drop down, refill from top
 function removeAndDropTiles() {
+  dbg('RMD', ANIM?'anim':'instant');
   if (ANIM) {
     // Animate removal first
     for (var i = 0; i < selectedTiles.length; i++) {
@@ -683,6 +709,7 @@ function removeAndDropTiles() {
 }
 
 function performTileDropAndRefill() {
+  dbg('DROP','start');
   // Store which tiles were selected before removing them
   var affectedColumns = {};
   for (var i = 0; i < selectedTiles.length; i++) {
@@ -752,6 +779,7 @@ function performTileDropAndRefill() {
     renderGrid();
   }
   
+  dbg('RENDER', ANIM?'anim':'none');
   ensurePlayableOrReshuffle();
 }
 
@@ -780,6 +808,7 @@ function tileFromPointerEvent(e) {
 
 // --- Pointer interactions ---
 function pointerDown(e) {
+  dbg('PD');
   if (paused || preventPointerEvents) return;
   if (e && e.preventDefault) e.preventDefault();
   pointerActive = true; slidThisGesture = false;
@@ -832,12 +861,14 @@ function pointerMove(e) {
   if (!slidThisGesture && selectedTiles.length > preLen) {
     slidThisGesture = true;
   }
+  dbg('PM','len='+selectedTiles.length+(slidThisGesture?'/s':''));
 }
 
 function onGestureEnd(){
   if (!pointerActive || preventPointerEvents) return;
   pointerActive = false;
   var wasSlide = !!slidThisGesture;
+  dbg('GE', wasSlide ? 'slide' : 'tap');
   slidThisGesture = false;
   
   // For taps, do nothing - let the user build words manually
@@ -851,6 +882,7 @@ function onGestureEnd(){
   var ok = dictionaryReady ? DICT.has(word) : true;
   if (meetsLen && ok) { 
     // Auto-confirm immediately for slide gestures only
+    dbg('AUTO_OK', word);
     confirmWord(true);
   } else if (dictionaryReady) { 
     // Only auto-cancel when we know it's invalid via dictionary, and only for slides
@@ -933,8 +965,8 @@ async function loadDictionary() {
       DICT.add(up);
       for (var i = 1; i <= up.length; i++) PREFIX.add(up.slice(0, i));
     });
-    dictionaryReady = true;
-  } catch(e) { dictionaryReady = false; }
+    dictionaryReady = true; dbg('DICT','ok');
+  } catch(e) { dictionaryReady = false; dbg('DICT','fail'); }
 }
 
 // --- Playability check ---
@@ -979,8 +1011,9 @@ function ensurePlayableOrReshuffle() {
 }
 
 // ---- Controls ----
-btnConfirm.addEventListener('click', function(){ confirmWord(true); });
-btnReject.addEventListener('click', rejectWord);
+btnConfirm.addEventListener('click', function(){ dbg('BTN_CF'); confirmWord(true); });
+btnConfirm.addEventListener('touchend', function(e){ dbg('BTN_CF_T'); if(e&&e.preventDefault) e.preventDefault(); confirmWord(true); }, {passive:false});
+btnReject.addEventListener('click', function(){ dbg('BTN_CLR'); rejectWord(); });
 btnNewGame.addEventListener('click', function(){
   // Only confirm if game is in progress (not finished)
   if (turns > 0 && (score > 0 || selectedTiles.length > 0)) {
@@ -1019,9 +1052,11 @@ btnNewGame.addEventListener('click', function(){
   // Apply enhanced class for capable browsers
   if (ANIM) {
     document.body.classList.add('enhanced');
+    dbg('BOOT','ANIM=1 EB='+ENHANCED_BROWSER+' LE='+LOW_END_MODE+' FN='+FORCE_NO_ANIM+' HP='+HAS_POINTER);
   } else {
     document.body.classList.add('no-anim');
-  }``
+    dbg('BOOT','ANIM=0 EB='+ENHANCED_BROWSER+' LE='+LOW_END_MODE+' FN='+FORCE_NO_ANIM+' HP='+HAS_POINTER);
+  }
   
   // Load dict but do not block the UI; tiles should render even if it fails
   try { loadDictionary(); } catch(e) {}
