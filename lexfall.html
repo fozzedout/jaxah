@@ -9,6 +9,10 @@
   body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; text-align:center; margin:0; padding:12px; background:#f0f0f0; }
   h1 { margin:6px 0 4px; font-size:1.25rem; }
 
+  /* No-anim global kill switch (for e-ink / low-end) */
+  .no-anim *, .no-anim .tile, .no-anim .confetti { animation: none !important; transition: none !important; }
+
+
   #container { position:relative; width:100%; max-width:420px; margin:0 auto; }
 
   /* Fixed settings icon */
@@ -217,7 +221,7 @@
   <button id="newGame">New Game</button>
 </div>
 <div id="status"></div>
-<div id="version">v1.0.20</div>
+<div id="version">v1.0.21</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -264,6 +268,10 @@ var ENHANCED_BROWSER = (function() {
              !navigator.userAgent.toLowerCase().includes('kindle'));
   } catch(e) { return false; }
 })();
+// Low-end animation switches
+var FORCE_NO_ANIM = (function(){ try { return /(^|&)noanim=1(&|$)/.test((window.location.search||'').slice(1)); } catch(e){ return false; }})();
+var LOW_END_MODE = (function(){ try { var ua=(navigator.userAgent||'').toLowerCase(); return /kindle|silk|kfw|kfa|kft|kfj|kfm|kfx|kfk|kfv|kfs|kfg|kfp/.test(ua); } catch(e){ return false; }})();
+var ANIM = ENHANCED_BROWSER && !FORCE_NO_ANIM && !LOW_END_MODE;
 
 // ---- Game State ----
 var grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
@@ -409,7 +417,7 @@ function renderGridWithAnimations(newTiles, droppingTiles) {
       grid[r][c].element = tile;
       
       // Add appropriate animations for enhanced browsers
-      if (ENHANCED_BROWSER && ch) {
+      if (ANIM && ch) {
         var isNewTile = newTiles && newTiles.some(function(nt) { return nt[0] === r && nt[1] === c; });
         var isDroppingTile = droppingTiles && droppingTiles.some(function(dt) { return dt[0] === r && dt[1] === c; });
         
@@ -586,7 +594,7 @@ function showWellDone() {
     }
   }, 50);
   
-  if (ENHANCED_BROWSER) {
+  if (ANIM) {
     // Add celebration effects
     gameEl.classList.add('game-complete');
     
@@ -611,7 +619,7 @@ function showWellDone() {
 }
 
 function createConfetti() {
-  if (!ENHANCED_BROWSER) return;
+  if (!ANIM) return;
   
   var container = document.getElementById('container');
   var confettiCount = 50;
@@ -656,7 +664,7 @@ function clearSelection() {
 
 // Remove selected tiles, drop down, refill from top
 function removeAndDropTiles() {
-  if (ENHANCED_BROWSER) {
+  if (ANIM) {
     // Animate removal first
     for (var i = 0; i < selectedTiles.length; i++) {
       var rc = selectedTiles[i];
@@ -732,13 +740,13 @@ function performTileDropAndRefill() {
     // Fill empty spaces at top with new letters
     for (var r = 0; r < ROWS - lettersWithPositions.length; r++) {
       grid[r][c].letter = randomLetter();
-      if (ENHANCED_BROWSER) {
+      if (ANIM) {
         newTiles.push([r, c]);
       }
     }
   }
   
-  if (ENHANCED_BROWSER) {
+  if (ANIM) {
     renderGridWithAnimations(newTiles, droppingTiles);
   } else {
     renderGrid();
@@ -984,7 +992,7 @@ btnNewGame.addEventListener('click', function(){
   score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = 'Score: ' + score; turnsDisplay.textContent = 'Turns Left: ' + turns;
   
   // Reset special effects for enhanced browsers
-  if (ENHANCED_BROWSER) {
+  if (ANIM) {
     gameEl.classList.remove('game-complete');
     // Remove any remaining confetti
     var confettis = document.querySelectorAll('.confetti');
@@ -1009,9 +1017,11 @@ btnNewGame.addEventListener('click', function(){
   loadSettings();
   
   // Apply enhanced class for capable browsers
-  if (ENHANCED_BROWSER) {
+  if (ANIM) {
     document.body.classList.add('enhanced');
-  }
+  } else {
+    document.body.classList.add('no-anim');
+  }``
   
   // Load dict but do not block the UI; tiles should render even if it fails
   try { loadDictionary(); } catch(e) {}
