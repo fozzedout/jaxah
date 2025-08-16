@@ -302,7 +302,7 @@
   <div id="wordsContainer"></div>
 </div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.2.1</div>
+<div id="version">v1.2.2</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -1236,7 +1236,7 @@ btnNewGame.addEventListener('click', function(){
 });
 
 // ---- Boot ----
-(function init(){
+(async function init(){
   loadSettings();
   
   // Determine animation and contrast modes based on settings and device capability
@@ -1265,8 +1265,8 @@ btnNewGame.addEventListener('click', function(){
   // Set global ANIM variable for backward compatibility
   window.ANIM = useAnimations;
   
-  // Load letter values and dict but do not block the UI; tiles should render even if they fail
-  try { loadLetterValues(); } catch(e) {}
+  // Load letter values first, then render grid with correct scores
+  try { await loadLetterValues(); } catch(e) {}
   try { loadDictionary(); } catch(e) {}
   var restored = loadState();
   if (!restored) makeRandomGrid();
