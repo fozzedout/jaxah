@@ -302,7 +302,7 @@
   <div id="wordsContainer"></div>
 </div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.1</div>
+<div id="version">v1.2</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -323,7 +323,7 @@ var ROWS = 4, COLS = 4;
 var TILE_RADIUS_PX = 35;
 var MAX_WORD_LEN = 16;
 var DEFAULT_TURNS = 10;
-var LETTER_SCORES = {A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10};
+var LETTER_SCORES = {};
 
 // ---- DOM ----
 var gameEl = document.getElementById('game');
@@ -1103,6 +1103,31 @@ function drawPath() {
   overlay.innerHTML = path;
 }
 
+// --- Letter values loading ---
+async function loadLetterValues() {
+  try {
+    var res = await fetch('en-lettervalues.txt');
+    if (!res.ok) throw new Error('fetch failed');
+    var text = await res.text();
+    text.split(/\r?\n/).forEach(function(line){
+      line = (line||'').trim(); if (!line) return;
+      var parts = line.split('\t');
+      if (parts.length >= 2) {
+        var letter = parts[0].trim();
+        var score = parseInt(parts[1], 10);
+        if (letter && !isNaN(score)) {
+          LETTER_SCORES[letter.toUpperCase()] = score;
+        }
+      }
+    });
+    dbg('LETTERS','loaded');
+  } catch(e) { 
+    dbg('LETTERS','fail'); 
+    // Fallback to original values
+    LETTER_SCORES = {A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10};
+  }
+}
+
 // --- Dictionary loading ---
 async function loadDictionary() {
   try {
@@ -1225,7 +1250,8 @@ btnNewGame.addEventListener('click', function(){
   // Set global ANIM variable for backward compatibility
   window.ANIM = useAnimations;
   
-  // Load dict but do not block the UI; tiles should render even if it fails
+  // Load letter values and dict but do not block the UI; tiles should render even if they fail
+  try { loadLetterValues(); } catch(e) {}
   try { loadDictionary(); } catch(e) {}
   var restored = loadState();
   if (!restored) makeRandomGrid();
