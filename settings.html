@@ -37,6 +37,16 @@
 
 <script>
 (function(){
+  // Kindle device detection
+  var isKindle = (function(){ 
+    try { 
+      var ua = (navigator.userAgent || '').toLowerCase(); 
+      return /kindle|silk|kfw|kfa|kft|kfj|kfm|kfx|kfk|kfv|kfs|kfg|kfp/.test(ua); 
+    } catch(e){ 
+      return false; 
+    }
+  })();
+
   var settings = { minLen: 3, autoConfirm: true, noAnim: false, highContrast: false, debug: false };
   try {
     var raw = localStorage.getItem('lexfall_settings');
@@ -62,6 +72,12 @@
   inputHighContrast.checked = !!settings.highContrast;
   inputDebug.checked = !!settings.debug;
 
+  // For Kindle devices, auto-check and disable high contrast mode
+  if (isKindle) {
+    inputHighContrast.checked = true;
+    inputHighContrast.disabled = true;
+  }
+
   document.getElementById('save').addEventListener('click', function(){
     var next = {
       minLen: Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10))),
@@ -70,6 +86,12 @@
       highContrast: !!inputHighContrast.checked,
       debug: !!inputDebug.checked
     };
+    
+    // For Kindle devices, ensure high contrast is always enabled
+    if (isKindle) {
+      next.highContrast = true;
+    }
+    
     try { localStorage.setItem('lexfall_settings', JSON.stringify(next)); } catch(e){}
     // simple feedback and go back
     window.location.href = 'lexfall.html';
