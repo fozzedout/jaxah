@@ -233,6 +233,21 @@
   #status { max-width:420px; margin:8px auto 0; font-size:.98em; }
   #version { position:fixed; bottom:8px; right:8px; font-size:0.75em; color:#666; z-index:1000; }
 
+  /* Words list */
+  #wordsList { max-width:420px; margin:12px auto; text-align:center; }
+  #wordsList h3 { margin:0 0 8px; font-size:1rem; color:#333; }
+  #wordsContainer { text-align:left; }
+  .word-entry { display:inline-block; margin:2px 4px; padding:4px 8px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; font-size:0.85em; }
+  .word-entry a { text-decoration:none; color:#007bff; font-weight:600; }
+  .word-entry a:hover { text-decoration:underline; }
+  .word-score { color:#666; margin-left:4px; font-size:0.9em; }
+  
+  /* High contrast mode for words list */
+  .high-contrast #wordsList h3 { color:#000; }
+  .high-contrast .word-entry { background:#ffffff; border:2px solid #000; color:#000; }
+  .high-contrast .word-entry a { color:#000; }
+  .high-contrast .word-score { color:#333; }
+
   /* Debug log - hidden by default */
   #debugLog { max-width:420px; margin:8px auto; text-align:left; font:12px/1.3 monospace; background:#ffffff; color:#000; border:1px solid #cccccc; padding:6px; border-radius:6px; display:none; }
   .debug-mode #debugLog { display:block; }
@@ -282,8 +297,12 @@
   <button id="newGame">New Game</button>
 </div>
 <div id="status"></div>
+<div id="wordsList">
+  <h3>Accepted Words</h3>
+  <div id="wordsContainer"></div>
+</div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.0.27</div>
+<div id="version">v1.1</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -313,6 +332,7 @@ var wordDisplay = document.getElementById('wordDisplay');
 var scoreDisplay = document.getElementById('scoreDisplay');
 var turnsDisplay = document.getElementById('turnsLeft');
 var statusEl = document.getElementById('status');
+var wordsContainer = document.getElementById('wordsContainer');
 var btnConfirm = document.getElementById('confirm');
 var btnReject = document.getElementById('reject');
 var btnNewGame = document.getElementById('newGame');
@@ -339,6 +359,7 @@ var grid = [], selectedTiles = [], score = 0, turns = DEFAULT_TURNS;
 var pointerActive = false, paused = false, slidThisGesture = false;
 var selectionStartLen = 0; // NEW: selection size at the start of the gesture
 var interactionMode = null; var lastSelectVia = null; // NEW: session-level input mode lock
+var acceptedWords = []; // Track accepted words with scores
 var DICT = new Set();
 var PREFIX = new Set();
 var dictionaryReady = false;
@@ -367,10 +388,36 @@ function resumeUpdates(){ try{ UPDATE_SUSPENDED = false; if (gameEl) gameEl.styl
 function showStatus(html, type){ statusEl.innerHTML = '<div class="' + (type||'info') + '">' + html + '</div>'; }
 function clearStatus(){ statusEl.innerHTML = ''; }
 
+function addWordToList(word, wordScore) {
+  acceptedWords.push({ word: word, score: wordScore });
+  updateWordsList();
+}
+
+function updateWordsList() {
+  if (!wordsContainer) return;
+  if (acceptedWords.length === 0) {
+    wordsContainer.innerHTML = '<div style="text-align:center; color:#666; font-style:italic; padding:8px;">No words found yet</div>';
+    return;
+  }
+  
+  var html = '';
+  for (var i = 0; i < acceptedWords.length; i++) {
+    var entry = acceptedWords[i];
+    var word = entry.word;
+    var score = entry.score;
+    var wiktionaryUrl = 'https://en.wiktionary.org/wiki/' + word.toLowerCase() + '#English';
+    html += '<div class="word-entry">';
+    html += '<a href="' + wiktionaryUrl + '" target="_blank" rel="noopener">' + word + '</a>';
+    html += '<span class="word-score">(' + score + ')</span>';
+    html += '</div>';
+  }
+  wordsContainer.innerHTML = html;
+}
+
 function saveState() {
   try {
     var letters = grid.map(function(row){ return row.map(function(cell){ return cell.letter; }); });
-    var state = { letters: letters, score: score, turns: turns };
+    var state = { letters: letters, score: score, turns: turns, acceptedWords: acceptedWords };
     localStorage.setItem('lexfall_state', JSON.stringify(state));
   } catch (e) {}
 }
@@ -393,6 +440,8 @@ function loadState() {
       grid.push(row);
     }
     score = s.score; turns = s.turns;
+    // Load accepted words if they exist
+    acceptedWords = Array.isArray(s.acceptedWords) ? s.acceptedWords : [];
     return true;
   } catch (e) { return false; }
 }
@@ -659,6 +708,7 @@ function confirmWord(force) {
   var wordScore = calculateScore(word);
   score += wordScore; scoreDisplay.textContent = 'Score: ' + score;
   turns--; turnsDisplay.textContent = 'Turns Left: ' + turns;
+  addWordToList(word, wordScore);
   dbg('CFOK', word + ' +' + wordScore + ' S=' + score + ' T=' + turns);
   
   // Check if game should end BEFORE processing tile removal
@@ -1122,6 +1172,7 @@ btnNewGame.addEventListener('click', function(){
   }
   
   score = 0; turns = DEFAULT_TURNS; scoreDisplay.textContent = 'Score: ' + score; turnsDisplay.textContent = 'Turns Left: ' + turns;
+  acceptedWords = []; updateWordsList();
   
   // Reset special effects for enhanced browsers
   if (ANIM) {
@@ -1181,6 +1232,7 @@ btnNewGame.addEventListener('click', function(){
   renderGrid();
   scoreDisplay.textContent = 'Score: ' + score;
   turnsDisplay.textContent = 'Turns Left: ' + turns;
+  updateWordsList();
   if (turns <= 0) {
     paused = true;
     dbg('BOOT_T0');
