@@ -231,6 +231,7 @@
   }
 
   #status { max-width:420px; margin:8px auto 0; font-size:.98em; }
+  .dict-loading { color:#666; font-size:0.8em; font-style:italic; }
   #version { position:fixed; bottom:8px; right:8px; font-size:0.75em; color:#666; z-index:1000; }
 
   /* Words list */
@@ -302,7 +303,7 @@
   <div id="wordsContainer"></div>
 </div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.2.2</div>
+<div id="version">v1.2.3</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -1149,13 +1150,49 @@ async function loadDictionary() {
     var res = await fetch('en-words.txt');
     if (!res.ok) throw new Error('fetch failed');
     var text = await res.text();
-    text.split(/\r?\n/).forEach(function(w){
-      w = (w||'').trim(); if (!w) return; var up = w.toUpperCase(); if (up.length > MAX_WORD_LEN) return;
-      DICT.add(up);
-      for (var i = 1; i <= up.length; i++) PREFIX.add(up.slice(0, i));
-    });
-    dictionaryReady = true; dbg('DICT','ok');
-  } catch(e) { dictionaryReady = false; dbg('DICT','fail'); }
+    var words = text.split(/\r?\n/);
+    dbg('DICT','processing ' + words.length + ' words');
+    
+    // Process words in chunks to avoid blocking the main thread
+    var chunkSize = 1000;
+    var wordIndex = 0;
+    
+    function processChunk() {
+      var endIndex = Math.min(wordIndex + chunkSize, words.length);
+      for (var i = wordIndex; i < endIndex; i++) {
+        var w = (words[i] || '').trim();
+        if (!w) continue;
+        var up = w.toUpperCase();
+        if (up.length > MAX_WORD_LEN) continue;
+        DICT.add(up);
+        for (var j = 1; j <= up.length; j++) PREFIX.add(up.slice(0, j));
+      }
+      wordIndex = endIndex;
+      
+      if (wordIndex < words.length) {
+        // Show progress occasionally
+        if (wordIndex % 50000 === 0) {
+          var progress = Math.round((wordIndex / words.length) * 100);
+          showStatus('<span class="dict-loading">Loading dictionary... ' + progress + '%</span>', 'info');
+        }
+        // Schedule next chunk processing
+        setTimeout(processChunk, 0);
+      } else {
+        dictionaryReady = true;
+        dbg('DICT','complete');
+        clearStatus(); // Clear loading message
+        // Re-render grid to update validation styles if needed
+        if (selectedTiles.length > 0) {
+          updateWordDisplay();
+        }
+      }
+    }
+    
+    processChunk();
+  } catch(e) { 
+    dictionaryReady = false; 
+    dbg('DICT','fail'); 
+  }
 }
 
 // --- Playability check ---
@@ -1267,7 +1304,13 @@ btnNewGame.addEventListener('click', function(){
   
   // Load letter values first, then render grid with correct scores
   try { await loadLetterValues(); } catch(e) {}
-  try { loadDictionary(); } catch(e) {}
+  
+  // Start dictionary loading in background (non-blocking)
+  setTimeout(function() {
+    showStatus('<span class="dict-loading">Loading dictionary...</span>', 'info');
+    try { loadDictionary(); } catch(e) {}
+  }, 0);
+  
   var restored = loadState();
   if (!restored) makeRandomGrid();
   renderGrid();
