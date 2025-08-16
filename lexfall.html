@@ -283,7 +283,7 @@
 </div>
 <div id="status"></div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.0.26</div>
+<div id="version">v1.0.27</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -1056,7 +1056,7 @@ function drawPath() {
 // --- Dictionary loading ---
 async function loadDictionary() {
   try {
-    var res = await fetch('validated-words.txt');
+    var res = await fetch('en-words.txt');
     if (!res.ok) throw new Error('fetch failed');
     var text = await res.text();
     text.split(/\r?\n/).forEach(function(w){
