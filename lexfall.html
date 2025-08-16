@@ -302,7 +302,7 @@
   <div id="wordsContainer"></div>
 </div>
 <div id="debugLog" aria-live="polite"></div>
-<div id="version">v1.2</div>
+<div id="version">v1.2.1</div>
 
 <script>
 // --- Minimal polyfills for weak browsers ---
@@ -686,15 +686,30 @@ function updateWordDisplay() {
   refreshSelectionStyles();
   if (!word.length) wordDisplay.textContent = 'Word:';
   else {
-    var pts = calculateScore(word.toUpperCase());
-    wordDisplay.textContent = 'Word: ' + word + ' (' + pts + ')';
+    var upperWord = word.toUpperCase();
+    var baseScore = 0;
+    for (var i=0;i<upperWord.length;i++){ var ch = upperWord.charAt(i); baseScore += LETTER_SCORES[ch] || 0; }
+    var lengthMultiplier = calculateLengthMultiplier(upperWord.length);
+    var pts = calculateScore(upperWord);
+    
+    if (lengthMultiplier > 1) {
+      wordDisplay.textContent = 'Word: ' + word + ' (' + baseScore + ' × ' + lengthMultiplier + ' = ' + pts + ')';
+    } else {
+      wordDisplay.textContent = 'Word: ' + word + ' (' + pts + ')';
+    }
   }
+}
+
+function calculateLengthMultiplier(wordLength) {
+  if (wordLength <= 4) return 1;
+  return wordLength - 3;
 }
 
 function calculateScore(word) {
   var acc = 0;
   for (var i=0;i<word.length;i++){ var ch = word.charAt(i); acc += LETTER_SCORES[ch] || 0; }
-  return acc;
+  var lengthMultiplier = calculateLengthMultiplier(word.length);
+  return acc * lengthMultiplier;
 }
 
 function confirmWord(force) {
