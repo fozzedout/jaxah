@@ -24,6 +24,18 @@
     .theme-dark { --bg:#0f1115; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; }
     /* Force light (overrides OS dark) */
     .theme-light { --bg:#f0f0f0; --panel:#ffffff; --text:#111; --muted:#333; }
+
+    /* High contrast preview (overrides theme for accessibility) */
+    .high-contrast { background:#ffffff !important; color:#000000 !important; }
+    .high-contrast .panel { background:#ffffff !important; color:#000000 !important; border:2px solid #000000; }
+    .high-contrast h2,
+    .high-contrast label,
+    .high-contrast .note { color:#000000 !important; opacity:1 !important; }
+    .high-contrast input,
+    .high-contrast select { background:#ffffff !important; color:#000000 !important; border:2px solid #000000 !important; }
+    .high-contrast button,
+    .high-contrast a.button { background:#000000 !important; color:#ffffff !important; border:3px solid #000000 !important; }
+    .high-contrast a.secondary { background:#666666 !important; }
   </style>
 </head>
 <body>
@@ -93,10 +105,26 @@
   // theme radio
   (settings.theme === 'light' ? themeLight : settings.theme === 'dark' ? themeDark : themeAuto).checked = true;
 
-  // Apply theme to settings page for preview
-  document.body.classList.remove('theme-light','theme-dark');
-  if (settings.theme === 'light') document.body.classList.add('theme-light');
-  if (settings.theme === 'dark') document.body.classList.add('theme-dark');
+  function applyThemePreview() {
+    document.body.classList.remove('theme-light','theme-dark','high-contrast');
+    // High contrast overrides theme for preview
+    if (inputHighContrast.checked) {
+      document.body.classList.add('high-contrast');
+      return;
+    }
+    if (themeLight.checked) document.body.classList.add('theme-light');
+    else if (themeDark.checked) document.body.classList.add('theme-dark');
+    // Auto: no class, OS decides via media query
+  }
+
+  // Apply initial preview
+  applyThemePreview();
+
+  // Live preview on user changes
+  themeLight.addEventListener('change', applyThemePreview);
+  themeAuto.addEventListener('change', applyThemePreview);
+  themeDark.addEventListener('change', applyThemePreview);
+  inputHighContrast.addEventListener('change', applyThemePreview);
 
   // For Kindle devices, auto-check and disable high contrast mode
   if (isKindle) {
