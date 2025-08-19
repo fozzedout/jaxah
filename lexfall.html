@@ -6,6 +6,8 @@
   <title>Lexfall</title>
   <style>
   /* Legacy-friendly styles: no CSS variables, flex fallback by default */
+  /* Ensure predictable sizing and prevent subtle overflow on mobile */
+  *, *::before, *::after { box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; text-align:center; margin:0; padding:12px; background:#f0f0f0; }
   h1 { margin:6px 0 4px; font-size:1.25rem; }
 
@@ -90,7 +92,8 @@
   #game {
     display:flex;
     flex-wrap:wrap;
-    justify-content:space-between;
+    /* Center rows in flex fallback to avoid edge-touching on some mobiles */
+    justify-content:center;
     width:100%;
     position:relative;
     background:#e0e0e0;
