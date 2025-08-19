@@ -140,7 +140,7 @@
 }
 
   /* HUD */
-  #hud { max-width:420px; margin:8px auto 10px; }
+  #hud { max-width:420px; margin:8px auto 10px; position:relative; }
   #wordDisplay { font-weight:700; margin-bottom:4px; }
   #scoreDisplay, #turnsLeft { display:inline-block; width:49%; font-size:0.95rem; }
 
@@ -250,6 +250,32 @@
       transform: translateY(100vh) rotateZ(720deg);
       opacity: 0;
     }
+  }
+
+  /* Multiplier FX (non-Kindle, non-high-contrast) */
+  .multiplier-badge {
+    position:absolute; top:-4px; right:0; padding:4px 8px; border-radius:999px;
+    background: linear-gradient(135deg, #ffd54a, #ff8c00);
+    color:#111; font-weight:900; font-size:0.85rem; letter-spacing:0.5px;
+    box-shadow:0 6px 16px rgba(0,0,0,0.20);
+    transform-origin: 100% 0; animation: badgePop 900ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+  }
+  .multiplier-badge.level-2 { filter: saturate(1.0); }
+  .multiplier-badge.level-3 { filter: saturate(1.15) brightness(1.05); }
+  .multiplier-badge.level-4 { filter: saturate(1.25) brightness(1.1); }
+  .multiplier-badge.level-5 { filter: saturate(1.35) brightness(1.15); }
+  @keyframes badgePop {
+    0% { opacity:0; transform: translateY(-6px) scale(0.6); }
+    20% { opacity:1; transform: translateY(0) scale(1.1); }
+    50% { transform: translateY(0) scale(1.0); }
+    100% { opacity:0; transform: translateY(-8px) scale(0.95); }
+  }
+  .fx-glow-l1 { box-shadow: 0 0 0 0 rgba(255,213,74,0.0), 0 0 22px 6px rgba(255,213,74,0.25) inset; }
+  .fx-glow-l2 { box-shadow: 0 0 0 0 rgba(255,213,74,0.0), 0 0 26px 8px rgba(255,190,64,0.30) inset; }
+  .fx-glow-l3 { box-shadow: 0 0 0 0 rgba(255,213,74,0.0), 0 0 30px 10px rgba(255,160,64,0.35) inset; }
+  .fx-glow-l4, .fx-glow-l5 { box-shadow: 0 0 0 0 rgba(255,213,74,0.0), 0 0 36px 12px rgba(255,140,0,0.40) inset; }
+  @media (prefers-reduced-motion: reduce) {
+    .multiplier-badge { animation: none; opacity: 1; }
   }
   
   /* Enhanced game completion background effect */
@@ -869,6 +895,8 @@ function confirmWord(force) {
   var wordScore = calculateScore(word);
   score += wordScore; scoreDisplay.textContent = 'Score: ' + score;
   turns--; turnsDisplay.textContent = 'Turns Left: ' + turns;
+  // Multiplier FX (Phase 1): based on word length multiplier
+  try { triggerMultiplierFX(calculateLengthMultiplier(word.length)); } catch(e){}
   addWordToList(word, wordScore);
   dbg('CFOK', word + ' +' + wordScore + ' S=' + score + ' T=' + turns);
   
@@ -972,6 +1000,58 @@ function createConfetti() {
       if (c.parentNode) c.parentNode.removeChild(c);
     }, 5000, confetti);
   }
+}
+
+// Lightweight, parameterized confetti burst for multiplier FX
+function createConfettiBurst(count, durationSec) {
+  if (!ANIM) return;
+  try {
+    var container = document.getElementById('container');
+    var colors = ['#ffd54a', '#ff8c00', '#4ecdc4', '#45b7d1', '#ffd93d'];
+    var n = Math.max(0, Math.min(80, count|0));
+    var dur = Math.max(0.8, Math.min(3.5, durationSec || 1.5));
+    for (var i = 0; i < n; i++) {
+      var d = document.createElement('div');
+      d.className = 'confetti';
+      d.style.left = (Math.random() * 100) + '%';
+      d.style.background = colors[i % colors.length];
+      d.style.animationDuration = (dur + Math.random() * 0.9) + 's';
+      d.style.animationDelay = (Math.random() * 0.25) + 's';
+      container.appendChild(d);
+      setTimeout(function(el){ if (el && el.parentNode) el.parentNode.removeChild(el); }, (dur*1000 + 800)|0, d);
+    }
+  } catch(e){}
+}
+
+// Multiplier FX dispatcher (Phase 1)
+function triggerMultiplierFX(mult) {
+  try {
+    if (!ENHANCED_BROWSER || !ANIM || LOW_END_MODE) return;
+    if (settings && (settings.noAnim || settings.highContrast)) return;
+    var tier = 0;
+    if (mult >= 2 && mult <= 2) tier = 1; else
+    if (mult <= 4) tier = 2; else
+    if (mult <= 6) tier = 3; else tier = 4;
+
+    // Badge near HUD
+    var hud = document.getElementById('hud');
+    if (hud) {
+      var badge = document.createElement('div');
+      badge.className = 'multiplier-badge level-' + (tier+1);
+      badge.textContent = '×' + mult;
+      hud.appendChild(badge);
+      setTimeout(function(){ if (badge && badge.parentNode) badge.parentNode.removeChild(badge); }, 900);
+    }
+
+    // Grid glow
+    var glowClass = (tier<=1?'fx-glow-l1':tier===2?'fx-glow-l2':tier===3?'fx-glow-l3':'fx-glow-l4');
+    gameEl.classList.add(glowClass);
+    setTimeout(function(){ gameEl.classList.remove(glowClass); }, 350);
+
+    // Confetti burst scaled by tier
+    var counts = [0, 8, 14, 20, 28];
+    createConfettiBurst(counts[tier], 1.4 + tier*0.2);
+  } catch(e){}
 }
 
 function maybeFinishGame() {
