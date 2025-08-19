@@ -130,13 +130,13 @@
   #settingsIcon svg { width:18px; height:18px; fill:#333333; }
 
   /* Quick theme toggle (non-Kindle) */
-  #themeToggle {
+#themeToggle {
     position:fixed; top:8px; right:52px; width:36px; height:36px;
     display:inline-flex; align-items:center; justify-content:center;
     background:#ffffff; border:2px solid #cccccc; border-radius:50%;
     text-decoration:none; z-index:9999; box-shadow:0 1px 2px rgba(0,0,0,0.08);
-    cursor:pointer; font-weight:800; font-size:0.9rem; color:#333333;
-  }
+    cursor:pointer; color:#333333;
+}
 
   /* HUD */
   #hud { max-width:420px; margin:8px auto 10px; }
@@ -365,7 +365,11 @@
     <path d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zm9.4 3.2c0-.5 0-.9-.1-1.3l2-1.6-2-3.4-2.4 1a8.8 8.8 0 0 0-2.2-1.3l-.3-2.6H9.6l-.3 2.6a8.8 8.8 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6c0 .4-.1 .8-.1 1.3s0 .9 .1 1.3l-2 1.6 2 3.4 2.4-1c.7 .5 1.4 .9 2.2 1.3l.3 2.6h4.6l.3-2.6c.8-.4 1.5-.8 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4 .1-.8 .1-1.3zM12 6.6a5.4 5.4 0 1 1 0 10.8A5.4 5.4 0 0 1 12 6.6z"/>
   </svg>
 </a>
-<button id="themeToggle" aria-label="Theme" title="Theme">A</button>
+<a id="themeToggle" href="#" aria-label="Theme" title="Theme">
+  <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+    <text x="12" y="16" text-anchor="middle" font-weight="700" font-size="14">A</text>
+  </svg>
+  </a>
 <div id="hud">
   <div id="wordDisplay">Word:</div>
   <div id="scoreDisplay">Score: 0</div>
@@ -947,10 +951,12 @@ function applyThemeFromSettings() {
 
 function updateThemeToggleGlyph() {
   if (!btnTheme) return;
+  var el = btnTheme.querySelector('text');
+  if (!el) return;
   var ch = 'A';
   if (settings && settings.theme === 'dark') ch = 'D';
   else if (settings && settings.theme === 'light') ch = 'L';
-  btnTheme.textContent = ch;
+  el.textContent = ch;
 }
 
 // Remove selected tiles, drop down, refill from top
@@ -1375,7 +1381,8 @@ btnNewGame.addEventListener('click', function(){
 
 // Theme toggle (non-Kindle)
 if (btnTheme) {
-  btnTheme.addEventListener('click', function(){
+  btnTheme.addEventListener('click', function(e){
+    if (e && e.preventDefault) e.preventDefault();
     var next = (settings.theme === 'auto') ? 'dark' : (settings.theme === 'dark') ? 'light' : 'auto';
     settings.theme = next;
     try {
