@@ -128,6 +128,7 @@
     text-decoration:none; z-index:9999; box-shadow:0 1px 2px rgba(0,0,0,0.08);
   }
   #settingsIcon svg { width:18px; height:18px; fill:#333333; }
+  #themeToggle svg { width:18px; height:18px; }
 
   /* Quick theme toggle (non-Kindle) */
 #themeToggle {
@@ -366,10 +367,42 @@
   </svg>
 </a>
 <a id="themeToggle" href="#" aria-label="Theme" title="Theme">
-  <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-    <text x="12" y="16" text-anchor="middle" font-weight="700" font-size="14">A</text>
+  <svg viewBox="0 0 24 24" role="img" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <defs>
+      <clipPath id="auto-clip-sun">
+        <polygon points="0,0 24,0 24,24"/>
+      </clipPath>
+      <clipPath id="auto-clip-moon">
+        <polygon points="0,0 0,24 24,24"/>
+      </clipPath>
+    </defs>
+    <!-- Sun icon -->
+    <g id="icon-sun">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1.5" x2="12" y2="5"/>
+      <line x1="12" y1="19" x2="12" y2="22.5"/>
+      <line x1="1.5" y1="12" x2="5" y2="12"/>
+      <line x1="19" y1="12" x2="22.5" y2="12"/>
+      <line x1="4.6" y1="4.6" x2="7.2" y2="7.2"/>
+      <line x1="16.8" y1="16.8" x2="19.4" y2="19.4"/>
+      <line x1="4.6" y1="19.4" x2="7.2" y2="16.8"/>
+      <line x1="16.8" y1="7.2" x2="19.4" y2="4.6"/>
+    </g>
+    <!-- Moon icon (crescent) -->
+    <g id="icon-moon" style="display:none">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
+    </g>
+    <!-- Auto icon: diagonal split 45° with sun/moon -->
+    <g id="icon-auto" style="display:none">
+      <g clip-path="url(#auto-clip-sun)">
+        <use href="#icon-sun"/>
+      </g>
+      <g clip-path="url(#auto-clip-moon)">
+        <use href="#icon-moon"/>
+      </g>
+    </g>
   </svg>
-  </a>
+</a>
 <div id="hud">
   <div id="wordDisplay">Word:</div>
   <div id="scoreDisplay">Score: 0</div>
@@ -951,12 +984,17 @@ function applyThemeFromSettings() {
 
 function updateThemeToggleGlyph() {
   if (!btnTheme) return;
-  var el = btnTheme.querySelector('text');
-  if (!el) return;
-  var ch = 'A';
-  if (settings && settings.theme === 'dark') ch = 'D';
-  else if (settings && settings.theme === 'light') ch = 'L';
-  el.textContent = ch;
+  var sun = btnTheme.querySelector('#icon-sun');
+  var moon = btnTheme.querySelector('#icon-moon');
+  var auto = btnTheme.querySelector('#icon-auto');
+  if (!sun || !moon || !auto) return;
+  sun.style.display = 'none';
+  moon.style.display = 'none';
+  auto.style.display = 'none';
+  var mode = (settings && settings.theme) || 'auto';
+  if (mode === 'light') sun.style.display = '';
+  else if (mode === 'dark') moon.style.display = '';
+  else auto.style.display = '';
 }
 
 // Remove selected tiles, drop down, refill from top
