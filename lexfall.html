@@ -72,26 +72,9 @@
   }
 
   /* Theming
-     - Auto: handled by prefers-color-scheme below
+     - Auto: handled by prefers-color-scheme (added again at end to ensure override order)
      - Force: use .theme-dark or .theme-light classes on body
   */
-  @media (prefers-color-scheme: dark) {
-    body { background:#0f1115; color:#e5e7eb; }
-    #game { background:#1a1f29; }
-    .tile { background:#111827; border-color:#2a3342; color:#e5e7eb; }
-    .tile.empty { background:#0f1115; border-color:#253043; }
-    .tile.selected { background:#1f2a3a; border-color:#3c4b63; }
-    .tile.selected.valid { background:#124e2e; border-color:#2bb673; }
-    .tile.selected.invalid { background:#4a1f27; border-color:#dc3545; }
-    #status { color:#cbd5e1; }
-    #wordsList h3 { color:#e5e7eb; }
-    .word-entry { background:#0f172a; border-color:#273449; color:#e5e7eb; }
-    .word-entry a { color:#7dd3fc; }
-    .word-score { color:#9ca3af; }
-    #settingsIcon { background:#1f2937; border-color:#374151; }
-    #settingsIcon svg { fill:#e5e7eb; }
-    #version { color:#9ca3af; }
-  }
   .theme-dark body, body.theme-dark { background:#0f1115; color:#e5e7eb; }
   .theme-dark #game, body.theme-dark #game { background:#1a1f29; }
   .theme-dark .tile, body.theme-dark .tile { background:#111827; border-color:#2a3342; color:#e5e7eb; }
@@ -329,6 +312,25 @@
   }
   @media (max-width: 330px) {
     .tile { font-size:1.55em; }
+  }
+  
+  /* Auto theme: place after base styles so it wins in cascade */
+  @media (prefers-color-scheme: dark) {
+    body { background:#0f1115; color:#e5e7eb; }
+    #game { background:#1a1f29; }
+    .tile { background:#111827; border-color:#2a3342; color:#e5e7eb; }
+    .tile.empty { background:#0f1115; border-color:#253043; }
+    .tile.selected { background:#1f2a3a; border-color:#3c4b63; }
+    .tile.selected.valid { background:#124e2e; border-color:#2bb673; }
+    .tile.selected.invalid { background:#4a1f27; border-color:#dc3545; }
+    #status { color:#cbd5e1; }
+    #wordsList h3 { color:#e5e7eb; }
+    .word-entry { background:#0f172a; border-color:#273449; color:#e5e7eb; }
+    .word-entry a { color:#7dd3fc; }
+    .word-score { color:#9ca3af; }
+    #settingsIcon { background:#1f2937; border-color:#374151; }
+    #settingsIcon svg { fill:#e5e7eb; }
+    #version { color:#9ca3af; }
   }
 </style>
 </head>
