@@ -12,9 +12,10 @@
     label { display:block; font-weight:600; margin:10px 0 6px; }
     input[type=number] { width:100%; max-width:120px; padding:.5em .6em; }
     .actions { display:flex; gap:12px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
-    button, a.button { padding:.85em 1.2em; border:none; border-radius:10px; background:#1f6feb; color:#fff; text-decoration:none; cursor:pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    button, a.button { padding:.85em 1.2em; border:2px solid transparent; border-radius:10px; background:#1f6feb; color:#fff; text-decoration:none; cursor:pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight:600; }
     button:hover, a.button:hover { filter: brightness(1.05); }
     a.secondary { background:transparent; color:var(--text); border:2px solid #8b949e; }
+    .actions .button, .actions button { min-width: 120px; text-align:center; }
     .note { color:var(--muted); font-size:.92em; opacity:.85; }
 
     /* Theme preview */

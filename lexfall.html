@@ -96,6 +96,7 @@
   .theme-dark .word-score, body.theme-dark .word-score { color:#9ca3af; }
   .theme-dark #settingsIcon, body.theme-dark #settingsIcon { background:#1f2937; border-color:#374151; }
   .theme-dark #settingsIcon svg, body.theme-dark #settingsIcon svg { fill:#e5e7eb; }
+  .theme-dark #themeToggle, body.theme-dark #themeToggle { background:#1f2937; border-color:#374151; color:#e5e7eb; }
   .theme-dark #version, body.theme-dark #version { color:#9ca3af; }
 
   /* Force light overrides when OS is dark */
@@ -113,6 +114,7 @@
   .theme-light .word-score, body.theme-light .word-score { color:#666; }
   .theme-light #settingsIcon, body.theme-light #settingsIcon { background:#ffffff; border-color:#cccccc; }
   .theme-light #settingsIcon svg, body.theme-light #settingsIcon svg { fill:#333333; }
+  .theme-light #themeToggle, body.theme-light #themeToggle { background:#ffffff; border-color:#cccccc; color:#333333; }
   .theme-light #version, body.theme-light #version { color:#666; }
 
 
@@ -126,6 +128,15 @@
     text-decoration:none; z-index:9999; box-shadow:0 1px 2px rgba(0,0,0,0.08);
   }
   #settingsIcon svg { width:18px; height:18px; fill:#333333; }
+
+  /* Quick theme toggle (non-Kindle) */
+  #themeToggle {
+    position:fixed; top:8px; right:52px; width:36px; height:36px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:#ffffff; border:2px solid #cccccc; border-radius:50%;
+    text-decoration:none; z-index:9999; box-shadow:0 1px 2px rgba(0,0,0,0.08);
+    cursor:pointer; font-weight:800; font-size:0.9rem; color:#333333;
+  }
 
   /* HUD */
   #hud { max-width:420px; margin:8px auto 10px; }
@@ -337,6 +348,7 @@
     .word-score { color:#9ca3af; }
     #settingsIcon { background:#1f2937; border-color:#374151; }
     #settingsIcon svg { fill:#e5e7eb; }
+    #themeToggle { background:#1f2937; border-color:#374151; color:#e5e7eb; }
     #version { color:#9ca3af; }
   }
 </style>
@@ -349,6 +361,7 @@
     <path d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zm9.4 3.2c0-.5 0-.9-.1-1.3l2-1.6-2-3.4-2.4 1a8.8 8.8 0 0 0-2.2-1.3l-.3-2.6H9.6l-.3 2.6a8.8 8.8 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.6c0 .4-.1 .8-.1 1.3s0 .9 .1 1.3l-2 1.6 2 3.4 2.4-1c.7 .5 1.4 .9 2.2 1.3l.3 2.6h4.6l.3-2.6c.8-.4 1.5-.8 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4 .1-.8 .1-1.3zM12 6.6a5.4 5.4 0 1 1 0 10.8A5.4 5.4 0 0 1 12 6.6z"/>
   </svg>
 </a>
+<button id="themeToggle" aria-label="Theme" title="Theme">A</button>
 <div id="hud">
   <div id="wordDisplay">Word:</div>
   <div id="scoreDisplay">Score: 0</div>
@@ -403,6 +416,7 @@ var wordsContainer = document.getElementById('wordsContainer');
 var btnConfirm = document.getElementById('confirm');
 var btnReject = document.getElementById('reject');
 var btnNewGame = document.getElementById('newGame');
+var btnTheme = document.getElementById('themeToggle');
 
 // Browser capability detection
 var HAS_POINTER = !!window.PointerEvent;
@@ -919,6 +933,22 @@ function clearSelection() {
   drawPath();
 }
 
+function applyThemeFromSettings() {
+  var useHighContrast = settings.highContrast || settings.noAnim || LOW_END_MODE;
+  document.body.classList.remove('theme-dark','theme-light');
+  if (useHighContrast) return; // high contrast overrides theme
+  if (settings.theme === 'dark') document.body.classList.add('theme-dark');
+  else if (settings.theme === 'light') document.body.classList.add('theme-light');
+}
+
+function updateThemeToggleGlyph() {
+  if (!btnTheme) return;
+  var ch = 'A';
+  if (settings && settings.theme === 'dark') ch = 'D';
+  else if (settings && settings.theme === 'light') ch = 'L';
+  btnTheme.textContent = ch;
+}
+
 // Remove selected tiles, drop down, refill from top
 function removeAndDropTiles() {
   dbg('RMD', ANIM?'anim':'instant');
@@ -1339,6 +1369,22 @@ btnNewGame.addEventListener('click', function(){
   makeRandomGrid(); renderGrid(); clearSelection(); paused = false; clearStatus(); ensurePlayableOrReshuffle(); saveState();
 });
 
+// Theme toggle (non-Kindle)
+if (btnTheme) {
+  btnTheme.addEventListener('click', function(){
+    var next = (settings.theme === 'auto') ? 'dark' : (settings.theme === 'dark') ? 'light' : 'auto';
+    settings.theme = next;
+    try {
+      var raw = localStorage.getItem('lexfall_settings') || '{}';
+      var s = {}; try { s = JSON.parse(raw) || {}; } catch(e){}
+      s.theme = next;
+      localStorage.setItem('lexfall_settings', JSON.stringify(s));
+    } catch(e){}
+    applyThemeFromSettings();
+    updateThemeToggleGlyph();
+  });
+}
+
 // ---- Boot ----
 (async function init(){
   loadSettings();
@@ -1360,13 +1406,11 @@ btnNewGame.addEventListener('click', function(){
     document.body.classList.add('high-contrast');
     dbg('BOOT','HC=1');
   }
-  // Apply theme (skip if high contrast to avoid conflicts)
-  if (!useHighContrast) {
-    document.body.classList.remove('theme-dark','theme-light');
-    if (settings.theme === 'dark') document.body.classList.add('theme-dark');
-    else if (settings.theme === 'light') document.body.classList.add('theme-light');
-    // 'auto' -> no class; CSS media query will handle
-  }
+  // Apply theme classes and set toggle glyph
+  applyThemeFromSettings();
+  updateThemeToggleGlyph();
+  // Hide theme toggle on Kindle/low-end
+  try { if (LOW_END_MODE && btnTheme) btnTheme.style.display = 'none'; } catch(e){}
   
   if (DEBUG) {
     document.body.classList.add('debug-mode');
