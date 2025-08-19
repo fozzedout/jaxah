@@ -367,39 +367,62 @@
   </svg>
 </a>
 <a id="themeToggle" href="#" aria-label="Theme" title="Theme">
-  <svg viewBox="0 0 24 24" role="img" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
     <defs>
-      <clipPath id="auto-clip-sun">
-        <polygon points="0,0 24,0 24,24"/>
-      </clipPath>
-      <clipPath id="auto-clip-moon">
-        <polygon points="0,0 0,24 24,24"/>
-      </clipPath>
+      <clipPath id="icon-circle"><circle cx="12" cy="12" r="9"/></clipPath>
+      <!-- Diagonal split: top-right triangle and bottom-left triangle -->
+      <clipPath id="auto-clip-sun"><polygon points="0,0 24,0 24,24"/></clipPath>
+      <clipPath id="auto-clip-moon"><polygon points="0,0 0,24 24,24"/></clipPath>
     </defs>
-    <!-- Sun icon -->
-    <g id="icon-sun">
+    <!-- Sun icon (currentColor) -->
+    <g id="icon-sun" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="5"/>
-      <line x1="12" y1="1.5" x2="12" y2="5"/>
-      <line x1="12" y1="19" x2="12" y2="22.5"/>
-      <line x1="1.5" y1="12" x2="5" y2="12"/>
-      <line x1="19" y1="12" x2="22.5" y2="12"/>
-      <line x1="4.6" y1="4.6" x2="7.2" y2="7.2"/>
-      <line x1="16.8" y1="16.8" x2="19.4" y2="19.4"/>
-      <line x1="4.6" y1="19.4" x2="7.2" y2="16.8"/>
-      <line x1="16.8" y1="7.2" x2="19.4" y2="4.6"/>
+      <line x1="12" y1="2" x2="12" y2="5"/>
+      <line x1="12" y1="19" x2="12" y2="22"/>
+      <line x1="2" y1="12" x2="5" y2="12"/>
+      <line x1="19" y1="12" x2="22" y2="12"/>
+      <line x1="4.6" y1="4.6" x2="7.1" y2="7.1"/>
+      <line x1="16.9" y1="16.9" x2="19.4" y2="19.4"/>
+      <line x1="4.6" y1="19.4" x2="7.1" y2="16.9"/>
+      <line x1="16.9" y1="7.1" x2="19.4" y2="4.6"/>
     </g>
-    <!-- Moon icon (crescent) -->
-    <g id="icon-moon" style="display:none">
+    <!-- Moon icon (currentColor) -->
+    <g id="icon-moon" style="display:none" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
     </g>
-    <!-- Auto icon: diagonal split 45° with sun/moon -->
+    <!-- Auto icon: diagonal split sun/moon with black lines and light fills -->
     <g id="icon-auto" style="display:none">
-      <g clip-path="url(#auto-clip-sun)">
-        <use href="#icon-sun"/>
+      <!-- Light background halves inside circle -->
+      <g clip-path="url(#icon-circle)">
+        <g clip-path="url(#auto-clip-sun)">
+          <rect x="0" y="0" width="24" height="24" fill="#FDE68A"/>
+        </g>
+        <g clip-path="url(#auto-clip-moon)">
+          <rect x="0" y="0" width="24" height="24" fill="#E5E7EB"/>
+        </g>
       </g>
-      <g clip-path="url(#auto-clip-moon)">
-        <use href="#icon-moon"/>
+      <!-- Sun lines (black) clipped to sun half and circle -->
+      <g clip-path="url(#icon-circle)" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <g clip-path="url(#auto-clip-sun)">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="2" x2="12" y2="5"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="2" y1="12" x2="5" y2="12"/>
+          <line x1="19" y1="12" x2="22" y2="12"/>
+          <line x1="4.6" y1="4.6" x2="7.1" y2="7.1"/>
+          <line x1="16.9" y1="16.9" x2="19.4" y2="19.4"/>
+          <line x1="4.6" y1="19.4" x2="7.1" y2="16.9"/>
+          <line x1="16.9" y1="7.1" x2="19.4" y2="4.6"/>
+        </g>
       </g>
+      <!-- Moon crescent (black) clipped to moon half and circle -->
+      <g clip-path="url(#icon-circle)" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <g clip-path="url(#auto-clip-moon)">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
+        </g>
+      </g>
+      <!-- Diagonal separator -->
+      <line x1="0" y1="0" x2="24" y2="24" stroke="#000" stroke-width="1"/>
     </g>
   </svg>
 </a>
