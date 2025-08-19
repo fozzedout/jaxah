@@ -325,11 +325,15 @@
   /* Responsive tweaks */
   @media (max-width: 380px) {
     .tile { font-size:1.7em; }
-    #settingsIcon { width:32px; height:32px; }
+    #settingsIcon, #themeToggle { width:32px; height:32px; }
     #settingsIcon svg { width:16px; height:16px; }
+    #themeToggle { font-size:0.85rem; }
   }
   @media (max-width: 330px) {
     .tile { font-size:1.55em; }
+    #settingsIcon, #themeToggle { width:30px; height:30px; top:6px; }
+    #settingsIcon svg { width:15px; height:15px; }
+    #themeToggle { font-size:0.8rem; right:48px; }
   }
   
   /* Auto theme: place after base styles so it wins in cascade */
@@ -444,7 +448,7 @@ var acceptedWords = []; // Track accepted words with scores
 var DICT = new Set();
 var PREFIX = new Set();
 var dictionaryReady = false;
-var settings = { minLen: 3, autoConfirm: true, noAnim: false, highContrast: false, debug: false };
+var settings = { autoConfirm: true, noAnim: false, highContrast: false, debug: false, theme: 'auto' };
 
 // --- Debugging (controlled by settings) ---
 var DEBUG = false; // Debug mode will be set from settings
@@ -530,7 +534,7 @@ function loadState() {
 function loadSettings(){
   try {
     var s = JSON.parse(localStorage.getItem('lexfall_settings')||'{}');
-    if (s && typeof s.minLen==='number') settings.minLen = Math.max(2, Math.min(16, s.minLen));
+    // minLen removed; fixed at 2
     if (typeof s.autoConfirm==='boolean') settings.autoConfirm = s.autoConfirm;
     if (typeof s.noAnim==='boolean') settings.noAnim = s.noAnim;
     if (typeof s.highContrast==='boolean') settings.highContrast = s.highContrast;
@@ -748,7 +752,7 @@ function currentWord() {
 
 function refreshSelectionStyles() {
   var up = currentWord().toUpperCase();
-  var meetsLen = up.length >= settings.minLen;
+  var meetsLen = up.length >= 2;
   var isValid = up.length > 0 && meetsLen && (dictionaryReady ? DICT.has(up) : true);
   var isDead = dictionaryReady && up.length > 0 && !PREFIX.has(up);
   for (var i=0;i<selectedTiles.length;i++){
@@ -799,7 +803,7 @@ function confirmWord(force) {
   if (selectedTiles.length === 0) { dbg('CF0','empty'); return; }
   if (turns === 0) { dbg('CF0','turns0'); return; }
   var word = currentWord().toUpperCase();
-  var meetsLen = word.length >= settings.minLen;
+  var meetsLen = word.length >= 2;
   if (!force && !((dictionaryReady ? DICT.has(word) : true) && meetsLen)) { dbg('CFX', word); dbg('AUTO_X', word);
     rejectWord(); return; }
   var wordScore = calculateScore(word);
@@ -1138,7 +1142,7 @@ function onGestureEnd(){
 
   // Only auto-confirm/cancel for slide gestures
   var word = currentWord().toUpperCase();
-  var meetsLen = word.length >= settings.minLen;
+  var meetsLen = word.length >= 2;
   if (!settings.autoConfirm) return;
 
   var ok = dictionaryReady ? DICT.has(word) : true;

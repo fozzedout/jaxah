@@ -74,11 +74,7 @@
     <h1 class="nav-title">Settings</h1>
   </div>
   <div class="panel">
-    <label for="minLen">Minimum word length</label>
-    <div class="row">
-      <input id="minLen" type="number" min="2" max="16" step="1"/>
-      <span class="note">(Dictionary min is 2)</span>
-    </div>
+    <!-- Minimum word length fixed to 2 in app; removed setting -->
     <label class="row"><input id="autoConfirm" type="checkbox"/> Auto-confirm on slide release</label>
     <label class="row"><input id="noAnim" type="checkbox"/> Disable animations (for e-ink devices)</label>
     <label class="row"><input id="highContrast" type="checkbox"/> High contrast mode</label>
@@ -118,12 +114,11 @@
     }
   })();
 
-  var settings = { minLen: 3, autoConfirm: true, noAnim: false, highContrast: false, debug: false, theme: 'auto' };
+  var settings = { autoConfirm: true, noAnim: false, highContrast: false, debug: false, theme: 'auto' };
   try {
     var raw = localStorage.getItem('lexfall_settings');
     if (raw) {
       var s = JSON.parse(raw);
-      if (s && typeof s.minLen === 'number') settings.minLen = Math.max(2, Math.min(16, s.minLen));
       if (typeof s.autoConfirm === 'boolean') settings.autoConfirm = s.autoConfirm;
       if (typeof s.noAnim === 'boolean') settings.noAnim = s.noAnim;
       if (typeof s.highContrast === 'boolean') settings.highContrast = s.highContrast;
@@ -132,7 +127,6 @@
     }
   } catch(e){}
 
-  var inputMinLen = document.getElementById('minLen');
   var inputAuto = document.getElementById('autoConfirm');
   var inputNoAnim = document.getElementById('noAnim');
   var inputHighContrast = document.getElementById('highContrast');
@@ -141,7 +135,6 @@
   var themeAuto = document.getElementById('themeAuto');
   var themeDark = document.getElementById('themeDark');
   
-  inputMinLen.value = settings.minLen;
   inputAuto.checked = !!settings.autoConfirm;
   inputNoAnim.checked = !!settings.noAnim;
   inputHighContrast.checked = !!settings.highContrast;
@@ -163,7 +156,6 @@
 
   function persistSettings() {
     var next = {
-      minLen: Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10))),
       autoConfirm: !!inputAuto.checked,
       noAnim: !!inputNoAnim.checked,
       highContrast: !!inputHighContrast.checked,
@@ -184,11 +176,6 @@
   themeDark.addEventListener('change', onThemeChange);
   inputHighContrast.addEventListener('change', onThemeChange);
 
-  inputMinLen.addEventListener('input', function(){
-    var v = Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10)));
-    if (String(v) !== inputMinLen.value) inputMinLen.value = v;
-    persistSettings();
-  });
   inputAuto.addEventListener('change', persistSettings);
   inputNoAnim.addEventListener('change', persistSettings);
   inputDebug.addEventListener('change', persistSettings);
