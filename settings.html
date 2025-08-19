@@ -6,16 +6,19 @@
   <style>
     :root { --bg:#f0f0f0; --panel:#ffffff; --text:#111; --muted:#333; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); margin:0; padding:16px; }
-    .panel { background:var(--panel); max-width:480px; margin:16px auto; padding:20px; border-radius:14px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+    .nav { position:sticky; top:0; z-index:10; height:44px; display:flex; align-items:center; justify-content:center; background:var(--bg); }
+    .nav-title { margin:0; font-size:1.05rem; font-weight:700; }
+    .nav-back { position:absolute; left:12px; top:6px; height:32px; padding:0 8px; display:inline-flex; align-items:center; gap:6px; color:#1f6feb; text-decoration:none; border-radius:8px; }
+    .nav-back:before { content:'\2039'; font-size:20px; line-height:1; }
+    @media (prefers-color-scheme: dark) { .nav-back { color:#7dd3fc; } }
+
+    .panel { background:var(--panel); max-width:480px; margin:12px auto 24px; padding:20px; border-radius:14px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
     h2 { margin:0 0 12px; font-size:1.2rem; text-align:center; }
     .row { display:flex; align-items:center; gap:10px; margin:10px 0; flex-wrap:wrap; }
     label { display:block; font-weight:600; margin:10px 0 6px; }
     input[type=number] { width:100%; max-width:120px; padding:.5em .6em; }
-    .actions { display:flex; gap:12px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
     button, a.button { padding:.85em 1.2em; border:2px solid transparent; border-radius:10px; background:#1f6feb; color:#fff; text-decoration:none; cursor:pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight:600; }
     button:hover, a.button:hover { filter: brightness(1.05); }
-    a.secondary { background:transparent; color:var(--text); border:2px solid #8b949e; }
-    .actions .button, .actions button { min-width: 120px; text-align:center; }
     .note { color:var(--muted); font-size:.92em; opacity:.85; }
 
     /* Theme preview */
@@ -49,6 +52,8 @@
 
     /* High contrast preview (overrides theme for accessibility) */
     .high-contrast { background:#ffffff !important; color:#000000 !important; }
+    .high-contrast .nav { background:#ffffff !important; }
+    .high-contrast .nav-back { color:#000000 !important; }
     .high-contrast .panel { background:#ffffff !important; color:#000000 !important; border:2px solid #000000; }
     .high-contrast h2,
     .high-contrast label,
@@ -64,8 +69,11 @@
   </style>
 </head>
 <body>
+  <div class="nav">
+    <a class="nav-back" href="lexfall.html" aria-label="Back">Back</a>
+    <h1 class="nav-title">Settings</h1>
+  </div>
   <div class="panel">
-    <h2>Settings</h2>
     <label for="minLen">Minimum word length</label>
     <div class="row">
       <input id="minLen" type="number" min="2" max="16" step="1"/>
@@ -95,10 +103,6 @@
           <div class="tile">Y<span class="score">4</span></div>
         </div>
       </div>
-    </div>
-    <div class="actions">
-      <button id="save">Save</button>
-      <a class="button secondary" href="lexfall.html">Back</a>
     </div>
   </div>
 
@@ -157,22 +161,7 @@
     // Auto: no class, OS decides via media query
   }
 
-  // Apply initial preview
-  applyThemePreview();
-
-  // Live preview on user changes
-  themeLight.addEventListener('change', applyThemePreview);
-  themeAuto.addEventListener('change', applyThemePreview);
-  themeDark.addEventListener('change', applyThemePreview);
-  inputHighContrast.addEventListener('change', applyThemePreview);
-
-  // For Kindle devices, auto-check and disable high contrast mode
-  if (isKindle) {
-    inputHighContrast.checked = true;
-    inputHighContrast.disabled = true;
-  }
-
-  document.getElementById('save').addEventListener('click', function(){
+  function persistSettings() {
     var next = {
       minLen: Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10))),
       autoConfirm: !!inputAuto.checked,
@@ -181,16 +170,36 @@
       debug: !!inputDebug.checked,
       theme: (themeLight.checked ? 'light' : themeDark.checked ? 'dark' : 'auto')
     };
-    
-    // For Kindle devices, ensure high contrast is always enabled
-    if (isKindle) {
-      next.highContrast = true;
-    }
-    
+    if (isKindle) next.highContrast = true;
     try { localStorage.setItem('lexfall_settings', JSON.stringify(next)); } catch(e){}
-    // simple feedback and go back
-    window.location.href = 'lexfall.html';
+  }
+
+  // Apply initial preview
+  applyThemePreview();
+
+  // Live preview and auto-save on user changes
+  function onThemeChange() { applyThemePreview(); persistSettings(); }
+  themeLight.addEventListener('change', onThemeChange);
+  themeAuto.addEventListener('change', onThemeChange);
+  themeDark.addEventListener('change', onThemeChange);
+  inputHighContrast.addEventListener('change', onThemeChange);
+
+  inputMinLen.addEventListener('input', function(){
+    var v = Math.max(2, Math.min(16, parseInt(inputMinLen.value||'3',10)));
+    if (String(v) !== inputMinLen.value) inputMinLen.value = v;
+    persistSettings();
   });
+  inputAuto.addEventListener('change', persistSettings);
+  inputNoAnim.addEventListener('change', persistSettings);
+  inputDebug.addEventListener('change', persistSettings);
+
+  // For Kindle devices, auto-check and disable high contrast mode
+  if (isKindle) {
+    inputHighContrast.checked = true;
+    inputHighContrast.disabled = true;
+  }
+
+  // No explicit save button: settings are applied automatically
 })();
 </script>
 </body>
