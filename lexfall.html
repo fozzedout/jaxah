@@ -274,8 +274,16 @@
   .fx-glow-l2 { box-shadow: 0 0 0 0 rgba(255,213,74,0.0), 0 0 26px 8px rgba(255,190,64,0.30) inset; }
   .fx-glow-l3 { box-shadow: 0 0 0 0 rgba(255,213,74,0.0), 0 0 30px 10px rgba(255,160,64,0.35) inset; }
   .fx-glow-l4, .fx-glow-l5 { box-shadow: 0 0 0 0 rgba(255,213,74,0.0), 0 0 36px 12px rgba(255,140,0,0.40) inset; }
+  /* Pre-confirm pulse (animation-duration set dynamically) */
+  .fx-pulse { animation-name: gridPulse; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+  @keyframes gridPulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 165, 0, 0.00) inset, 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 36px 12px rgba(255, 165, 0, 0.40) inset, 0 0 8px 2px rgba(255, 165, 0, 0.20); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 165, 0, 0.00) inset, 0 0 0 0 transparent; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .multiplier-badge { animation: none; opacity: 1; }
+    .fx-pulse { animation: none; }
   }
   
   /* Enhanced game completion background effect */
@@ -535,6 +543,7 @@ var DICT = new Set();
 var PREFIX = new Set();
 var dictionaryReady = false;
 var settings = { autoConfirm: true, noAnim: false, highContrast: false, debug: false, theme: 'auto' };
+var prePulseTimer = null;
 
 // --- Debugging (controlled by settings) ---
 var DEBUG = false; // Debug mode will be set from settings
@@ -856,7 +865,10 @@ function refreshSelectionStyles() {
 function updateWordDisplay() {
   var word = currentWord();
   refreshSelectionStyles();
-  if (!word.length) wordDisplay.textContent = 'Word:';
+  if (!word.length) {
+    wordDisplay.textContent = 'Word:';
+    try { stopPrePulse(); } catch(e){}
+  }
   else {
     var upperWord = word.toUpperCase();
     var baseScore = 0;
@@ -869,6 +881,9 @@ function updateWordDisplay() {
     } else {
       wordDisplay.textContent = 'Word: ' + word + ' (' + pts + ')';
     }
+
+    // Pre-confirm pulsing grid preview based on multiplier
+    try { triggerPrePulse(lengthMultiplier); } catch(e){}
   }
 }
 
@@ -892,6 +907,7 @@ function confirmWord(force) {
   var meetsLen = word.length >= 2;
   if (!force && !((dictionaryReady ? DICT.has(word) : true) && meetsLen)) { dbg('CFX', word); dbg('AUTO_X', word);
     rejectWord(); return; }
+  try { stopPrePulse(); } catch(e){}
   var wordScore = calculateScore(word);
   score += wordScore; scoreDisplay.textContent = 'Score: ' + score;
   turns--; turnsDisplay.textContent = 'Turns Left: ' + turns;
@@ -1054,6 +1070,31 @@ function triggerMultiplierFX(mult) {
   } catch(e){}
 }
 
+// Pre-confirm pulsing preview (2s total). Period = max(0.25s, 2/mult)
+function triggerPrePulse(mult) {
+  try {
+    if (!ENHANCED_BROWSER || !ANIM || LOW_END_MODE) return;
+    if (settings && (settings.noAnim || settings.highContrast)) return;
+    if (!mult || mult < 2) { stopPrePulse(); return; }
+    // Compute period and clamp to >= 0.25s
+    var period = Math.max(0.25, 2 / mult);
+    // Restart pulse window (2s)
+    if (prePulseTimer) { clearTimeout(prePulseTimer); prePulseTimer = null; }
+    gameEl.classList.add('fx-pulse');
+    try { gameEl.style.animationDuration = period + 's'; } catch(e){}
+    prePulseTimer = setTimeout(function(){ stopPrePulse(); }, 2000);
+  } catch(e){}
+}
+
+function stopPrePulse() {
+  try {
+    if (prePulseTimer) { clearTimeout(prePulseTimer); prePulseTimer = null; }
+    gameEl.classList.remove('fx-pulse');
+    // Clean inline style to avoid leaking across themes
+    try { gameEl.style.animationDuration = ''; } catch(e){}
+  } catch(e){}
+}
+
 function maybeFinishGame() {
   // This function is now handled in confirmWord() to prevent tile processing after game ends
   // Kept for any future use cases where we might need to check game end from other contexts
@@ -1075,6 +1116,7 @@ function clearSelection() {
   interactionMode = null; lastSelectVia = null;
   updateWordDisplay();
   drawPath();
+  try { stopPrePulse(); } catch(e){}
 }
 
 function applyThemeFromSettings() {
