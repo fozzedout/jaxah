@@ -4,9 +4,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lexfall Settings</title>
   <style>
-    :root { --bg:#f0f0f0; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); margin:0; padding:16px; }
-    .panel { background:#ffffff; max-width:420px; margin:12px auto; padding:16px; border-radius:12px; }
+    :root { --bg:#f0f0f0; --panel:#ffffff; --text:#111; --muted:#333; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); margin:0; padding:16px; }
+    .panel { background:var(--panel); max-width:420px; margin:12px auto; padding:16px; border-radius:12px; }
     h2 { margin:0 0 12px; font-size:1.2rem; text-align:center; }
     .row { display:flex; align-items:center; gap:10px; margin:10px 0; }
     label { display:block; font-weight:600; margin:10px 0 6px; }
@@ -14,7 +14,16 @@
     .actions { display:flex; gap:10px; justify-content:center; margin-top:14px; }
     button, a.button { padding:.8em 1.1em; border:none; border-radius:10px; background:#1f6feb; color:#fff; text-decoration:none; cursor:pointer; }
     a.secondary { background:#666; }
-    .note { color:#333; font-size:.92em; opacity:.85; }
+    .note { color:var(--muted); font-size:.92em; opacity:.85; }
+
+    /* Auto: follow OS when in auto mode (no explicit class) */
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0f1115; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; }
+    }
+    /* Force dark */
+    .theme-dark { --bg:#0f1115; --panel:#111827; --text:#e5e7eb; --muted:#9ca3af; }
+    /* Force light (overrides OS dark) */
+    .theme-light { --bg:#f0f0f0; --panel:#ffffff; --text:#111; --muted:#333; }
   </style>
 </head>
 <body>
@@ -29,6 +38,12 @@
     <label class="row"><input id="noAnim" type="checkbox"/> Disable animations (for e-ink devices)</label>
     <label class="row"><input id="highContrast" type="checkbox"/> High contrast mode</label>
     <label class="row"><input id="debug" type="checkbox"/> Debug mode</label>
+    <label>Theme</label>
+    <div class="row" role="radiogroup" aria-label="Theme">
+      <label class="row" style="margin:0; gap:6px;"><input type="radio" name="theme" value="light" id="themeLight"> Light</label>
+      <label class="row" style="margin:0; gap:6px;"><input type="radio" name="theme" value="auto" id="themeAuto"> Auto</label>
+      <label class="row" style="margin:0; gap:6px;"><input type="radio" name="theme" value="dark" id="themeDark"> Dark</label>
+    </div>
     <div class="actions">
       <button id="save">Save</button>
       <a class="button secondary" href="lexfall.html">Back</a>
@@ -47,7 +62,7 @@
     }
   })();
 
-  var settings = { minLen: 3, autoConfirm: true, noAnim: false, highContrast: false, debug: false };
+  var settings = { minLen: 3, autoConfirm: true, noAnim: false, highContrast: false, debug: false, theme: 'auto' };
   try {
     var raw = localStorage.getItem('lexfall_settings');
     if (raw) {
@@ -57,6 +72,7 @@
       if (typeof s.noAnim === 'boolean') settings.noAnim = s.noAnim;
       if (typeof s.highContrast === 'boolean') settings.highContrast = s.highContrast;
       if (typeof s.debug === 'boolean') settings.debug = s.debug;
+      if (typeof s.theme === 'string' && /^(light|auto|dark)$/.test(s.theme)) settings.theme = s.theme;
     }
   } catch(e){}
 
@@ -65,12 +81,22 @@
   var inputNoAnim = document.getElementById('noAnim');
   var inputHighContrast = document.getElementById('highContrast');
   var inputDebug = document.getElementById('debug');
+  var themeLight = document.getElementById('themeLight');
+  var themeAuto = document.getElementById('themeAuto');
+  var themeDark = document.getElementById('themeDark');
   
   inputMinLen.value = settings.minLen;
   inputAuto.checked = !!settings.autoConfirm;
   inputNoAnim.checked = !!settings.noAnim;
   inputHighContrast.checked = !!settings.highContrast;
   inputDebug.checked = !!settings.debug;
+  // theme radio
+  (settings.theme === 'light' ? themeLight : settings.theme === 'dark' ? themeDark : themeAuto).checked = true;
+
+  // Apply theme to settings page for preview
+  document.body.classList.remove('theme-light','theme-dark');
+  if (settings.theme === 'light') document.body.classList.add('theme-light');
+  if (settings.theme === 'dark') document.body.classList.add('theme-dark');
 
   // For Kindle devices, auto-check and disable high contrast mode
   if (isKindle) {
@@ -84,7 +110,8 @@
       autoConfirm: !!inputAuto.checked,
       noAnim: !!inputNoAnim.checked,
       highContrast: !!inputHighContrast.checked,
-      debug: !!inputDebug.checked
+      debug: !!inputDebug.checked,
+      theme: (themeLight.checked ? 'light' : themeDark.checked ? 'dark' : 'auto')
     };
     
     // For Kindle devices, ensure high contrast is always enabled

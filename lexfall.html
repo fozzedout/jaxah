@@ -71,6 +71,60 @@
     border: 4px solid #000000 !important;
   }
 
+  /* Theming
+     - Auto: handled by prefers-color-scheme below
+     - Force: use .theme-dark or .theme-light classes on body
+  */
+  @media (prefers-color-scheme: dark) {
+    body { background:#0f1115; color:#e5e7eb; }
+    #game { background:#1a1f29; }
+    .tile { background:#111827; border-color:#2a3342; color:#e5e7eb; }
+    .tile.empty { background:#0f1115; border-color:#253043; }
+    .tile.selected { background:#1f2a3a; border-color:#3c4b63; }
+    .tile.selected.valid { background:#124e2e; border-color:#2bb673; }
+    .tile.selected.invalid { background:#4a1f27; border-color:#dc3545; }
+    #status { color:#cbd5e1; }
+    #wordsList h3 { color:#e5e7eb; }
+    .word-entry { background:#0f172a; border-color:#273449; color:#e5e7eb; }
+    .word-entry a { color:#7dd3fc; }
+    .word-score { color:#9ca3af; }
+    #settingsIcon { background:#1f2937; border-color:#374151; }
+    #settingsIcon svg { fill:#e5e7eb; }
+    #version { color:#9ca3af; }
+  }
+  .theme-dark body, body.theme-dark { background:#0f1115; color:#e5e7eb; }
+  .theme-dark #game, body.theme-dark #game { background:#1a1f29; }
+  .theme-dark .tile, body.theme-dark .tile { background:#111827; border-color:#2a3342; color:#e5e7eb; }
+  .theme-dark .tile.empty, body.theme-dark .tile.empty { background:#0f1115; border-color:#253043; }
+  .theme-dark .tile.selected, body.theme-dark .tile.selected { background:#1f2a3a; border-color:#3c4b63; }
+  .theme-dark .tile.selected.valid, body.theme-dark .tile.selected.valid { background:#124e2e; border-color:#2bb673; }
+  .theme-dark .tile.selected.invalid, body.theme-dark .tile.selected.invalid { background:#4a1f27; border-color:#dc3545; }
+  .theme-dark #status, body.theme-dark #status { color:#cbd5e1; }
+  .theme-dark #wordsList h3, body.theme-dark #wordsList h3 { color:#e5e7eb; }
+  .theme-dark .word-entry, body.theme-dark .word-entry { background:#0f172a; border-color:#273449; color:#e5e7eb; }
+  .theme-dark .word-entry a, body.theme-dark .word-entry a { color:#7dd3fc; }
+  .theme-dark .word-score, body.theme-dark .word-score { color:#9ca3af; }
+  .theme-dark #settingsIcon, body.theme-dark #settingsIcon { background:#1f2937; border-color:#374151; }
+  .theme-dark #settingsIcon svg, body.theme-dark #settingsIcon svg { fill:#e5e7eb; }
+  .theme-dark #version, body.theme-dark #version { color:#9ca3af; }
+
+  /* Force light overrides when OS is dark */
+  .theme-light body, body.theme-light { background:#f0f0f0; color:#111; }
+  .theme-light #game, body.theme-light #game { background:#e0e0e0; }
+  .theme-light .tile, body.theme-light .tile { background:#ffffff; border-color:#cccccc; color:#111; }
+  .theme-light .tile.empty, body.theme-light .tile.empty { background:#f9f9f9; border-color:#dddddd; }
+  .theme-light .tile.selected, body.theme-light .tile.selected { background:#e8f0ff; border-color:#cccccc; }
+  .theme-light .tile.selected.valid, body.theme-light .tile.selected.valid { background:#bff0cf; border-color:#3bb273; }
+  .theme-light .tile.selected.invalid, body.theme-light .tile.selected.invalid { background:#ffecec; border-color:#dc3545; }
+  .theme-light #status, body.theme-light #status { color:#333; }
+  .theme-light #wordsList h3, body.theme-light #wordsList h3 { color:#333; }
+  .theme-light .word-entry, body.theme-light .word-entry { background:#f8f9fa; border-color:#dee2e6; color:#111; }
+  .theme-light .word-entry a, body.theme-light .word-entry a { color:#007bff; }
+  .theme-light .word-score, body.theme-light .word-score { color:#666; }
+  .theme-light #settingsIcon, body.theme-light #settingsIcon { background:#ffffff; border-color:#cccccc; }
+  .theme-light #settingsIcon svg, body.theme-light #settingsIcon svg { fill:#333333; }
+  .theme-light #version, body.theme-light #version { color:#666; }
+
 
   #container { position:relative; width:100%; max-width:420px; margin:0 auto; }
 
@@ -457,6 +511,7 @@ function loadSettings(){
     if (typeof s.autoConfirm==='boolean') settings.autoConfirm = s.autoConfirm;
     if (typeof s.noAnim==='boolean') settings.noAnim = s.noAnim;
     if (typeof s.highContrast==='boolean') settings.highContrast = s.highContrast;
+    if (typeof s.theme==='string' && /^(light|auto|dark)$/.test(s.theme)) settings.theme = s.theme; else settings.theme = 'auto';
     if (typeof s.debug==='boolean') settings.debug = s.debug;
     
     // Update global variables based on settings
@@ -1295,6 +1350,13 @@ btnNewGame.addEventListener('click', function(){
   if (useHighContrast) {
     document.body.classList.add('high-contrast');
     dbg('BOOT','HC=1');
+  }
+  // Apply theme (skip if high contrast to avoid conflicts)
+  if (!useHighContrast) {
+    document.body.classList.remove('theme-dark','theme-light');
+    if (settings.theme === 'dark') document.body.classList.add('theme-dark');
+    else if (settings.theme === 'light') document.body.classList.add('theme-light');
+    // 'auto' -> no class; CSS media query will handle
   }
   
   if (DEBUG) {
