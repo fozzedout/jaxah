@@ -29,7 +29,17 @@
   </div>
 
   <script>
-    const LS_KEY = 'enWordsTxtV1';
+    function getDataset() {
+      const params = new URLSearchParams(location.search);
+      return params.get('dataset') === 'words' ? 'words' : 'en';
+    }
+    function textPathFor(ds) { return ds === 'words' ? 'words.txt' : 'en-words.txt'; }
+    function lsKeyForText(ds) { return ds === 'words' ? 'wordsTxtV1' : 'enWordsTxtV1'; }
+    function binUrlFor(ds) { return ds === 'words' ? './words-trie.bin' : './en-words-trie.bin'; }
+    function modUrlFor(ds) { return ds === 'words' ? './words-trie.js' : './en-words-trie.js'; }
+
+    let DATASET = getDataset();
+    let LS_KEY = lsKeyForText(DATASET);
     let trieRoot = null; // fallback Map-based trie
     let preData = null;  // precompiled radix trie data if available
     let lastLookupNs = null;
@@ -85,9 +95,9 @@
 
     async function fetchWords() {
       const t0 = performance.now();
-      const res = await fetch('en-words.txt');
+      const res = await fetch(textPathFor(DATASET));
       const t1 = performance.now();
-      if (!res.ok) throw new Error('Failed to fetch en-words.txt: ' + res.status);
+      if (!res.ok) throw new Error('Failed to fetch ' + textPathFor(DATASET) + ': ' + res.status);
       const text0 = await res.text();
       const t2 = performance.now();
       const fetchMs = t1 - t0;
@@ -122,20 +132,16 @@
     }
 
     async function importPrecompiled() {
-      const params = new URLSearchParams(location.search);
-      const pref = params.get('dataset'); // 'en' or 'words'
+      const pref = DATASET; // 'en' or 'words'
       // Try binary first, then JS module
-      const bins = pref === 'words'
-        ? ['./words-trie.bin','./en-words-trie.bin']
-        : ['./en-words-trie.bin','./words-trie.bin'];
-      for (const url of bins) {
-        const ok = await loadBinary(url, pref === 'words' ? 'words' : 'en');
+      const binUrl = binUrlFor(pref);
+      {
+        const ok = await loadBinary(binUrl, pref);
         if (ok) return true;
       }
-      const mods = pref === 'words'
-        ? ['./words-trie.js','./en-words-trie.js']
-        : ['./en-words-trie.js','./words-trie.js'];
-      for (const url of mods) {
+      // For 'words' dataset, skip JS module import to avoid large file; for 'en', try JS module as fallback
+      if (pref !== 'words') {
+        const url = modUrlFor(pref);
         const t0 = performance.now();
         try {
           const mod = await import(url);
@@ -272,7 +278,10 @@
       resetLog();
       trieRoot = null;
 
-      log('Starting load...');
+      // Refresh dataset selection on each load (in case of navigation)
+      DATASET = getDataset();
+      LS_KEY = lsKeyForText(DATASET);
+      log(`Starting load... (dataset=${DATASET})`);
       const okPre = await importPrecompiled();
       if (okPre) {
         log('Ready (precompiled). Type a word to test lookup time.');
