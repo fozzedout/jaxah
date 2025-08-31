@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IndexedDB Test (en-words)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+  <div class="max-w-3xl mx-auto p-6">
+    <h1 class="text-2xl font-semibold mb-2">IndexedDB Test (exact match)</h1>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">
+      Imports <code>en-words.txt</code> into IndexedDB (one record per word). Measures fetch, parse, import, open time, and per-keystroke lookups using <code>get()</code> for exact membership checks. Clearing DB removes stored words, forcing fetch on next import.
+    </p>
+
+    <div class="flex flex-wrap gap-2 mb-4">
+      <button id="btnOpen" class="py-2 px-3 rounded bg-blue-600 text-white">Open DB</button>
+      <button id="btnImport" class="py-2 px-3 rounded bg-emerald-600 text-white">Import en-words.txt → IDB</button>
+      <button id="btnClear" class="py-2 px-3 rounded bg-slate-200 dark:bg-slate-700">Clear DB</button>
+    </div>
+
+    <div class="mb-4">
+      <label for="wordInput" class="block text-sm mb-1">Type a word to test (lookup runs on each input):</label>
+      <input id="wordInput" class="w-full p-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800" placeholder="e.g., hello" />
+      <div id="result" class="mt-2 text-sm"></div>
+    </div>
+
+    <div class="mb-2 text-sm">DB name: <code>wordset-v1</code>, store: <code>words(w)</code>, meta: <code>meta(k→v)</code></div>
+    <div id="stats" class="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700"></div>
+  </div>
+
+  <script>
+    const DB_NAME = 'wordset-v1';
+    const STORE = 'words';
+    const META = 'meta';
+
+    function log(msg) {
+      const el = document.getElementById('stats');
+      el.textContent += (msg + '\n');
+    }
+
+    function resetLog() {
+      document.getElementById('stats').textContent = '';
+    }
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const t0 = performance.now();
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(STORE)) {
+            db.createObjectStore(STORE, { keyPath: 'w' });
+          }
+          if (!db.objectStoreNames.contains(META)) {
+            db.createObjectStore(META, { keyPath: 'k' });
+          }
+        };
+        req.onsuccess = () => {
+          const db = req.result;
+          const ms = performance.now() - t0;
+          log(`open DB: ${ms.toFixed(2)} ms`);
+          resolve(db);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function getMeta(db, key) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(META, 'readonly');
+        const store = tx.objectStore(META);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result?.v);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function putMeta(db, key, value) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(META, 'readwrite');
+        const store = tx.objectStore(META);
+        const req = store.put({ k: key, v: value });
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function fetchWords() {
+      const t0 = performance.now();
+      const res = await fetch('en-words.txt');
+      const t1 = performance.now();
+      if (!res.ok) throw new Error('Failed to fetch en-words.txt: ' + res.status);
+      const text0 = await res.text();
+      const t2 = performance.now();
+      return { text: text0, fetchMs: t1 - t0, readMs: t2 - t1 };
+    }
+
+    function parseWords(text) {
+      const t0 = performance.now();
+      const words = text.replace(/\r/g, '').split('\n').map(w => w.trim().toLowerCase()).filter(Boolean);
+      const t1 = performance.now();
+      return { words, ms: t1 - t0 };
+    }
+
+    async function importWords(db, words) {
+      // Import in chunks to keep UI responsive
+      const chunk = 5000;
+      const total = words.length;
+      const t0 = performance.now();
+      for (let i = 0; i < total; i += chunk) {
+        const end = Math.min(i + chunk, total);
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE, 'readwrite');
+          const store = tx.objectStore(STORE);
+          for (let j = i; j < end; j++) {
+            store.put({ w: words[j] });
+          }
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+        log(`import progress: ${end}/${total}`);
+        // Give the event loop a chance
+        await new Promise(r => setTimeout(r, 0));
+      }
+      const ms = performance.now() - t0;
+      await putMeta(db, 'ready', true);
+      await putMeta(db, 'count', total);
+      return { ms };
+    }
+
+    function lookupWord(db, word) {
+      const t0 = performance.now();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readonly');
+        const store = tx.objectStore(STORE);
+        const req = store.get(word);
+        req.onsuccess = () => {
+          const t1 = performance.now();
+          resolve({ ok: !!req.result, ms: t1 - t0 });
+        };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function clearDB() {
+      resetLog();
+      await new Promise((resolve, reject) => {
+        const req = indexedDB.deleteDatabase(DB_NAME);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+        req.onblocked = () => log('Delete blocked; close other tabs.');
+      });
+      log('Deleted database.');
+    }
+
+    let dbGlobal = null;
+
+    document.getElementById('btnOpen').addEventListener('click', async () => {
+      try { dbGlobal = await openDB(); } catch (e) { log('open error: ' + e); }
+      if (dbGlobal) {
+        const ready = await getMeta(dbGlobal, 'ready');
+        const count = await getMeta(dbGlobal, 'count');
+        log(`meta → ready: ${!!ready}, count: ${count ?? 'n/a'}`);
+      }
+    });
+
+    document.getElementById('btnImport').addEventListener('click', async () => {
+      try {
+        if (!dbGlobal) dbGlobal = await openDB();
+        const ready = await getMeta(dbGlobal, 'ready');
+        if (ready) { log('Already imported (meta.ready = true).'); return; }
+        log('Fetching en-words.txt ...');
+        const f = await fetchWords();
+        log(`fetch: ${f.fetchMs.toFixed(2)} ms, read: ${f.readMs.toFixed(2)} ms, size: ${f.text.length} bytes`);
+        const parsed = parseWords(f.text);
+        log(`parse words: ${parsed.ms.toFixed(2)} ms, count: ${parsed.words.length}`);
+        const imp = await importWords(dbGlobal, parsed.words);
+        log(`import to IDB: ${imp.ms.toFixed(2)} ms`);
+        log('Done. You can now type to test lookups.');
+      } catch (e) {
+        log('Import error: ' + e);
+      }
+    });
+
+    document.getElementById('btnClear').addEventListener('click', async () => {
+      try { await clearDB(); } catch (e) { log('Clear error: ' + e); }
+    });
+
+    document.getElementById('wordInput').addEventListener('input', async (e) => {
+      const word = e.target.value.trim().toLowerCase();
+      const resultEl = document.getElementById('result');
+      if (!dbGlobal || !word) { resultEl.textContent = ''; return; }
+      try {
+        const r = await lookupWord(dbGlobal, word);
+        resultEl.textContent = `Lookup: ${r.ok ? 'match' : 'no match'} in ${r.ms.toFixed(3)} ms`;
+      } catch (err) {
+        resultEl.textContent = 'Lookup error: ' + err;
+      }
+    });
+
+    // Auto-open DB so open timing is captured
+    (async () => {
+      try { dbGlobal = await openDB(); } catch (e) { log('open error: ' + e); }
+      if (dbGlobal) {
+        const ready = await getMeta(dbGlobal, 'ready');
+        const count = await getMeta(dbGlobal, 'count');
+        log(`meta → ready: ${!!ready}, count: ${count ?? 'n/a'}`);
+      }
+    })();
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trie Test (en-words)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+  <div class="max-w-3xl mx-auto p-6">
+    <h1 class="text-2xl font-semibold mb-2">Trie Test (in-memory)</h1>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mb-4">
+      Builds an in-memory trie from <code>en-words.txt</code>. Measures fetch, parse, build, and per-keystroke lookup time. Stores the raw word list in <code>localStorage</code> (if possible) to avoid network fetch on reloads even with HTTP cache disabled. Clearing storage removes the cached word list.
+    </p>
+
+    <div class="flex gap-2 mb-4">
+      <button id="btnLoad" class="py-2 px-3 rounded bg-blue-600 text-white">Load & Build Trie</button>
+      <button id="btnClear" class="py-2 px-3 rounded bg-slate-200 dark:bg-slate-700">Clear Local Cache</button>
+    </div>
+
+    <div class="mb-4">
+      <label for="wordInput" class="block text-sm mb-1">Type a word to test (lookup runs on each input):</label>
+      <input id="wordInput" class="w-full p-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800" placeholder="e.g., hello" />
+      <div id="result" class="mt-2 text-sm"></div>
+    </div>
+
+    <div class="mb-2 text-sm">Local cache keys: <code>enWordsTxtV1</code> (raw text, fallback), <code>trieBinV1:(en|words)</code> (binary, if small). Also caches in <code>Cache Storage</code> bucket <code>trie-artifacts-v1</code>.</div>
+    <div id="stats" class="text-sm whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 p-3 rounded border border-slate-200 dark:border-slate-700"></div>
+  </div>
+
+  <script>
+    const LS_KEY = 'enWordsTxtV1';
+    let trieRoot = null; // fallback Map-based trie
+    let preData = null;  // precompiled radix trie data if available
+    let lastLookupNs = null;
+    let mode = 'fallback'; // 'precompiled' | 'fallback'
+
+    function log(msg) {
+      const el = document.getElementById('stats');
+      el.textContent += (msg + '\n');
+    }
+
+    function resetLog() {
+      document.getElementById('stats').textContent = '';
+    }
+
+    function humanBytes(n) {
+      if (n == null) return 'n/a';
+      const units = ['B','KB','MB','GB'];
+      let i = 0; let v = n;
+      while (v >= 1024 && i < units.length-1) { v/=1024; i++; }
+      return v.toFixed(2) + ' ' + units[i];
+    }
+
+    // Basic trie node: { children: Map<char, node>, end: boolean }
+    function makeNode() { return { c: new Map(), e: false }; }
+
+    function buildTrie(words) {
+      const t0 = performance.now();
+      const root = makeNode();
+      for (const w of words) {
+        if (!w) continue;
+        let node = root;
+        for (let i = 0; i < w.length; i++) {
+          const ch = w[i];
+          let nxt = node.c.get(ch);
+          if (!nxt) { nxt = makeNode(); node.c.set(ch, nxt); }
+          node = nxt;
+        }
+        node.e = true;
+      }
+      const t1 = performance.now();
+      return { root, ms: t1 - t0 };
+    }
+
+    function trieHas(root, word) {
+      let node = root;
+      for (let i = 0; i < word.length; i++) {
+        const ch = word[i];
+        node = node.c.get(ch);
+        if (!node) return false;
+      }
+      return !!node.e;
+    }
+
+    async function fetchWords() {
+      const t0 = performance.now();
+      const res = await fetch('en-words.txt');
+      const t1 = performance.now();
+      if (!res.ok) throw new Error('Failed to fetch en-words.txt: ' + res.status);
+      const text0 = await res.text();
+      const t2 = performance.now();
+      const fetchMs = t1 - t0;
+      const readMs = t2 - t1;
+      return { text: text0, fetchMs, readMs };
+    }
+
+    function loadFromLocalStorage() {
+      const t0 = performance.now();
+      const text = localStorage.getItem(LS_KEY);
+      const t1 = performance.now();
+      return { text, ms: t1 - t0 };
+    }
+
+    function saveToLocalStorage(text) {
+      const t0 = performance.now();
+      try {
+        localStorage.setItem(LS_KEY, text);
+      } catch (e) {
+        console.warn('Failed to save to localStorage (likely quota):', e);
+        return { ok: false, ms: performance.now() - t0, error: e };
+      }
+      return { ok: true, ms: performance.now() - t0 };
+    }
+
+    function parseWords(text) {
+      const t0 = performance.now();
+      // Normalize newlines and lowercase
+      const words = text.replace(/\r/g, '').split('\n').map(w => w.trim().toLowerCase()).filter(Boolean);
+      const t1 = performance.now();
+      return { words, ms: t1 - t0 };
+    }
+
+    async function importPrecompiled() {
+      const params = new URLSearchParams(location.search);
+      const pref = params.get('dataset'); // 'en' or 'words'
+      // Try binary first, then JS module
+      const bins = pref === 'words'
+        ? ['./words-trie.bin','./en-words-trie.bin']
+        : ['./en-words-trie.bin','./words-trie.bin'];
+      for (const url of bins) {
+        const ok = await loadBinary(url, pref === 'words' ? 'words' : 'en');
+        if (ok) return true;
+      }
+      const mods = pref === 'words'
+        ? ['./words-trie.js','./en-words-trie.js']
+        : ['./en-words-trie.js','./words-trie.js'];
+      for (const url of mods) {
+        const t0 = performance.now();
+        try {
+          const mod = await import(url);
+          const t1 = performance.now();
+          if (!mod || !mod.TRIE_DATA) throw new Error('Module missing TRIE_DATA');
+          preData = mod.TRIE_DATA;
+          mode = 'precompiled';
+          log(`import precompiled (${url}): ${(t1 - t0).toFixed(2)} ms`);
+          if (mod.TRIE_METADATA) {
+            const m = mod.TRIE_METADATA;
+            log(`meta: words=${m.wordCount}, nodes=${m.nodeCount}, edges=${m.edgeCount}`);
+          }
+          return true;
+        } catch (e) {}
+      }
+      log('precompiled import failed; falling back.');
+      mode = 'fallback';
+      preData = null;
+      return false;
+    }
+
+    function lsKeyForBin(dataset) {
+      return `trieBinV1:${dataset}`; // base64 of binary (only if small)
+    }
+
+    function toBase64(u8) {
+      let s = '';
+      for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+      return btoa(s);
+    }
+
+    function fromBase64(b64) {
+      const s = atob(b64);
+      const u8 = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
+      return u8;
+    }
+
+    async function loadBinary(url, dataset) {
+      try {
+        const t0 = performance.now();
+        // 1) Try localStorage (small artifacts only)
+        const lsKey = lsKeyForBin(dataset);
+        let buf = null;
+        try {
+          const b64 = localStorage.getItem(lsKey);
+          if (b64) {
+            const u8 = fromBase64(b64);
+            buf = u8.buffer;
+            log(`localStorage bin hit (${lsKey}): ${humanBytes(u8.byteLength)}`);
+          }
+        } catch {}
+
+        // 2) Try Cache Storage
+        if (!buf && 'caches' in window) {
+          try {
+            const cache = await caches.open('trie-artifacts-v1');
+            const match = await cache.match(url);
+            if (match) {
+              const tC0 = performance.now();
+              buf = await match.arrayBuffer();
+              const tC1 = performance.now();
+              log(`CacheStorage hit (${url}): ${(tC1 - tC0).toFixed(2)} ms, ${humanBytes(buf.byteLength)}`);
+            }
+          } catch {}
+        }
+
+        // 3) Fetch network and populate caches
+        if (!buf) {
+          const res = await fetch(url);
+          if (!res.ok) return false;
+          const rClone = res.clone();
+          buf = await res.arrayBuffer();
+          // Save to Cache Storage for future loads
+          if ('caches' in window) {
+            try {
+              const cache = await caches.open('trie-artifacts-v1');
+              await cache.put(url, rClone);
+            } catch {}
+          }
+          // Try to save to localStorage if small (<= 4 MiB)
+          if (buf.byteLength <= 4 * 1024 * 1024) {
+            try {
+              const b64 = toBase64(new Uint8Array(buf));
+              localStorage.setItem(lsKey, b64);
+              log(`Saved small binary to localStorage: ${lsKey}`);
+            } catch (e) {
+              log('localStorage save skipped: ' + e);
+            }
+          } else {
+            log('Binary too large for localStorage, cached via Cache Storage');
+          }
+        }
+        const t1 = performance.now();
+        const dv = new DataView(buf);
+        let off = 0;
+        function rdU8(){ const v = dv.getUint8(off); off+=1; return v; }
+        function rdU16(){ const v = dv.getUint16(off,true); off+=2; return v; }
+        function rdU32(){ const v = dv.getUint32(off,true); off+=4; return v; }
+        if (rdU8()!==87||rdU8()!==84||rdU8()!==82||rdU8()!==73) throw new Error('bad magic');
+        const ver = rdU8(); rdU8(); rdU16();
+        if (ver !== 1) throw new Error('version unsupported');
+        const nodeCount = rdU32();
+        const edgeCount = rdU32();
+        const labelBytes = rdU32();
+        const termBytes = rdU32();
+        const nfe = new Uint32Array(buf, off, nodeCount); off += nodeCount*4;
+        const nec = new Uint32Array(buf, off, nodeCount); off += nodeCount*4;
+        const els = new Uint32Array(buf, off, edgeCount); off += edgeCount*4;
+        const ell = new Uint16Array(buf, off, edgeCount); off += edgeCount*2;
+        const eto = new Uint32Array(buf, off, edgeCount); off += edgeCount*4;
+        const tb = new Uint8Array(buf, off, termBytes); off += termBytes;
+        const lblBytesArr = new Uint8Array(buf, off, labelBytes); off += labelBytes;
+        const LBL = new TextDecoder('utf-8').decode(lblBytesArr);
+        preData = { LBL, nodeFirstEdge: nfe, nodeEdgeCount: nec, edgeLabelStart: els, edgeLabelLen: ell, edgeTo: eto, termBits: tb };
+        mode = 'precompiled';
+        log(`load binary (${url}): ${(t1 - t0).toFixed(2)} ms, size: ${humanBytes(buf.byteLength)}`);
+        // Optionally try to fetch JSON meta next to the binary
+        try {
+          const metaUrl = url.replace(/\.bin$/, '.json');
+          const mr = await fetch(metaUrl);
+          if (mr.ok) {
+            const meta = await mr.json();
+            log(`meta: words=${meta.wordCount}, nodes=${meta.nodeCount}, edges=${meta.edgeCount}`);
+          }
+        } catch {}
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function loadAndBuild() {
+      resetLog();
+      trieRoot = null;
+
+      log('Starting load...');
+      const okPre = await importPrecompiled();
+      if (okPre) {
+        log('Ready (precompiled). Type a word to test lookup time.');
+        return;
+      }
+
+      log('Starting load/build...');
+      // Try localStorage first to avoid network when cache is disabled
+      const lres = loadFromLocalStorage();
+      if (lres.text) {
+        log(`localStorage read: ${lres.ms.toFixed(2)} ms, size: ${humanBytes(lres.text.length)}`);
+        const parsed = parseWords(lres.text);
+        log(`parse words: ${parsed.ms.toFixed(2)} ms, count: ${parsed.words.length}`);
+        const b = buildTrie(parsed.words);
+        trieRoot = b.root;
+        log(`build trie: ${b.ms.toFixed(2)} ms`);
+      } else {
+        log('No localStorage text found; fetching en-words.txt ...');
+        const f = await fetchWords();
+        log(`fetch: ${f.fetchMs.toFixed(2)} ms, read: ${f.readMs.toFixed(2)} ms, size: ${humanBytes(f.text.length)}`);
+        const saved = saveToLocalStorage(f.text);
+        if (saved.ok) log(`saved to localStorage: ${saved.ms.toFixed(2)} ms`);
+        else log(`save to localStorage failed in ${saved.ms.toFixed(2)} ms: ${String(saved.error)}`);
+        const parsed = parseWords(f.text);
+        log(`parse words: ${parsed.ms.toFixed(2)} ms, count: ${parsed.words.length}`);
+        const b = buildTrie(parsed.words);
+        trieRoot = b.root;
+        log(`build trie: ${b.ms.toFixed(2)} ms`);
+      }
+
+      log('Ready. Type a word to test lookup time.');
+    }
+
+    function onInput(e) {
+      const word = e.target.value.trim().toLowerCase();
+      const resultEl = document.getElementById('result');
+      if (!word) { resultEl.textContent = ''; return; }
+      let ok = false;
+      const t0 = performance.now();
+      if (mode === 'precompiled' && preData) {
+        ok = radixLookup(preData, word);
+      } else {
+        if (!trieRoot) { resultEl.textContent = ''; return; }
+        ok = trieHas(trieRoot, word);
+      }
+      const t1 = performance.now();
+      const ms = (t1 - t0);
+      lastLookupNs = Math.round(ms * 1000 * 1000); // ns estimate
+      resultEl.textContent = `Lookup: ${ok ? 'match' : 'no match'} in ${ms.toFixed(3)} ms (~${lastLookupNs} ns) [${mode}]`;
+    }
+
+    function clearCache() {
+      try { localStorage.removeItem(LS_KEY); } catch {}
+      log('Cleared localStorage entry enWordsTxtV1.');
+    }
+
+    document.getElementById('btnLoad').addEventListener('click', loadAndBuild);
+    document.getElementById('btnClear').addEventListener('click', clearCache);
+    document.getElementById('wordInput').addEventListener('input', onInput);
+
+    // Autostart load to capture timings without user clicks
+    // Comment out if you prefer manual control
+    loadAndBuild().catch(err => log('Error: ' + err));
+
+    // Radix-trie (precompiled) lookup over compact arrays
+    function radixLookup(data, word) {
+      // data fields: LBL, nodeFirstEdge[], nodeEdgeCount[], edgeLabelStart[], edgeLabelLen[], edgeTo[], termBits[]
+      let node = 0;
+      let pos = 0;
+      const LBL = data.LBL;
+      const nfe = data.nodeFirstEdge;
+      const nec = data.nodeEdgeCount;
+      const els = data.edgeLabelStart;
+      const ell = data.edgeLabelLen;
+      const eto = data.edgeTo;
+      const tb = data.termBits;
+      function isTerm(i) { return (tb[i >> 3] & (1 << (i & 7))) !== 0; }
+      while (pos < word.length) {
+        const first = nfe[node];
+        const count = nec[node];
+        let found = false;
+        const ch0 = word.charCodeAt(pos);
+        for (let k = 0; k < count; k++) {
+          const ei = first + k;
+          const s = els[ei];
+          const L = ell[ei];
+          // quick check first char
+          if (LBL.charCodeAt(s) !== ch0) continue;
+          let ok = true;
+          for (let j = 0; j < L; j++) {
+            if (word.charCodeAt(pos + j) !== LBL.charCodeAt(s + j)) { ok = false; break; }
+          }
+          if (ok) {
+            pos += L;
+            node = eto[ei];
+            found = true;
+            break;
+          }
+        }
+        if (!found) return false;
+      }
+      return isTerm(node);
+    }
+  </script>
+</body>
+</html>

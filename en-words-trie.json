@@ -1,0 +1,16 @@
+{
+  "builtAt": "2025-08-31T07:49:23.077Z",
+  "generatorVersion": "1.0.0",
+  "wordCount": 423792,
+  "nodeCount": 537565,
+  "edgeCount": 537564,
+  "labelBytes": 1099444,
+  "timingsMs": {
+    "read": 7.08,
+    "parse": 128.72,
+    "buildTrie": 402.26,
+    "compressRadix": 219.52,
+    "encode": 221.56,
+    "total": 979.14
+  }
+}
