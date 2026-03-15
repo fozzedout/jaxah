@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Cost per Mile Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+        }
+      }
+    </script>
+</head>
+<body class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-md w-full max-w-md border border-slate-200 dark:border-slate-700">
+        <h2 class="text-2xl font-bold mb-6 text-center">Fuel Cost Calculator</h2>
+
+        <div class="mb-5">
+            <label for="mpg" class="block mb-2 font-medium">Vehicle MPG</label>
+            <input type="number" id="mpg" value="52" step="0.1" oninput="calculate()" class="w-full p-2.5 bg-slate-50 border border-slate-300 text-slate-900 rounded-lg focus:ring-blue-500 focus:border-blue-500 block dark:bg-slate-700 dark:border-slate-600 dark:placeholder-slate-400 dark:text-white outline-none">
+        </div>
+
+        <div class="mb-5">
+            <label for="price" class="block mb-2 font-medium">Diesel Price (pence per litre)</label>
+            <input type="number" id="price" value="155.9" step="0.1" oninput="calculate()" class="w-full p-2.5 bg-slate-50 border border-slate-300 text-slate-900 rounded-lg focus:ring-blue-500 focus:border-blue-500 block dark:bg-slate-700 dark:border-slate-600 dark:placeholder-slate-400 dark:text-white outline-none">
+        </div>
+
+        <div class="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg text-center border border-blue-200 dark:border-blue-800 mt-6">
+            <span class="text-sm text-slate-600 dark:text-slate-400 block mb-1">Estimated Cost Per Mile</span>
+            <span class="text-3xl font-bold text-blue-600 dark:text-blue-400 block" id="output">13.63p</span>
+        </div>
+        
+        <div class="mt-6 text-center">
+            <a href="index.html" class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline">&larr; Back to Home</a>
+        </div>
+    </div>
+
+    <script>
+        function calculate() {
+            // Constants
+            const LITRES_PER_GALLON = 4.54609;
+
+            // Get inputs
+            const mpg = parseFloat(document.getElementById('mpg').value);
+            const pricePerLitre = parseFloat(document.getElementById('price').value);
+            const output = document.getElementById('output');
+
+            if (mpg > 0 && pricePerLitre > 0) {
+                // Logic: (Price per Litre * 4.54609) / MPG
+                const pricePerGallon = pricePerLitre * LITRES_PER_GALLON;
+                const costPerMile = pricePerGallon / mpg;
+
+                output.innerText = costPerMile.toFixed(2) + "p";
+                
+                // Save to localStorage
+                localStorage.setItem('fuelCalcUk_mpg', document.getElementById('mpg').value);
+                localStorage.setItem('fuelCalcUk_price', document.getElementById('price').value);
+            } else {
+                output.innerText = "—";
+            }
+        }
+
+        function handleWheel(event, inputElement) {
+            event.preventDefault(); // Prevent page scrolling
+            
+            const step = parseFloat(inputElement.step) || 1;
+            let val = parseFloat(inputElement.value) || 0;
+            
+            // Scrolling up (negative deltaY) increases the value
+            // Scrolling down (positive deltaY) decreases the value
+            if (event.deltaY < 0) {
+                val += step;
+            } else {
+                val -= step;
+            }
+            
+            // Prevent going below 0 
+            if (val < 0) val = 0;
+            
+            // Format to match step decimal places to avoid floating point issues
+            const decimalPlaces = (step.toString().split('.')[1] || '').length;
+            inputElement.value = val.toFixed(decimalPlaces);
+            
+            calculate();
+        }
+
+        // Add event listeners when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            const mpgInput = document.getElementById('mpg');
+            const priceInput = document.getElementById('price');
+            
+            // Restore from localStorage
+            const savedMpg = localStorage.getItem('fuelCalcUk_mpg');
+            if (savedMpg !== null) mpgInput.value = savedMpg;
+            
+            const savedPrice = localStorage.getItem('fuelCalcUk_price');
+            if (savedPrice !== null) priceInput.value = savedPrice;
+            
+            // Calculate initial state
+            calculate();
+            
+            // Passive: false is needed so we can call preventDefault()
+            mpgInput.addEventListener('wheel', (e) => handleWheel(e, mpgInput), { passive: false });
+            priceInput.addEventListener('wheel', (e) => handleWheel(e, priceInput), { passive: false });
+        });
+    </script>
+</body>
+</html>
