@@ -55,23 +55,50 @@ function normaliseApp(a) {
    Geometry is kept when a window closes, so reopening restores it. */
 var WIN_STORE = 'airis-os.windows.v1';
 var savedWins = { open: [], geo: {} };
+/* Focus order (most-recent-last) drives restore z-order; it is tracked
+   live in focusWin/closeApp so the foremost window survives refresh. */
+var focusOrder = [];
+function validGeoRec(g) {
+  return !!g && typeof g === 'object' && !Array.isArray(g) &&
+    Number.isFinite(+g.l) && Number.isFinite(+g.t) &&
+    Number.isFinite(+g.w) && Number.isFinite(+g.h);
+}
 try {
   var rawWins = localStorage.getItem(WIN_STORE);
   if (rawWins) {
     var parsed = JSON.parse(rawWins);
-    if (parsed && parsed.geo) savedWins = parsed;
-    if (!Array.isArray(savedWins.open)) savedWins.open = [];
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      var cleanOpen = Array.isArray(parsed.open)
+        ? parsed.open.filter(function (id) { return typeof id === 'string'; })
+        : [];
+      var geoSrc = (parsed.geo && typeof parsed.geo === 'object' && !Array.isArray(parsed.geo))
+        ? parsed.geo : {};
+      var cleanGeo = {};
+      Object.keys(geoSrc).forEach(function (k) {
+        if (validGeoRec(geoSrc[k])) {
+          cleanGeo[k] = {
+            l: +geoSrc[k].l, t: +geoSrc[k].t,
+            w: +geoSrc[k].w, h: +geoSrc[k].h,
+            max: !!geoSrc[k].max
+          };
+        }
+      });
+      savedWins = { open: cleanOpen, geo: cleanGeo };
+    }
   }
 } catch (e) {}
+focusOrder = savedWins.open.slice();
 function saveWins() {
   try {
-    savedWins.open = Object.keys(openWins);
+    if (!savedWins.geo || typeof savedWins.geo !== 'object' || Array.isArray(savedWins.geo)) savedWins.geo = {};
+    savedWins.open = focusOrder.filter(function (id) { return !!openWins[id]; });
     localStorage.setItem(WIN_STORE, JSON.stringify(savedWins));
   } catch (e) {}
 }
 function recordWinGeo(id) {
   var el = openWins[id];
   if (!el || isPhone()) return;
+  if (!savedWins.geo || typeof savedWins.geo !== 'object' || Array.isArray(savedWins.geo)) savedWins.geo = {};
   savedWins.geo[id] = {
     l: parseFloat(el.style.left) || WINDOW_MARGIN,
     t: parseFloat(el.style.top) || WINDOW_MARGIN,
@@ -179,9 +206,17 @@ function fitWin(el, app) {
 }
 
 /* Clamp the window's current geometry into the stage without forcing the
-   default size — user resizes survive viewport changes. */
+   default size — user resizes survive viewport changes. Windows created
+   on phone sheets carry no desktop geometry (phone CSS forces fullscreen
+   via !important), so the first desktop clamp gives them a real default
+   size instead of preserving their tiny intrinsic box. */
 function clampWin(el) {
   if (isPhone() || el.classList.contains('max')) return;
+  var appForEl = el.dataset && el.dataset.appId ? byId[el.dataset.appId] : null;
+  if (appForEl && appForEl.size !== 'full' && !el.style.width && !el.style.height) {
+    fitWin(el, appForEl);
+    return;
+  }
   var w = parseFloat(el.style.width) || el.getBoundingClientRect().width;
   var h = parseFloat(el.style.height) || el.getBoundingClientRect().height;
   var left = parseFloat(el.style.left) || WINDOW_MARGIN;
@@ -200,6 +235,8 @@ new ResizeObserver(function () {
 }).observe(wins);
 
 function focusWin(id) {
+  focusOrder = focusOrder.filter(function (k) { return k !== id && !!openWins[k]; });
+  if (openWins[id]) focusOrder.push(id);
   Object.keys(openWins).forEach(function (k) {
     openWins[k].style.zIndex = k === id ? ++zTop : openWins[k].style.zIndex;
     openWins[k].classList.toggle('focused', k === id);
@@ -227,6 +264,7 @@ function openApp(id) {
 
   var el = document.createElement('div');
   el.className = 'window' + (app.size === 'full' ? ' max' : '');
+  el.dataset.appId = id;
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-label', app.name);
 
@@ -273,13 +311,17 @@ function openApp(id) {
     handle.setPointerCapture && handle.setPointerCapture(ev.pointerId);
     var move = function (me) {
       var dx = me.clientX - sx, dy = me.clientY - sy;
-      var l = sl, t = st, w = sw, hh = sh;
+      var w = sw, hh = sh;
       if (dir.indexOf('e') !== -1) w = sw + dx;
       if (dir.indexOf('s') !== -1) hh = sh + dy;
-      if (dir.indexOf('w') !== -1) { w = sw - dx; l = sl + dx; }
-      if (dir.indexOf('n') !== -1) { hh = sh - dy; t = st + dy; }
+      if (dir.indexOf('w') !== -1) w = sw - dx;
+      if (dir.indexOf('n') !== -1) hh = sh - dy;
       w = Math.max(300, Math.min(w, wins.clientWidth - WINDOW_MARGIN));
       hh = Math.max(220, Math.min(hh, wins.clientHeight - WINDOW_MARGIN));
+      // Anchor the opposite edge: derive the position from the clamped
+      // size so dragging past the minimum cannot shift the far edge.
+      var l = dir.indexOf('w') !== -1 ? sl + sw - w : sl;
+      var t = dir.indexOf('n') !== -1 ? st + sh - hh : st;
       l = Math.max(WINDOW_MARGIN - w + 60, Math.min(l, wins.clientWidth - 60));
       t = Math.max(0, Math.min(t, wins.clientHeight - 60));
       el.style.left = l + 'px';
@@ -311,9 +353,23 @@ function openApp(id) {
     el.style.top = Math.max(WINDOW_MARGIN, Math.min(top, wins.clientHeight - h - WINDOW_MARGIN)) + 'px';
   }
 
+  // Active title-drag handlers, so maximising mid-drag can cancel them.
+  // Without this the stale pointermove listener keeps moving the window
+  // on hover after the restore/maximise path.
+  var dragMove = null, dragUp = null;
+  function cancelTitleDrag() {
+    if (dragMove) {
+      title.removeEventListener('pointermove', dragMove);
+      title.removeEventListener('pointerup', dragUp);
+      title.removeEventListener('pointercancel', dragUp);
+      dragMove = dragUp = null;
+    }
+  }
+
   function setMaximised(on) {
     var btn = title.querySelector('.w-max');
     if (on) {
+      cancelTitleDrag();
       if (el.classList.contains('max')) return;
       el.dataset.prel = el.style.left + '|' + el.style.top + '|' + el.style.width + '|' + el.style.height;
       el.classList.add('max');
@@ -338,7 +394,7 @@ function openApp(id) {
 
   if (app.size !== 'full' && !isPhone()) {
     var saved = savedWins.geo[id];
-    if (saved && saved.w >= 300 && saved.h >= 220) {
+    if (validGeoRec(saved) && saved.w >= 300 && saved.h >= 220) {
       el.style.left = saved.l + 'px';
       el.style.top = saved.t + 'px';
       el.style.width = saved.w + 'px';
@@ -376,8 +432,10 @@ function openApp(id) {
       title.removeEventListener('pointermove', move);
       title.removeEventListener('pointerup', up);
       title.removeEventListener('pointercancel', up);
+      dragMove = dragUp = null;
       recordWinGeo(id);
     };
+    dragMove = move; dragUp = up;
     title.addEventListener('pointermove', move);
     title.addEventListener('pointerup', up);
     title.addEventListener('pointercancel', up);
@@ -415,6 +473,7 @@ function closeApp(id) {
   if (!el) return;
   el.remove();
   delete openWins[id];
+  focusOrder = focusOrder.filter(function (k) { return k !== id; });
   refreshTasks();
   saveWins();
   if (location.hash === '#app/' + id) history.replaceState(null, '', location.pathname + location.search);
@@ -741,33 +800,40 @@ function boot(manifest) {
   applyPresence();
   floor.ready(APPS);
   if (osEl.hidden) return;
-  route();
-  // Restore window positions AND sizes after refresh/relaunch. A deep link
-  // wins over the restore; on phone only the last window comes back.
-  if (!location.hash || !location.hash.match(/^#app\//)) {
-    var toOpen = savedWins.open.filter(function (id) {
-      return byId[id] && !byId[id].hidden && byId[id].launch !== 'standalone';
-    });
-    if (isPhone()) toOpen = toOpen.slice(-1);
-    toOpen.forEach(function (id) {
-      try { openApp(id); } catch (e) {}
-    });
-    if (!toOpen.length) {
-      try {
-        var last = localStorage.getItem('airis-os.last');
-        if (!location.hash && last && byId[last] && !byId[last].hidden) {
-          whisperSay('Welcome back — “' + byId[last].name + '” is where you left off.', 'local memory');
-        }
-      } catch (e) {}
-    }
-    return;
+  // Restore the full saved session even when a deep-link hash is present.
+  // Opening any window writes #app/<id>, so a plain refresh always carries
+  // a hash — skipping the restore on hash would lose every window but one
+  // and overwrite storage with that single window. The deep link joins the
+  // restore instead and is focused last; on phone the deep link (or the
+  // last focused window) is the one that comes back.
+  var deepId = null;
+  var dm = (location.hash || '').match(/^#app\/(.+)$/);
+  if (dm && byId[dm[1]]) {
+    if (byId[dm[1]].launch === 'standalone') { route(); return; }
+    if (!byId[dm[1]].hidden) deepId = dm[1];
   }
-  try {
-    var last = localStorage.getItem('airis-os.last');
-    if (!location.hash && last && byId[last] && !byId[last].hidden) {
-      whisperSay('Welcome back — “' + byId[last].name + '” is where you left off.', 'local memory');
-    }
-  } catch (e) {}
+  var toOpen = savedWins.open.filter(function (id) {
+    return byId[id] && !byId[id].hidden && byId[id].launch !== 'standalone';
+  });
+  if (deepId && toOpen.indexOf(deepId) === -1) {
+    // A fresh deep link (not part of the saved session) still opens.
+    if (byId[deepId]) toOpen.push(deepId);
+  } else if (deepId) {
+    toOpen = toOpen.filter(function (id) { return id !== deepId; });
+    toOpen.push(deepId);
+  }
+  if (isPhone()) toOpen = toOpen.slice(-1);
+  toOpen.forEach(function (id) {
+    try { openApp(id); } catch (e) {}
+  });
+  if (!toOpen.length) {
+    try {
+      var last = localStorage.getItem('airis-os.last');
+      if (!location.hash && last && byId[last] && !byId[last].hidden) {
+        whisperSay('Welcome back — “' + byId[last].name + '” is where you left off.', 'local memory');
+      }
+    } catch (e) {}
+  }
 }
 
 fetch('./manifest.json', { cache: 'no-store' })

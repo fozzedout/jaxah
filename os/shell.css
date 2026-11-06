@@ -12,7 +12,6 @@
   --dim: #9fb8b4;
   --faint: #7d9490;
   --teal: #5eead4;
-  --amber: #fbbf24;
   --red: #f87171;
   --accent: #0f766e;
   --taskbar-h: 52px;
@@ -270,14 +269,6 @@ button { font: inherit; color: inherit; }
   #summon-box { width: 620px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .prompt-dot { animation: none; }
-  #whisper { transition: none; }
-  #presence-bob { transition: none; }
-  .bob-body, .pf-eye, #presence-orb span { animation: none !important; }
-  * { scroll-behavior: auto !important; }
-}
-
 /* ── Presence: three switchable treatments, monochrome throughout ─────── */
 .presence-switch {
   display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px;
@@ -369,3 +360,26 @@ html[data-theme="light"] .pf-pupil { fill: #102a28; }
 
 /* Content-max ("give me room"): tiles step aside, windows get the stage. */
 #os.roomy #icon-grid { display: none; }
+
+/* Corner presences sit above the dock, never under it. This must follow
+   the treatment rules: the base orb offset (taskbar + 16px = 68px)
+   otherwise wins the cascade on phone and overlaps the dock. */
+@media (max-width: 767.98px) {
+  #presence-portrait { bottom: 118px; }
+  #presence-orb { bottom: 118px; }
+}
+
+/* Reduced motion comes last so it beats every treatment transition and
+   hover scale above (Bob's wander, orb lean/swell, pupil glance). */
+@media (prefers-reduced-motion: reduce) {
+  .prompt-dot { animation: none; }
+  #whisper { transition: none; }
+  #presence-bob { transition: none; }
+  #presence-bob.come-close { transition: none; }
+  .bob-body, .pf-eye, #presence-orb span { animation: none !important; }
+  #presence-orb { transition: none; }
+  #presence-orb span { transition: none; }
+  #presence-orb.near span, #presence-orb.open span { transform: none; }
+  .pf-pupils { transition: none; }
+  * { scroll-behavior: auto !important; }
+}
