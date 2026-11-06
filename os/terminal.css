@@ -1,0 +1,37 @@
+/* The floor has no dependency on shell.css or the window manager. */
+[hidden] { display: none !important; }
+body.term { margin: 0; background: #020604; }
+body.term #os { display: none; }
+#terminal {
+  position: fixed; inset: 0; box-sizing: border-box; overflow-y: auto;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  background: #020604; color: #83e9ad;
+  font: 16px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+#term-out { white-space: pre-wrap; overflow-wrap: anywhere; }
+#term-out > div { margin-bottom: 8px; }
+#term-out .user { color: #b3c5bb; }
+#term-out .err { color: #ff9f9f; }
+#term-out a { color: inherit; text-underline-offset: 3px; }
+#term-form { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+#term-form label { display: grid; place-items: center; flex: none; width: 12px; }
+.term-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: #83e9ad; box-shadow: 0 0 8px #83e9ad66;
+  animation: term-breathe 4s ease-in-out infinite;
+}
+@keyframes term-breathe { 50% { opacity: .45; } }
+#term-in {
+  min-width: 0; flex: 1; padding: 10px 0; border: none; border-bottom: 1px solid #315442;
+  border-radius: 0; background: transparent; color: inherit; font: inherit; caret-color: #83e9ad;
+}
+#term-form button {
+  min-height: 44px; padding: 6px 12px; border: 1px solid #315442; border-radius: 6px;
+  background: transparent; color: inherit; font: inherit; cursor: pointer;
+}
+#term-form :focus-visible { outline: 2px solid #83e9ad; outline-offset: 3px; }
+#term-hint { margin-top: 12px; color: #8aa695; font-size: 12px; }
+.term-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.nojs { padding: 40px; color: #83e9ad; background: #020604; font-family: system-ui, sans-serif; }
+.nojs a { color: inherit; }
+@media (prefers-reduced-motion: reduce) { .term-dot { animation: none; } }

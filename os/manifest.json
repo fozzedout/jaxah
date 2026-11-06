@@ -73,19 +73,6 @@
       "phone": { "slot": "sheet" }
     },
     {
-      "id": "lsb-pwman",
-      "name": "Passwords",
-      "title": "Passwords",
-      "icon": "🔐",
-      "url": "../lsb-pwman.html",
-      "category": "Tools",
-      "description": "Password manager. Local-only: nothing leaves this device.",
-      "size": "window",
-      "launch": "auto",
-      "desktop": { "slot": "window", "width": 860, "height": 600 },
-      "phone": { "slot": "sheet" }
-    },
-    {
       "id": "jeb-gallery",
       "name": "JEB Gallery",
       "title": "JEB Gallery",

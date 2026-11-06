@@ -1,5 +1,6 @@
 /* Airis OS v1 — shell. One static page owns all OS chrome: Halo, Whisper
-   Strip, Summon, taskbar/dock, window manager, routing, terminal floor.
+   Strip, Summon, taskbar/dock, window manager, routing.
+   The standalone terminal.js owns the fallback, including shell error recovery.
    Reads os/manifest.json. Ships zero app code. Apps run in opaque-origin
    sandboxed iframes (sandbox="allow-scripts", never allow-same-origin). */
 (function () {
@@ -7,8 +8,7 @@
 
 /* ── tiny helpers ─────────────────────────────────────────────────────── */
 var $ = function (id) { return document.getElementById(id); };
-var osEl = $('os'), termEl = $('terminal'), termOut = $('term-out'),
-    termForm = $('term-form'), termIn = $('term-in'),
+var osEl = $('os'), floor = window.AirisTerminal,
     grid = $('icon-grid'), wins = $('windows'),
     taskApps = $('task-apps'), dockApps = $('dock-apps'),
     halo = $('halo'), whisper = $('whisper'),
@@ -24,24 +24,6 @@ var esc = function (s) {
   });
 };
 
-/* Baked-in truth: lets the terminal floor list every app even when the
-   manifest itself is what broke. (Mirror of os/manifest.json.) */
-var BAKED = [
-  ['lexfall', 'Lexfall', 'https://lexfall.com'],
-  ['persona', 'Persona', './apps/persona.html'],
-  ['todo', 'To Do', './apps/todo.html'],
-  ['fuel-calc-uk', 'Fuel Calc', '../fuel-calc-uk.html'],
-  ['lsb-coding', 'LSB Lab', '../lsb-coding.html'],
-  ['lsb-pwman', 'Passwords', '../lsb-pwman.html'],
-  ['jeb-gallery', 'JEB Gallery', '../art/jeb/index.html'],
-  ['rusty', 'Rusty', '../rustys-commands.html'],
-  ['reveal', 'Reveal', '../reveal.html'],
-  ['trie-test', 'Trie Test', '../trie-test.html'],
-  ['idb-test', 'IDB Test', '../idb-test.html'],
-  ['breaking-firefox', 'Breaking Firefox', '../breaking-firefox.html'],
-  ['lexfall-settings', 'Lexfall Settings', '../settings.html']
-];
-
 var APPS = [];          // normalised manifest entries
 var byId = {};          // id -> entry
 var openWins = {};      // id -> .window element
@@ -51,6 +33,9 @@ var booted = false;
 /* The shell enforces a default layout per app, so an app can't forget a
    mode: whatever the manifest omits, normaliseApp() fills in. */
 function normaliseApp(a) {
+  if (!a || typeof a.id !== 'string' || !a.id || typeof a.url !== 'string' || !a.url) {
+    throw new Error('manifest app needs an id and URL');
+  }
   a = Object.assign({}, a);
   a.name = a.name || a.title || a.id;
   a.title = a.title || a.name;
@@ -93,6 +78,7 @@ $('tb-clock').addEventListener('click', toggleTheme);
 function setHalo(state) {
   halo.classList.remove('calm', 'attentive', 'alert');
   halo.classList.add(state);
+  osEl.setAttribute('data-presence', state);
   var sb = $('sb-theme');
   if (sb) sb.textContent = state === 'alert' ? '●' : '◐';
 }
@@ -118,84 +104,10 @@ whisper.addEventListener('click', function (e) {
   if (e.target.id !== 'whisper-x') { clearTimeout(whisperTimer); whisper.hidden = true; }
 });
 
-/* ══ TERMINAL FLOOR ══
-   Plain state underneath the OS. Knows nothing about Airis — local
-   commands only. Shown on boot failure, via backtick, or ?terminal=1. */
-function termPrint(html, cls) {
-  var div = document.createElement('div');
-  if (cls) div.className = cls;
-  div.innerHTML = html;
-  termOut.appendChild(div);
-  termEl.scrollTop = termEl.scrollHeight;
-}
-function termList() {
-  var rows = (APPS.length ? APPS : BAKED.map(function (b) {
-    return { id: b[0], name: b[1], url: b[2] };
-  }));
-  rows.forEach(function (a) {
-    var hid = a.hidden ? ' <span class="dim">(hidden)</span>' : '';
-    termPrint(esc(a.id) + '  —  ' + esc(a.name || a.title || '') + hid);
-  });
-}
-function showTerminal(reason) {
-  document.body.classList.add('term');
-  termEl.hidden = false;
-  setHalo('alert');
-  if (reason) termPrint(esc(reason), 'err');
-  termPrint('airis terminal — local only. type <b>help</b>.', 'dim');
-  setTimeout(function () { termIn.focus(); }, 50);
-}
-function hideTerminal() {
-  document.body.classList.remove('term');
-  termEl.hidden = true;
-  if (!Object.keys(openWins).length) setHalo('calm');
-}
-function termCmd(raw) {
-  termPrint('<span class="dim">airis&gt;</span> ' + esc(raw));
-  var parts = raw.trim().split(/\s+/).filter(Boolean);
-  var cmd = (parts[0] || '').toLowerCase(), arg = parts.slice(1).join(' ');
-  if (!cmd) return;
-  if (cmd === 'help') {
-    termPrint('help — this · ls — apps · open &lt;id&gt; — launch · about — what this is · theme &lt;dark|light&gt; · clear · exit');
-  } else if (cmd === 'ls') {
-    termList();
-  } else if (cmd === 'open') {
-    if (!arg) { termPrint('open what? try: ls', 'err'); return; }
-    var found = byId[arg] ||
-      BAKED.filter(function (b) { return b[0] === arg; })[0];
-    if (!found) { termPrint('no such app: ' + esc(arg), 'err'); return; }
-    hideTerminal();
-    location.hash = '#app/' + (found.id || found[0]);
-  } else if (cmd === 'about') {
-    termPrint('Airis OS v1 — a static OS-style shell. No backend, no auth. Apps run sandboxed; this terminal talks to nothing.');
-  } else if (cmd === 'theme') {
-    if (arg === 'dark' || arg === 'light') { setTheme(arg); termPrint('theme: ' + arg); }
-    else termPrint('theme dark|light', 'err');
-  } else if (cmd === 'clear') {
-    termOut.innerHTML = '';
-  } else if (cmd === 'exit') {
-    hideTerminal();
-    if (location.hash === '#terminal') history.replaceState(null, '', location.pathname + location.search);
-  } else {
-    termPrint('unknown: ' + esc(cmd) + ' — try help', 'err');
-  }
-}
-termForm.addEventListener('submit', function (e) {
-  e.preventDefault();
-  termCmd(termIn.value);
-  termIn.value = '';
-  termIn.focus();
-});
-
-/* Backtick / Ctrl+` toggles the floor. A bare backtick only counts when the
-   user isn't typing somewhere. Ctrl+` works from anywhere. */
+/* The floor owns its input, keyboard door, routing, and failure guards.
+   Shell shortcuts only apply while the shell is visible. */
 document.addEventListener('keydown', function (e) {
-  var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '') ||
-    (document.activeElement && document.activeElement.isContentEditable);
-  if (e.key === '`' && (e.ctrlKey || e.metaKey || !typing)) {
-    e.preventDefault();
-    termEl.hidden ? showTerminal() : hideTerminal();
-  }
+  if (osEl.hidden) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault();
     summon.hidden ? openSummon() : closeSummon();
@@ -205,7 +117,7 @@ document.addEventListener('keydown', function (e) {
 
 /* ── window manager (desktop) / sheet (phone) ─────────────────────────── */
 function sizeFor(app) {
-  var vw = window.innerWidth, vh = window.innerHeight;
+  var vw = wins.clientWidth, vh = wins.clientHeight;
   var w, h;
   if (app.size === 'small') { w = 480; h = 560; }
   else if (app.size === 'full') { w = vw - 20; h = vh - 20; }
@@ -227,7 +139,7 @@ function focusWin(id) {
 
 function openApp(id) {
   var app = byId[id];
-  if (!app) { showTerminal('no such app: ' + id); return; }
+  if (!app) { floor.show('no such app: ' + id); return; }
   if (openWins[id]) {
     openWins[id].classList.remove('min');
     focusWin(id);
@@ -269,8 +181,8 @@ function openApp(id) {
     var n = cascade++ % 6;
     el.style.width = s.w + 'px';
     el.style.height = s.h + 'px';
-    el.style.left = Math.max(10, (window.innerWidth - s.w) / 2 + (n - 2) * 28) + 'px';
-    el.style.top = Math.max(10, (window.innerHeight - s.h) / 3 + (n - 2) * 24) + 'px';
+    el.style.left = Math.max(10, (wins.clientWidth - s.w) / 2 + (n - 2) * 28) + 'px';
+    el.style.top = Math.max(10, (wins.clientHeight - s.h) / 3 + (n - 2) * 24) + 'px';
   }
   el.style.zIndex = ++zTop;
 
@@ -282,8 +194,8 @@ function openApp(id) {
     var dx = ev.clientX - r.left, dy = ev.clientY - r.top;
     title.setPointerCapture && title.setPointerCapture(ev.pointerId);
     var move = function (me) {
-      el.style.left = Math.min(window.innerWidth - 80, Math.max(-r.width + 80, me.clientX - dx)) + 'px';
-      el.style.top = Math.min(window.innerHeight - 60, Math.max(0, me.clientY - dy)) + 'px';
+      el.style.left = Math.min(wins.clientWidth - 80, Math.max(-r.width + 80, me.clientX - dx)) + 'px';
+      el.style.top = Math.min(wins.clientHeight - 46, Math.max(0, me.clientY - dy)) + 'px';
     };
     var up = function () {
       title.removeEventListener('pointermove', move);
@@ -378,7 +290,7 @@ function renderDock() {
   });
 }
 
-/* ── Summon: the ONLY full-panel surface. Never auto-opens. ───────────── */
+/* ── Summon: app/command palette. Never auto-opens. ───────────── */
 var RULES = [
   { re: /who are you|your name|about yourself/i,
     say: 'I\u2019m scripted, not live \u2014 a resident persona, not a live AI.' },
@@ -429,7 +341,7 @@ function renderSummon(q) {
     var t = document.createElement('button');
     t.className = 'sr';
     t.innerHTML = '<span class="k">&gt;_</span><span>Terminal<small>local floor · help · ls · open</small></span>';
-    t.addEventListener('click', function () { closeSummon(); showTerminal(); });
+    t.addEventListener('click', function () { closeSummon(); floor.show(); });
     summonOut.appendChild(t);
   }
 }
@@ -438,7 +350,7 @@ summonIn.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') {
     var q = summonIn.value.trim();
     if (!q) return;
-    if (q.toLowerCase() === 'terminal') { closeSummon(); showTerminal(); return; }
+    if (q.toLowerCase() === 'terminal') { closeSummon(); floor.show(); return; }
     var m = q.toLowerCase().match(/^theme\s+(dark|light)$/);
     if (m) { setTheme(m[1]); closeSummon(); return; }
     var first = summonOut.querySelector('button.sr');
@@ -451,35 +363,31 @@ summon.addEventListener('pointerdown', function (e) {
 });
 $('tb-summon').addEventListener('click', openSummon);
 $('dock-summon').addEventListener('click', openSummon);
-halo.addEventListener('click', function () {
-  summon.hidden ? openSummon() : closeSummon();
-});
 
-/* ── routing: #app/<id> deep links, #terminal door ───────────────────── */
+/* ── routing: #app/<id> deep links (the floor owns #terminal) ────────── */
 function route() {
   var h = location.hash;
   var m = h.match(/^#app\/(.+)$/);
   if (m && byId[m[1]]) openApp(m[1]);
-  else if (h === '#terminal') showTerminal();
 }
 window.addEventListener('hashchange', route);
 
 /* ── boot ─────────────────────────────────────────────────────────────── */
-function boot(manifest, errLine) {
+function boot(manifest) {
   if (booted) return;
   booted = true;
-  APPS = (manifest && manifest.apps ? manifest.apps : []).map(normaliseApp);
-  APPS.forEach(function (a) { byId[a.id] = a; });
-  if (!APPS.length) { // manifest empty/broken: floor with baked list
-    showTerminal(errLine || 'manifest empty or unreadable — terminal floor with every app:');
-    termList();
+  var entries = manifest && manifest.apps;
+  if (!Array.isArray(entries) || !entries.length) {
+    floor.fail('The manifest is empty or unreadable. Try ls for standalone app links.');
     return;
   }
+  APPS = entries.map(normaliseApp);
+  APPS.forEach(function (a) { byId[a.id] = a; });
   renderGrid();
   renderDock();
   refreshTasks();
-  var qp = new URLSearchParams(location.search);
-  if (qp.get('terminal') === '1') { showTerminal(); return; }
+  floor.ready(APPS);
+  if (osEl.hidden) return;
   route();
   try {
     var last = localStorage.getItem('airis-os.last');
@@ -489,14 +397,6 @@ function boot(manifest, errLine) {
   } catch (e) {}
 }
 
-window.addEventListener('error', function (e) {
-  if (!booted) {
-    showTerminal('shell failed to start: ' + (e.message || 'unknown error'));
-    termList();
-    booted = true;
-  }
-});
-
 fetch('./manifest.json', { cache: 'no-store' })
   .then(function (r) {
     if (!r.ok) throw new Error('manifest HTTP ' + r.status);
@@ -505,7 +405,7 @@ fetch('./manifest.json', { cache: 'no-store' })
   .then(function (m) { boot(m); })
   .catch(function (err) {
     // Boot guard: hide OS chrome, reveal the floor with the error in one line.
-    boot(null, 'shell guard: manifest failed (' + err.message + ') — floor it is:');
+    floor.fail('Shell boot failed (' + err.message + '). Try ls for standalone app links.');
   });
 
 })();

@@ -12,25 +12,28 @@
   floor underneath (#terminal) works even if all of that fails.
 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; frame-src 'self' https://lexfall.com; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'">
+<link rel="stylesheet" href="./terminal.css">
 <link rel="stylesheet" href="./shell.css">
 </head>
-<body>
+<body class="term">
 
   <!-- ══ TERMINAL FLOOR ══
        Plain state underneath the OS. Shown automatically if the manifest or
        shell breaks, on purpose via the backtick key, or via ?terminal=1.
-       It talks to nothing and no one — local commands only. -->
-  <div id="terminal" hidden>
-    <div id="term-out" aria-live="polite"></div>
+       Its own runtime loads first; replies are scripted and local. -->
+  <div id="terminal" role="region" aria-label="Airis terminal">
+    <div id="term-out" role="log" aria-live="polite" aria-relevant="additions"></div>
     <form id="term-form" autocomplete="off">
-      <label for="term-in">airis&gt;</label>
+      <label for="term-in"><span class="term-dot" aria-hidden="true"></span><span class="term-sr">Talk to Airis</span></label>
       <input id="term-in" type="text" autocomplete="off" autocapitalize="off"
-             spellcheck="false" aria-label="terminal input">
+             spellcheck="false" aria-label="terminal input" enterkeyhint="send">
+      <button type="submit">Send</button>
     </form>
-    <div id="term-hint">local only · try: help · backtick returns to the OS</div>
+    <div id="term-hint">Scripted, local replies · try: hello or help</div>
   </div>
 
   <noscript>
+    <style>#terminal { display: none; }</style>
     <div class="nojs">
       <h1>Airis OS</h1>
       <p>The shell needs JavaScript. The apps don't — plain links:</p>
@@ -40,7 +43,6 @@
         <li><a href="./apps/todo.html">To Do</a></li>
         <li><a href="../fuel-calc-uk.html">Fuel Calc</a></li>
         <li><a href="../lsb-coding.html">LSB Lab</a></li>
-        <li><a href="../lsb-pwman.html">Passwords</a></li>
         <li><a href="../art/jeb/index.html">JEB Gallery</a></li>
         <li><a href="../rustys-commands.html">Rusty</a></li>
         <li><a href="../reveal.html">Reveal</a></li>
@@ -49,7 +51,7 @@
   </noscript>
 
   <!-- ══ OS CHROME ══ -->
-  <div id="os">
+  <div id="os" tabindex="-1" hidden>
     <header id="statusbar">
       <span id="sb-time">--:--</span>
       <span id="sb-name">Airis OS</span>
@@ -68,20 +70,17 @@
     </div>
 
     <footer id="taskbar">
-      <button id="tb-summon" aria-label="summon">✦</button>
+      <button id="tb-summon" aria-label="Summon Airis"><span id="halo" class="prompt-dot calm" aria-hidden="true"></span></button>
       <div id="task-apps" aria-label="open apps"></div>
       <button id="tb-clock" title="time">--:--</button>
     </footer>
 
     <nav id="dock" aria-label="dock">
       <div id="dock-apps"></div>
-      <button id="dock-summon" aria-label="summon">✦</button>
+      <button id="dock-summon" aria-label="Summon Airis"><span class="prompt-dot" aria-hidden="true"></span></button>
     </nav>
 
-    <!-- Halo: fixed breathing orb. Colour is state (calm/attentive/alert). -->
-    <button id="halo" class="calm" aria-label="Summon Airis"></button>
-
-    <!-- Summon: the ONLY full-panel surface. Never auto-opens. -->
+    <!-- Summon is a command palette. Persona is Airis's full presence. -->
     <div id="summon" hidden>
       <div id="summon-box" role="dialog" aria-label="summon">
         <input id="summon-in" type="text" autocomplete="off" spellcheck="false"
@@ -92,6 +91,7 @@
     </div>
   </div>
 
+<script src="./terminal.js"></script>
 <script src="./shell.js" defer></script>
 </body>
 </html>
