@@ -55,12 +55,36 @@
     <header id="statusbar">
       <span id="sb-time">--:--</span>
       <span id="sb-name">Airis OS</span>
+      <span class="presence-switch" role="group" aria-label="Presence">
+        <button data-p="bob" title="Wandering companion" aria-label="Wandering companion">✦</button>
+        <button data-p="portrait" title="Portrait presence" aria-label="Portrait presence">◍</button>
+        <button data-p="orb" title="Quiet orb" aria-label="Quiet orb">○</button>
+        <button class="room-toggle" title="Give me room" aria-label="Give me room" aria-pressed="false">⛶</button>
+      </span>
       <button id="sb-theme" title="theme" aria-label="Toggle theme">◐</button>
     </header>
 
     <main id="stage">
       <div id="icon-grid" role="list" aria-label="apps"></div>
       <div id="windows"></div>
+      <!-- Wandering companion (desktop presence). CSS/JS only, no assets. -->
+      <div id="presence-bob" hidden>
+        <button id="bob-hit" aria-label="Summon Airis">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <ellipse class="bob-shadow" cx="32" cy="56" rx="14" ry="4" />
+            <g class="bob-body">
+              <rect x="18" y="18" width="28" height="32" rx="12" class="bob-shell" />
+              <circle class="bob-eye l" cx="26" cy="32" r="4.5" />
+              <circle class="bob-eye r" cx="38" cy="32" r="4.5" />
+              <circle class="bob-glint l" cx="27.5" cy="30.5" r="1.4" />
+              <circle class="bob-glint r" cx="39.5" cy="30.5" r="1.4" />
+              <rect class="bob-mouth" x="28" y="41" width="8" height="2.4" rx="1.2" />
+              <rect class="bob-foot l" x="21" y="50" width="9" height="5" rx="2.5" />
+              <rect class="bob-foot r" x="34" y="50" width="9" height="5" rx="2.5" />
+            </g>
+          </svg>
+        </button>
+      </div>
     </main>
 
     <div id="whisper" hidden>
@@ -70,8 +94,14 @@
     </div>
 
     <footer id="taskbar">
-      <button id="tb-summon" aria-label="Summon Airis"><span id="halo" class="prompt-dot calm" aria-hidden="true"></span></button>
+      <button id="tb-summon" aria-label="Summon Airis"><span id="halo" class="prompt-dot" aria-hidden="true"></span></button>
       <div id="task-apps" role="group" aria-label="open apps"></div>
+      <span class="presence-switch" role="group" aria-label="Presence">
+        <button data-p="bob" title="Wandering companion" aria-label="Wandering companion">✦</button>
+        <button data-p="portrait" title="Portrait presence" aria-label="Portrait presence">◍</button>
+        <button data-p="orb" title="Quiet orb" aria-label="Quiet orb">○</button>
+        <button class="room-toggle" title="Give me room" aria-label="Give me room" aria-pressed="false">⛶</button>
+      </span>
       <button id="tb-clock" title="time">--:--</button>
     </footer>
 
@@ -79,6 +109,34 @@
       <div id="dock-apps"></div>
       <button id="dock-summon" aria-label="Summon Airis"><span class="prompt-dot" aria-hidden="true"></span></button>
     </nav>
+
+    <!-- Portrait presence (mobile default): a small living face in the corner.
+         CSS/SVG only, no assets. Click summons. -->
+    <button id="presence-portrait" aria-label="Summon Airis" hidden>
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="26" class="pf-face" />
+        <g class="pf-eyes">
+          <ellipse class="pf-eye" cx="23" cy="28" rx="5" ry="6" />
+          <ellipse class="pf-eye" cx="41" cy="28" rx="5" ry="6" />
+          <g class="pf-pupils">
+            <circle cx="23" cy="29" r="2.2" class="pf-pupil" />
+            <circle cx="41" cy="29" r="2.2" class="pf-pupil" />
+          </g>
+        </g>
+        <path class="pf-mouth" d="M26 44 Q32 47 38 44" />
+      </svg>
+    </button>
+
+    <!-- Quiet orb (content-max default): dims when idle, leans to the
+         pointer, grows when approached. Click summons. -->
+    <button id="presence-orb" aria-label="Summon Airis — breathe with me" hidden>
+      <span aria-hidden="true"></span>
+    </button>
+
+    <!-- Presence switcher lives in the taskbar (desktop) and the statusbar
+         (phone) — one control per layout, synced, never floating over windows.
+         Defaults follow context (wide→wanderer, narrow→portrait, room→orb)
+         until touched. -->
 
     <!-- Summon is a command palette. Persona is Airis's full presence. -->
     <div id="summon" hidden>

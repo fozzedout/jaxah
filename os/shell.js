@@ -49,6 +49,39 @@ function normaliseApp(a) {
   return a;
 }
 
+/* ── Window geometry persistence ────────────────────────────────────────
+   Positions AND sizes survive refresh/relaunch. One localStorage entry:
+   { open: [ids in focus order], geo: { id: {l,t,w,h,max} } }.
+   Geometry is kept when a window closes, so reopening restores it. */
+var WIN_STORE = 'airis-os.windows.v1';
+var savedWins = { open: [], geo: {} };
+try {
+  var rawWins = localStorage.getItem(WIN_STORE);
+  if (rawWins) {
+    var parsed = JSON.parse(rawWins);
+    if (parsed && parsed.geo) savedWins = parsed;
+    if (!Array.isArray(savedWins.open)) savedWins.open = [];
+  }
+} catch (e) {}
+function saveWins() {
+  try {
+    savedWins.open = Object.keys(openWins);
+    localStorage.setItem(WIN_STORE, JSON.stringify(savedWins));
+  } catch (e) {}
+}
+function recordWinGeo(id) {
+  var el = openWins[id];
+  if (!el || isPhone()) return;
+  savedWins.geo[id] = {
+    l: parseFloat(el.style.left) || WINDOW_MARGIN,
+    t: parseFloat(el.style.top) || WINDOW_MARGIN,
+    w: parseFloat(el.style.width) || el.getBoundingClientRect().width,
+    h: parseFloat(el.style.height) || el.getBoundingClientRect().height,
+    max: el.classList.contains('max')
+  };
+  saveWins();
+}
+
 /* ── clock ────────────────────────────────────────────────────────────── */
 function tickClock() {
   var d = new Date();
@@ -74,13 +107,12 @@ function toggleTheme() {
 $('sb-theme').addEventListener('click', toggleTheme);
 $('tb-clock').addEventListener('click', toggleTheme);
 
-/* ── Halo: colour is state ────────────────────────────────────────────── */
+/* ── Halo: a single breathing glyph. It carries no state colour — presence
+   lives in the three switchable treatments (bob / portrait / orb). This
+   stub stays because open/close paths call it. ───────────────────────── */
 function setHalo(state) {
-  halo.classList.remove('calm', 'attentive', 'alert');
-  halo.classList.add(state);
-  osEl.setAttribute('data-presence', state);
-  var sb = $('sb-theme');
-  if (sb) sb.textContent = state === 'alert' ? '●' : '◐';
+  if (halo) halo.className = 'prompt-dot';
+  osEl.setAttribute('data-presence', state || 'calm');
 }
 
 /* ── Whisper Strip: one line, fades if ignored ────────────────────────── */
@@ -146,11 +178,25 @@ function fitWin(el, app) {
   el.style.top = Math.max(WINDOW_MARGIN, Math.min(top, wins.clientHeight - s.h - WINDOW_MARGIN)) + 'px';
 }
 
+/* Clamp the window's current geometry into the stage without forcing the
+   default size — user resizes survive viewport changes. */
+function clampWin(el) {
+  if (isPhone() || el.classList.contains('max')) return;
+  var w = parseFloat(el.style.width) || el.getBoundingClientRect().width;
+  var h = parseFloat(el.style.height) || el.getBoundingClientRect().height;
+  var left = parseFloat(el.style.left) || WINDOW_MARGIN;
+  var top = parseFloat(el.style.top) || WINDOW_MARGIN;
+  el.style.width = Math.min(wins.clientWidth - WINDOW_MARGIN * 2, Math.max(300, w)) + 'px';
+  el.style.height = Math.min(wins.clientHeight - WINDOW_MARGIN * 2, Math.max(220, h)) + 'px';
+  el.style.left = Math.max(WINDOW_MARGIN, Math.min(left, wins.clientWidth - w - WINDOW_MARGIN)) + 'px';
+  el.style.top = Math.max(WINDOW_MARGIN, Math.min(top, wins.clientHeight - h - WINDOW_MARGIN)) + 'px';
+}
+
 // Also refit after returning from the hidden terminal, and include minimised
 // windows so restoring one after a resize cannot bring back stale geometry.
 new ResizeObserver(function () {
   if (!wins.clientWidth || !wins.clientHeight) return;
-  Object.keys(openWins).forEach(function (id) { fitWin(openWins[id], byId[id]); });
+  Object.keys(openWins).forEach(function (id) { clampWin(openWins[id]); });
 }).observe(wins);
 
 function focusWin(id) {
@@ -159,6 +205,7 @@ function focusWin(id) {
     openWins[k].classList.toggle('focused', k === id);
   });
   refreshTasks();
+  saveWins(); // focus order is the restore order
 }
 
 function openApp(id) {
@@ -192,6 +239,7 @@ function openApp(id) {
     '<span class="w-btns">' +
     (external ? '<a class="w-ext" title="open standalone" aria-label="open standalone" href="' + esc(app.url) + '" target="_blank" rel="noopener">↗</a>' : '') +
     '<button class="w-min" title="minimise" aria-label="minimise">–</button>' +
+    '<button class="w-max" title="maximise" aria-label="maximise">☐</button>' +
     '<button class="w-close" title="close" aria-label="close">×</button>' +
     '</span>';
   el.appendChild(title);
@@ -204,18 +252,117 @@ function openApp(id) {
   frame.src = app.url;
   el.appendChild(frame);
 
+  // Edge/corner resize handles (desktop only; hidden on phone sheets).
+  ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function (dir) {
+    var h = document.createElement('div');
+    h.className = 'rz rz-' + dir;
+    h.setAttribute('aria-hidden', 'true');
+    el.appendChild(h);
+    h.addEventListener('pointerdown', function (ev) { startResize(ev, dir, h); });
+  });
+
+  function startResize(ev, dir, handle) {
+    if (isPhone() || ev.button !== 0 || el.classList.contains('max')) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    focusWin(id);
+    var r = el.getBoundingClientRect();
+    var wr = wins.getBoundingClientRect();
+    var sx = ev.clientX, sy = ev.clientY;
+    var sl = r.left - wr.left, st = r.top - wr.top, sw = r.width, sh = r.height;
+    handle.setPointerCapture && handle.setPointerCapture(ev.pointerId);
+    var move = function (me) {
+      var dx = me.clientX - sx, dy = me.clientY - sy;
+      var l = sl, t = st, w = sw, hh = sh;
+      if (dir.indexOf('e') !== -1) w = sw + dx;
+      if (dir.indexOf('s') !== -1) hh = sh + dy;
+      if (dir.indexOf('w') !== -1) { w = sw - dx; l = sl + dx; }
+      if (dir.indexOf('n') !== -1) { hh = sh - dy; t = st + dy; }
+      w = Math.max(300, Math.min(w, wins.clientWidth - WINDOW_MARGIN));
+      hh = Math.max(220, Math.min(hh, wins.clientHeight - WINDOW_MARGIN));
+      l = Math.max(WINDOW_MARGIN - w + 60, Math.min(l, wins.clientWidth - 60));
+      t = Math.max(0, Math.min(t, wins.clientHeight - 60));
+      el.style.left = l + 'px';
+      el.style.top = t + 'px';
+      el.style.width = w + 'px';
+      el.style.height = hh + 'px';
+    };
+    var up = function () {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      fitWinKeepSize(el);
+      recordWinGeo(id);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+  }
+
+  // Clamp position without forcing the default size (used after resize).
+  function fitWinKeepSize(el) {
+    var w = parseFloat(el.style.width) || el.getBoundingClientRect().width;
+    var h = parseFloat(el.style.height) || el.getBoundingClientRect().height;
+    var left = parseFloat(el.style.left) || WINDOW_MARGIN;
+    var top = parseFloat(el.style.top) || WINDOW_MARGIN;
+    el.style.width = Math.min(wins.clientWidth - WINDOW_MARGIN * 2, Math.max(300, w)) + 'px';
+    el.style.height = Math.min(wins.clientHeight - WINDOW_MARGIN * 2, Math.max(220, h)) + 'px';
+    el.style.left = Math.max(WINDOW_MARGIN, Math.min(left, wins.clientWidth - w - WINDOW_MARGIN)) + 'px';
+    el.style.top = Math.max(WINDOW_MARGIN, Math.min(top, wins.clientHeight - h - WINDOW_MARGIN)) + 'px';
+  }
+
+  function setMaximised(on) {
+    var btn = title.querySelector('.w-max');
+    if (on) {
+      if (el.classList.contains('max')) return;
+      el.dataset.prel = el.style.left + '|' + el.style.top + '|' + el.style.width + '|' + el.style.height;
+      el.classList.add('max');
+      btn.textContent = '❐';
+      btn.title = 'restore';
+      btn.setAttribute('aria-label', 'restore');
+    } else {
+      if (!el.classList.contains('max')) return;
+      el.classList.remove('max');
+      var p = (el.dataset.prel || '').split('|');
+      if (p.length === 4 && p[2]) {
+        el.style.left = p[0]; el.style.top = p[1];
+        el.style.width = p[2]; el.style.height = p[3];
+        fitWinKeepSize(el);
+      } else fitWin(el, app);
+      btn.textContent = '☐';
+      btn.title = 'maximise';
+      btn.setAttribute('aria-label', 'maximise');
+    }
+    recordWinGeo(id);
+  }
+
   if (app.size !== 'full' && !isPhone()) {
-    var s = sizeFor(app);
-    var n = cascade++ % 6;
-    el.style.left = (wins.clientWidth - s.w) / 2 + (n - 2) * 28 + 'px';
-    el.style.top = (wins.clientHeight - s.h) / 3 + (n - 2) * 24 + 'px';
-    fitWin(el, app);
+    var saved = savedWins.geo[id];
+    if (saved && saved.w >= 300 && saved.h >= 220) {
+      el.style.left = saved.l + 'px';
+      el.style.top = saved.t + 'px';
+      el.style.width = saved.w + 'px';
+      el.style.height = saved.h + 'px';
+      if (saved.max) {
+        el.dataset.prel = saved.l + 'px|' + saved.t + 'px|' + saved.w + 'px|' + saved.h + 'px';
+        el.classList.add('max');
+        var mb = title.querySelector('.w-max');
+        mb.textContent = '❐'; mb.title = 'restore'; mb.setAttribute('aria-label', 'restore');
+      } else fitWinKeepSize(el);
+    } else {
+      var s = sizeFor(app);
+      var n = cascade++ % 6;
+      el.style.left = (wins.clientWidth - s.w) / 2 + (n - 2) * 28 + 'px';
+      el.style.top = (wins.clientHeight - s.h) / 3 + (n - 2) * 24 + 'px';
+      fitWin(el, app);
+    }
   }
   el.style.zIndex = ++zTop;
 
   title.addEventListener('pointerdown', function (ev) {
     if (isPhone() || ev.button !== 0) return;
     if (ev.target.closest('button') || ev.target.closest('a')) return;
+    if (el.classList.contains('max')) return; // maximised windows don't drag
     ev.preventDefault();
     var r = el.getBoundingClientRect();
     var dx = ev.clientX - r.left, dy = ev.clientY - r.top;
@@ -223,12 +370,13 @@ function openApp(id) {
     var move = function (me) {
       el.style.left = me.clientX - dx + 'px';
       el.style.top = me.clientY - dy + 'px';
-      fitWin(el, app);
+      clampWin(el); // position only — the user's size is left alone
     };
     var up = function () {
       title.removeEventListener('pointermove', move);
       title.removeEventListener('pointerup', up);
       title.removeEventListener('pointercancel', up);
+      recordWinGeo(id);
     };
     title.addEventListener('pointermove', move);
     title.addEventListener('pointerup', up);
@@ -237,14 +385,26 @@ function openApp(id) {
   });
   el.addEventListener('pointerdown', function () { focusWin(id); }, true);
   title.querySelector('.w-close').addEventListener('click', function () { closeApp(id); });
+  title.querySelector('.w-max').addEventListener('click', function () {
+    if (isPhone() || app.size === 'full') return;
+    setMaximised(!el.classList.contains('max'));
+    focusWin(id);
+  });
+  title.addEventListener('dblclick', function (ev) {
+    if (isPhone() || app.size === 'full') return;
+    if (ev.target.closest('button') || ev.target.closest('a')) return;
+    setMaximised(!el.classList.contains('max'));
+  });
   title.querySelector('.w-min').addEventListener('click', function () {
     if (isPhone()) closeApp(id); // ⌄ closes on phone
-    else { el.classList.add('min'); refreshTasks(); }
+    else { el.classList.add('min'); refreshTasks(); saveWins(); }
   });
 
   wins.appendChild(el);
   openWins[id] = el;
+  el.addEventListener('pointerenter', perkBob);
   focusWin(id);
+  recordWinGeo(id);
   setHalo('calm');
   try { localStorage.setItem('airis-os.last', id); } catch (e) {}
   if (location.hash !== '#app/' + id) history.replaceState(null, '', '#app/' + id);
@@ -256,15 +416,14 @@ function closeApp(id) {
   el.remove();
   delete openWins[id];
   refreshTasks();
+  saveWins();
   if (location.hash === '#app/' + id) history.replaceState(null, '', location.pathname + location.search);
   // Whisper demo: closing Lexfall is the one proactive line in v1,
   // with its reason visible. Nothing else nags.
   if (id === 'lexfall') {
-    setHalo('attentive');
     whisperSay('“New best in Lexfall — replay?”', 'demo · lexfall closed');
-    setTimeout(function () { if (!Object.keys(openWins).length) setHalo('calm'); }, 20000);
   }
-  if (!Object.keys(openWins).length && halo.classList.contains('attentive') === false) setHalo('calm');
+  setHalo('calm');
 }
 
 /* ── tiles, taskbar, dock — all rendered from the same manifest ───────── */
@@ -339,8 +498,14 @@ function openSummon() {
   summonIn.value = '';
   renderSummon('');
   setTimeout(function () { summonIn.focus(); }, 30);
+  bobComeClose(true);
+  orbSetOpen(true);
 }
-function closeSummon() { summon.hidden = true; }
+function closeSummon() {
+  summon.hidden = true;
+  bobComeClose(false);
+  orbSetOpen(false);
+}
 
 function renderSummon(q) {
   summonOut.innerHTML = '';
@@ -392,6 +557,165 @@ summon.addEventListener('pointerdown', function (e) {
 $('tb-summon').addEventListener('click', openSummon);
 $('dock-summon').addEventListener('click', openSummon);
 
+/* ── Presence: three switchable treatments, monochrome throughout ───────
+   bob      — wandering desktop companion (wide viewport default).
+   portrait — small living face in the corner (narrow viewport default).
+   orb      — quiet breathing orb (content-max / "give me room" default).
+   A small switcher in the shell overrides the default live; the choice
+   persists. No state colours anywhere: all three are neutral ink/teal. */
+var bobEl = $('presence-bob'), bobHit = $('bob-hit');
+var portraitEl = $('presence-portrait'), orbEl = $('presence-orb');
+var presenceSwitches = document.querySelectorAll('.presence-switch');
+var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+var presencePick = null; // explicit user choice; null = follow context
+var roomy = false;
+try {
+  presencePick = localStorage.getItem('airis-os.presence');
+  if (['bob', 'portrait', 'orb'].indexOf(presencePick) === -1) presencePick = null;
+  roomy = localStorage.getItem('airis-os.roomy') === '1';
+} catch (e) {}
+if (roomy) osEl.classList.add('roomy');
+
+function resolvePresence() {
+  if (presencePick) return presencePick;
+  if (roomy) return 'orb';
+  return isPhone() ? 'portrait' : 'bob';
+}
+function applyPresence() {
+  var mode = resolvePresence();
+  if (bobEl) bobEl.hidden = mode !== 'bob';
+  if (portraitEl) portraitEl.hidden = mode !== 'portrait';
+  if (orbEl) orbEl.hidden = mode !== 'orb';
+  for (var s = 0; s < presenceSwitches.length; s++) {
+    var btns = presenceSwitches[s].querySelectorAll('button[data-p]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-p') === mode ? 'true' : 'false');
+    }
+    var rooms = presenceSwitches[s].querySelectorAll('.room-toggle');
+    for (var r = 0; r < rooms.length; r++) rooms[r].setAttribute('aria-pressed', roomy ? 'true' : 'false');
+  }
+}
+function setPresence(pick) {
+  presencePick = pick;
+  try {
+    if (pick) localStorage.setItem('airis-os.presence', pick);
+    else localStorage.removeItem('airis-os.presence');
+  } catch (e) {}
+  applyPresence();
+}
+for (var s = 0; s < presenceSwitches.length; s++) {
+  presenceSwitches[s].addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.classList.contains('room-toggle')) {
+      roomy = !roomy;
+      osEl.classList.toggle('roomy', roomy);
+      try { localStorage.setItem('airis-os.roomy', roomy ? '1' : '0'); } catch (err) {}
+      applyPresence(); // room implies orb until the user picks otherwise
+      return;
+    }
+    var p = b.getAttribute('data-p');
+    if (p) setPresence(p);
+  });
+}
+// Context changes only move the default; an explicit pick sticks.
+if (window.matchMedia) {
+  var mq = window.matchMedia('(max-width: 767.98px)');
+  if (mq.addEventListener) mq.addEventListener('change', function () { applyPresence(); });
+  else if (mq.addListener) mq.addListener(function () { applyPresence(); });
+}
+
+/* Bob perks up when a window gets attention, and comes close for summon. */
+var perkTimer = null;
+function perkBob() {
+  if (!bobEl || bobEl.hidden) return;
+  bobEl.classList.add('perk');
+  clearTimeout(perkTimer);
+  perkTimer = setTimeout(function () { bobEl.classList.remove('perk'); }, 950);
+}
+function bobWander() {
+  if (!bobEl || bobEl.hidden || reducedMotion.matches) return;
+  var stage = $('stage');
+  if (!stage) return;
+  var w = Math.max(80, stage.clientWidth - 90), h = Math.max(80, stage.clientHeight - 110);
+  bobEl.classList.add('walking');
+  bobEl.style.left = (8 + Math.random() * w) + 'px';
+  bobEl.style.top = (8 + Math.random() * h) + 'px';
+  setTimeout(function () { bobEl.classList.remove('walking'); }, 3300);
+}
+setInterval(bobWander, 6000);
+setTimeout(bobWander, 2500);
+function bobComeClose(on) {
+  if (!bobEl) return;
+  if (on && !bobEl.hidden && !reducedMotion.matches) {
+    bobEl.classList.add('come-close');
+    bobEl.style.left = 'calc(50% - 32px)';
+    bobEl.style.top = '6vh';
+    perkBob();
+  } else {
+    bobEl.classList.remove('come-close');
+    if (on) perkBob();
+  }
+}
+if (bobHit) {
+  bobHit.addEventListener('click', function () {
+    summon.hidden ? openSummon() : closeSummon();
+  });
+}
+
+/* Portrait glances: pupils drift toward the pointer or wander idly. */
+function portraitGlance(x, y) {
+  if (!portraitEl || portraitEl.hidden || reducedMotion.matches) return;
+  var r = portraitEl.getBoundingClientRect();
+  var dx = Math.max(-3, Math.min(3, ((x - (r.left + r.width / 2)) / window.innerWidth) * 12));
+  var dy = Math.max(-2.5, Math.min(2.5, ((y - (r.top + r.height / 2)) / window.innerHeight) * 12));
+  portraitEl.style.setProperty('--gx', dx.toFixed(1) + 'px');
+  portraitEl.style.setProperty('--gy', dy.toFixed(1) + 'px');
+}
+setInterval(function () {
+  if (!portraitEl || portraitEl.hidden || reducedMotion.matches) return;
+  portraitEl.style.setProperty('--gx', (Math.random() * 6 - 3).toFixed(1) + 'px');
+  portraitEl.style.setProperty('--gy', (Math.random() * 4 - 2).toFixed(1) + 'px');
+}, 4200);
+if (portraitEl) {
+  portraitEl.addEventListener('click', function () {
+    summon.hidden ? openSummon() : closeSummon();
+  });
+}
+
+/* Orb breathes quietly: dims when idle, leans to the pointer, swells near. */
+var orbIdle = null;
+function orbSetOpen(on) {
+  if (!orbEl) return;
+  orbEl.classList.toggle('open', !!on);
+}
+function orbWake() {
+  if (!orbEl) return;
+  orbEl.classList.remove('dim');
+  clearTimeout(orbIdle);
+  orbIdle = setTimeout(function () { orbEl.classList.add('dim'); }, 12000);
+}
+if (orbEl) {
+  orbEl.addEventListener('pointerenter', function () { orbEl.classList.add('near'); orbWake(); });
+  orbEl.addEventListener('pointerleave', function () { orbEl.classList.remove('near'); });
+  orbEl.addEventListener('click', function () {
+    summon.hidden ? openSummon() : closeSummon();
+  });
+  orbWake();
+}
+document.addEventListener('pointermove', function (e) {
+  if (orbEl && !orbEl.hidden) orbWake();
+  if (orbEl && !orbEl.hidden && !reducedMotion.matches) {
+    var r = orbEl.getBoundingClientRect();
+    var dx = (e.clientX - (r.left + r.width / 2)) / 40;
+    var dy = (e.clientY - (r.top + r.height / 2)) / 40;
+    dx = Math.max(-4, Math.min(4, dx));
+    dy = Math.max(-4, Math.min(4, dy));
+    orbEl.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)';
+  }
+  portraitGlance(e.clientX, e.clientY);
+}, { passive: true });
+
 /* ── routing: #app/<id> deep links (the floor owns #terminal) ────────── */
 function route() {
   var h = location.hash;
@@ -414,9 +738,30 @@ function boot(manifest) {
   renderGrid();
   renderDock();
   refreshTasks();
+  applyPresence();
   floor.ready(APPS);
   if (osEl.hidden) return;
   route();
+  // Restore window positions AND sizes after refresh/relaunch. A deep link
+  // wins over the restore; on phone only the last window comes back.
+  if (!location.hash || !location.hash.match(/^#app\//)) {
+    var toOpen = savedWins.open.filter(function (id) {
+      return byId[id] && !byId[id].hidden && byId[id].launch !== 'standalone';
+    });
+    if (isPhone()) toOpen = toOpen.slice(-1);
+    toOpen.forEach(function (id) {
+      try { openApp(id); } catch (e) {}
+    });
+    if (!toOpen.length) {
+      try {
+        var last = localStorage.getItem('airis-os.last');
+        if (!location.hash && last && byId[last] && !byId[last].hidden) {
+          whisperSay('Welcome back — “' + byId[last].name + '” is where you left off.', 'local memory');
+        }
+      } catch (e) {}
+    }
+    return;
+  }
   try {
     var last = localStorage.getItem('airis-os.last');
     if (!location.hash && last && byId[last] && !byId[last].hidden) {

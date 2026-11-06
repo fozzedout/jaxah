@@ -85,6 +85,23 @@ button { font: inherit; color: inherit; }
 }
 .window.min { display: none; }
 .window.max { inset: 10px !important; width: auto !important; height: auto !important; }
+.window.max .rz { display: none; }
+/* User resize: edge/corner drag handles. Hidden when maximised or on phone. */
+.rz { position: absolute; z-index: 5; touch-action: none; }
+.rz-n { top: -4px; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+.rz-s { bottom: -4px; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+.rz-e { right: -4px; top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
+.rz-w { left: -4px; top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
+.rz-ne { top: -6px; right: -6px; width: 16px; height: 16px; cursor: nesw-resize; }
+.rz-sw { bottom: -6px; left: -6px; width: 16px; height: 16px; cursor: nesw-resize; }
+.rz-nw { top: -6px; left: -6px; width: 16px; height: 16px; cursor: nwse-resize; }
+.rz-se { bottom: -6px; right: -6px; width: 16px; height: 16px; cursor: nwse-resize; }
+.rz-se::after {
+  content: ""; position: absolute; right: 3px; bottom: 3px; width: 9px; height: 9px;
+  border-right: 2px solid var(--faint); border-bottom: 2px solid var(--faint);
+  border-bottom-right-radius: 4px; opacity: .7;
+}
+.window:focus-within .rz-se::after { border-color: var(--teal); opacity: 1; }
 .w-title {
   display: flex; align-items: center; gap: 8px; flex: none; height: 46px; padding: 0 6px 0 12px;
   cursor: grab; user-select: none; -webkit-user-select: none;
@@ -144,14 +161,11 @@ button { font: inherit; color: inherit; }
   font-size: 16px; min-width: 32px; min-height: 32px; border-radius: 50%; }
 #whisper-x:hover { color: var(--ink); background: var(--tile); }
 
-/* The orb is a small prompt glyph inside a summon button, never a body
-   floating over app content. Persona carries Airis's full presence. */
-#os { --presence-colour: var(--teal); }
-#os[data-presence="attentive"] { --presence-colour: var(--amber); }
-#os[data-presence="alert"] { --presence-colour: var(--red); }
+/* The summon dots breathe; they carry no state colour. Presence lives in
+   the three switchable treatments below, all monochrome by design. */
 .prompt-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--presence-colour); box-shadow: 0 0 8px var(--presence-colour);
+  background: var(--teal); box-shadow: 0 0 8px rgba(94, 234, 212, .8);
   animation: prompt-breathe 4s ease-in-out infinite;
 }
 @keyframes prompt-breathe { 50% { opacity: .45; } }
@@ -217,9 +231,14 @@ button { font: inherit; color: inherit; }
   .w-title { height: 56px; cursor: default; padding-top: env(safe-area-inset-top); }
   .w-btns button, .w-btns a.w-ext { min-width: 48px; min-height: 48px; }
   .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */
+  .w-max { display: none; } /* no maximise on phone: sheets are already full */
+  .rz { display: none; } /* no drag-resize on phone sheets */
 
   #whisper { top: calc(46px + env(safe-area-inset-top)); bottom: auto; }
 
+  /* Corner presences sit above the dock, never under it. */
+  #presence-portrait { bottom: 118px; }
+  #presence-orb { bottom: 118px; }
   #dock {
     display: flex; align-items: center; gap: 4px;
     position: absolute; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom));
@@ -254,5 +273,99 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .prompt-dot { animation: none; }
   #whisper { transition: none; }
+  #presence-bob { transition: none; }
+  .bob-body, .pf-eye, #presence-orb span { animation: none !important; }
   * { scroll-behavior: auto !important; }
 }
+
+/* ── Presence: three switchable treatments, monochrome throughout ─────── */
+.presence-switch {
+  display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px;
+  background: transparent; border: 1px solid var(--tile-border); flex: none;
+}
+.presence-switch button {
+  border: none; background: transparent; cursor: pointer;
+  min-width: 32px; min-height: 32px; border-radius: 999px;
+  color: var(--dim); font-size: 14px; line-height: 1;
+}
+.presence-switch button:hover { background: var(--tile); color: var(--ink); }
+.presence-switch button[aria-pressed="true"] {
+  background: var(--tile); color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--tile-border);
+}
+.room-toggle[aria-pressed="true"] { color: var(--teal); }
+#statusbar .presence-switch button { min-width: 30px; min-height: 30px; font-size: 13px; }
+
+/* Bob: wandering desktop companion. Small, above tiles and windows,
+   pointer-transparent except for its own hit target. */
+#presence-bob {
+  position: absolute; z-index: 40; width: 64px; height: 64px;
+  left: 60%; top: 55%; pointer-events: none;
+  transition: left 3.2s ease-in-out, top 3.2s ease-in-out;
+}
+#bob-hit {
+  pointer-events: auto; width: 64px; height: 64px; padding: 0;
+  border: none; background: transparent; cursor: pointer; border-radius: 50%;
+}
+#presence-bob svg { width: 64px; height: 64px; overflow: visible; }
+.bob-shadow { fill: rgba(0, 0, 0, .35); }
+.bob-shell { fill: rgba(232, 241, 240, .92); }
+html[data-theme="light"] .bob-shell { fill: rgba(16, 42, 40, .88); }
+.bob-eye { fill: #0b1e24; }
+html[data-theme="light"] .bob-eye { fill: #f4faf9; }
+.bob-glint { fill: rgba(94, 234, 212, .9); }
+.bob-mouth { fill: #0b1e24; opacity: .7; }
+html[data-theme="light"] .bob-mouth { fill: #f4faf9; }
+.bob-foot { fill: rgba(159, 184, 180, .9); }
+.bob-body { transform-box: fill-box; transform-origin: 50% 90%; animation: bob-breathe 3.4s ease-in-out infinite; }
+@keyframes bob-breathe { 50% { transform: translateY(-2px) scaleY(1.02); } }
+#presence-bob.walking .bob-body { animation: bob-walk .5s ease-in-out infinite; }
+@keyframes bob-walk { 50% { transform: translateY(-4px); } }
+#presence-bob.perk .bob-body { animation: bob-perk .45s ease-out 2; }
+@keyframes bob-perk { 50% { transform: translateY(-7px) scale(1.06); } }
+#presence-bob.perk .bob-eye { r: 5.6; }
+#presence-bob.come-close { transition: left 1.2s ease, top 1.2s ease; }
+
+/* Portrait: small living face pinned to the corner (mobile default). */
+#presence-portrait {
+  position: absolute; z-index: 40; width: 60px; height: 60px; padding: 0;
+  right: 14px; bottom: calc(var(--taskbar-h) + 54px);
+  border-radius: 50%; cursor: pointer;
+  background: var(--glass); border: 1px solid var(--tile-border);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+}
+#presence-portrait svg { width: 100%; height: 100%; display: block; }
+.pf-face { fill: rgba(232, 241, 240, .12); stroke: var(--tile-border); }
+.pf-eye { fill: rgba(232, 241, 240, .92); transform-box: fill-box; transform-origin: center;
+  animation: pf-blink 5.2s ease-in-out infinite; }
+@keyframes pf-blink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(.08); } }
+.pf-pupil { fill: #0b1e24; }
+html[data-theme="light"] .pf-pupil { fill: #102a28; }
+.pf-pupils { transform: translate(var(--gx, 0px), var(--gy, 0px)); transition: transform .5s ease; }
+.pf-mouth { stroke: var(--dim); stroke-width: 2; fill: none; stroke-linecap: round; }
+#presence-portrait:hover { border-color: var(--teal); }
+
+/* Orb: quiet breathing presence (content-max default). Dims when idle,
+   leans toward the pointer, grows when approached. */
+#presence-orb {
+  position: absolute; z-index: 40; width: 46px; height: 46px; padding: 0;
+  right: 16px; bottom: calc(var(--taskbar-h) + 16px);
+  border-radius: 50%; cursor: pointer;
+  background: transparent; border: 1px solid transparent;
+  transition: opacity 1.5s ease, transform .25s ease-out;
+}
+#presence-orb span {
+  display: block; width: 22px; height: 22px; margin: auto; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(232, 241, 240, .95), rgba(94, 234, 212, .55) 60%, transparent 75%);
+  box-shadow: 0 0 18px rgba(94, 234, 212, .45);
+  animation: orb-breathe 5s ease-in-out infinite;
+  transition: transform .3s ease;
+}
+@keyframes orb-breathe { 50% { transform: scale(1.18); opacity: .75; } }
+#presence-orb.dim { opacity: .35; }
+#presence-orb.near span { transform: scale(1.7); }
+#presence-orb.open span { transform: scale(2.4); opacity: .9; }
+
+/* Content-max ("give me room"): tiles step aside, windows get the stage. */
+#os.roomy #icon-grid { display: none; }
