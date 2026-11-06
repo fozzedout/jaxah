@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To Do — Airis OS</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: start center; padding: 20px;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(120% 100% at 50% 0%, #153b33 0%, #0b1e24 55%, #070d12 100%);
+    color: #e8f1f0;
+  }
+  .card {
+    width: 100%; max-width: 520px; border-radius: 18px; padding: 22px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 20px 60px rgba(0,0,0,.45);
+  }
+  h1 { margin: 0 0 2px; font-size: 22px; }
+  .sub { margin: 0 0 14px; color: #9fb8b4; font-size: 13px; }
+  .row { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1; min-width: 0; padding: 12px 14px; font-size: 16px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.35); color: inherit;
+  }
+  input[type="text"]:focus { outline: 2px solid #5eead4; outline-offset: 1px; }
+  button {
+    padding: 12px 16px; font-size: 15px; border-radius: 12px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.16); background: #134e4a; color: #ecfdf5; min-height: 48px;
+  }
+  button:hover { background: #0f766e; }
+  ul { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+  li {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+    background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.08);
+  }
+  li.done span { text-decoration: line-through; opacity: .55; }
+  li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  li input[type="checkbox"] { width: 22px; height: 22px; accent-color: #5eead4; flex: none; }
+  li .del { background: transparent; padding: 8px 12px; min-height: 44px; }
+  .foot { margin-top: 12px; font-size: 12px; color: #7d9490; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .foot button { padding: 6px 10px; font-size: 12px; min-height: 36px; background: transparent; }
+  @media (max-width: 480px) { .row { flex-direction: column; } }
+</style>
+</head>
+<body>
+  <main class="card">
+    <h1>✅ To Do</h1>
+    <p class="sub">Minimal list. This device only.</p>
+    <div class="row">
+      <input id="in" type="text" placeholder="New task…" autocomplete="off" maxlength="200">
+      <button id="add" type="button">Add</button>
+    </div>
+    <ul id="list"></ul>
+    <div class="foot">
+      <span id="count"></span>
+      <button id="clear" type="button">Clear done</button>
+    </div>
+    <div class="foot"><span id="store-note"></span></div>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+  var KEY = 'airis-os.todo.v1';
+
+  // Storage that survives the sandboxed opaque-origin iframe when it can
+  // (localStorage), and falls back to memory when the sandbox blocks it.
+  var mem = [];
+  var persistent = true;
+  var store = {
+    load: function () {
+      try {
+        var raw = window.localStorage.getItem(KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) { persistent = false; return mem; }
+    },
+    save: function (items) {
+      try { window.localStorage.setItem(KEY, JSON.stringify(items)); }
+      catch (e) { persistent = false; mem = items; }
+    }
+  };
+
+  var items = store.load();
+  var list = document.getElementById('list');
+  var input = document.getElementById('in');
+  var count = document.getElementById('count');
+
+  if (!persistent) {
+    document.getElementById('store-note').textContent =
+      'Sandboxed storage is blocked in this frame — keeping the list in memory for this session.';
+  }
+
+  function persist() { store.save(items); render(); }
+
+  function render() {
+    list.innerHTML = '';
+    items.forEach(function (t, i) {
+      var li = document.createElement('li');
+      if (t.done) li.className = 'done';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !!t.done;
+      cb.setAttribute('aria-label', 'Mark done: ' + t.text);
+      cb.addEventListener('change', function () { items[i].done = cb.checked; persist(); });
+      var s = document.createElement('span');
+      s.textContent = t.text;
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'del'; del.textContent = '✕';
+      del.setAttribute('aria-label', 'Delete: ' + t.text);
+      del.addEventListener('click', function () { items.splice(i, 1); persist(); });
+      li.appendChild(cb); li.appendChild(s); li.appendChild(del);
+      list.appendChild(li);
+    });
+    var open = items.filter(function (t) { return !t.done; }).length;
+    count.textContent = items.length === 0 ? 'Nothing here yet.'
+      : open + ' open · ' + items.length + ' total';
+  }
+
+  function add() {
+    var v = input.value.trim();
+    if (!v) return;
+    items.push({ text: v, done: false });
+    input.value = '';
+    persist();
+    input.focus();
+  }
+
+  document.getElementById('add').addEventListener('click', add);
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
+  document.getElementById('clear').addEventListener('click', function () {
+    items = items.filter(function (t) { return !t.done; });
+    persist();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

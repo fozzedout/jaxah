@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Airis OS</title>
+<meta name="description" content="Airis OS — a static OS-style shell. Airis is the room, not an app.">
+<!--
+  Airis OS v1. Static files only, no build step, no backend.
+  Shell / manifest / app: shell.js renders whatever os/manifest.json lists,
+  each app isolated in an opaque-origin sandboxed iframe. The plain terminal
+  floor underneath (#terminal) works even if all of that fails.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; frame-src 'self' https://lexfall.com; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'">
+<link rel="stylesheet" href="./shell.css">
+</head>
+<body>
+
+  <!-- ══ TERMINAL FLOOR ══
+       Plain state underneath the OS. Shown automatically if the manifest or
+       shell breaks, on purpose via the backtick key, or via ?terminal=1.
+       It talks to nothing and no one — local commands only. -->
+  <div id="terminal" hidden>
+    <div id="term-out" aria-live="polite"></div>
+    <form id="term-form" autocomplete="off">
+      <label for="term-in">airis&gt;</label>
+      <input id="term-in" type="text" autocomplete="off" autocapitalize="off"
+             spellcheck="false" aria-label="terminal input">
+    </form>
+    <div id="term-hint">local only · try: help · backtick returns to the OS</div>
+  </div>
+
+  <noscript>
+    <div class="nojs">
+      <h1>Airis OS</h1>
+      <p>The shell needs JavaScript. The apps don't — plain links:</p>
+      <ul>
+        <li><a href="https://lexfall.com">Lexfall</a></li>
+        <li><a href="./apps/persona.html">Persona</a></li>
+        <li><a href="./apps/todo.html">To Do</a></li>
+        <li><a href="../fuel-calc-uk.html">Fuel Calc</a></li>
+        <li><a href="../lsb-coding.html">LSB Lab</a></li>
+        <li><a href="../lsb-pwman.html">Passwords</a></li>
+        <li><a href="../art/jeb/index.html">JEB Gallery</a></li>
+        <li><a href="../rustys-commands.html">Rusty</a></li>
+        <li><a href="../reveal.html">Reveal</a></li>
+      </ul>
+    </div>
+  </noscript>
+
+  <!-- ══ OS CHROME ══ -->
+  <div id="os">
+    <header id="statusbar">
+      <span id="sb-time">--:--</span>
+      <span id="sb-name">Airis OS</span>
+      <span id="sb-theme" title="theme">◐</span>
+    </header>
+
+    <main id="stage">
+      <div id="icon-grid" role="list" aria-label="apps"></div>
+      <div id="windows"></div>
+    </main>
+
+    <div id="whisper" hidden>
+      <span id="whisper-why"></span>
+      <span id="whisper-text"></span>
+      <button id="whisper-x" aria-label="dismiss">×</button>
+    </div>
+
+    <footer id="taskbar">
+      <button id="tb-summon" aria-label="summon">✦</button>
+      <div id="task-apps" aria-label="open apps"></div>
+      <button id="tb-clock" title="time">--:--</button>
+    </footer>
+
+    <nav id="dock" aria-label="dock">
+      <div id="dock-apps"></div>
+      <button id="dock-summon" aria-label="summon">✦</button>
+    </nav>
+
+    <!-- Halo: fixed breathing orb. Colour is state (calm/attentive/alert). -->
+    <button id="halo" class="calm" aria-label="Summon Airis"></button>
+
+    <!-- Summon: the ONLY full-panel surface. Never auto-opens. -->
+    <div id="summon" hidden>
+      <div id="summon-box" role="dialog" aria-label="summon">
+        <input id="summon-in" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Search apps &amp; commands · Type 'terminal' anytime"
+               aria-label="summon input">
+        <div id="summon-out"></div>
+      </div>
+    </div>
+  </div>
+
+<script src="./shell.js" defer></script>
+</body>
+</html>

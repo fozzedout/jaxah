@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Persona — Airis OS</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(120% 100% at 50% 0%, #123b3f 0%, #0b1e24 55%, #070d12 100%);
+    color: #e8f1f0;
+  }
+  .card {
+    width: 100%; max-width: 560px; border-radius: 18px; padding: 24px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 20px 60px rgba(0,0,0,.45); backdrop-filter: blur(8px);
+  }
+  h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: .3px; }
+  .sub { margin: 0 0 14px; color: #9fb8b4; font-size: 13px; }
+  .status {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 13px;
+    color: #8ef0e2; background: rgba(94,234,212,.1); border: 1px solid rgba(94,234,212,.3);
+    padding: 6px 12px; border-radius: 999px; margin-bottom: 16px;
+  }
+  .status i { width: 8px; height: 8px; border-radius: 50%; background: #5eead4;
+    box-shadow: 0 0 10px #5eead4; animation: breathe 3s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .45; } }
+  label { display: block; font-size: 13px; color: #9fb8b4; margin: 0 0 6px; }
+  .row { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1; min-width: 0; padding: 12px 14px; font-size: 16px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.35); color: inherit;
+  }
+  input[type="text"]:focus { outline: 2px solid #5eead4; outline-offset: 1px; }
+  button {
+    padding: 12px 16px; font-size: 15px; border-radius: 12px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.16); background: #134e4a; color: #ecfdf5; min-height: 48px;
+  }
+  button:hover { background: #0f766e; }
+  button.ghost { background: transparent; }
+  .answer {
+    margin-top: 16px; padding: 16px; border-radius: 12px; font-size: 18px; line-height: 1.5;
+    background: rgba(0,0,0,.35); border-left: 3px solid #5eead4; min-height: 60px;
+  }
+  .hint { margin-top: 12px; font-size: 12px; color: #7d9490; }
+  .controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  @media (max-width: 480px) { .row { flex-direction: column; } }
+  @media (prefers-reduced-motion: reduce) { .status i { animation: none; } }
+</style>
+</head>
+<body>
+  <main class="card">
+    <h1>🌙 Persona</h1>
+    <p class="sub">The public persona experiment.</p>
+    <div class="status"><i></i><span>I'm scripted, not live</span></div>
+
+    <label for="q">Say something — the answer never changes:</label>
+    <div class="row">
+      <input id="q" type="text" placeholder="e.g. what is the meaning of life?" autocomplete="off">
+      <button id="ask" type="button">Ask</button>
+    </div>
+
+    <div class="answer" id="answer" aria-live="polite">…</div>
+
+    <div class="controls">
+      <button id="speak" type="button">🔊 Speak the line</button>
+      <button id="stop" type="button" class="ghost">Stop</button>
+    </div>
+
+    <!-- Canned audio clip of the same line. This data-URI wav is a tiny
+         silent-safe placeholder tone: swap its src for a real recording of
+         "I'm scripted, not live." — the <audio> path stays identical. -->
+    <audio id="clip" preload="auto"
+      src="data:audio/wav;base64,UklGRsQPAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAPAACAgICAgICAgH9/f39/f39/gICAgICAgH9/f39/f39/gICAgICAgIB/f39/f39/gICAgICAgIB/f39/f39/f4CAgICAgIB/f39/f39/f4CAgICAgICAf39/f39/f4CAgICAgICAf39/f39/f3+AgICAgICAf39/f39/f3+AgICAgICAf39/f39/f3+AgICAgICAgH9/f39/f3+AgICAgICAgH9/f35/f39/gICAgYGAgH9/f35+f39/gICBgYGAgIB/f35+fn9/gICBgYGBgIB/f35+fn5/f4CBgYGBgYB/f35+fn5/f4CBgYGBgYB/f35+fn5+f4CAgYGBgYCAf35+fn5+f4CAgYGCgYGAf35+fX1+fn+AgYKCgoGAf35+fX1+fn+AgYKCgoGBgH9+fX19fn+AgYKCgoKBgH9+fX19fX5/gYGCgoKBgH9+fX19fX5/gIGCgoKCgYB+fX18fX5/gIGCg4OCgYB/fX18fH1+gIGCg4OCgoB/fn18fH1+f4GCg4ODgoF/fn18fHx9f4CCg4ODgoGAfn18fHx9foCBg4ODg4KAf318e3x8fn+BgoOEg4KBf318e3t8fX+BgoOEhIOBgH58e3t7fX6AgoOEhIOCgH58e3t7fH6AgoOEhISDgX99e3t7e31/gYOEhYSDgX99fHt6e3x+gIKEhYWEgoB+fHt6enx+gIKEhYWEg4F+fHt6ent9f4KEhYWFg4F/fXt6ent8f4GDhYWFhIKAfXt6eXp8foCDhYaGhYOAfnx6eXl7fYCChIaGhYSBf3x6eXl6fH+BhIaGhoSCf316eXl6e36Bg4WGhoWDgH17eXh5e32Ag4WGh4aEgX57eXh4enx/goWGh4aFgn98enh4eXt+gYSGh4eFg4B9enh4eHp9gIOGh4eGhIF9e3h3eHp8f4OFh4iHhYJ+e3l3d3l7foKFh4iHhoN/fHl3d3h6fYGEh4iIhoSAfXp4d3d5fICDhoiIh4WBfnp4d3d4e3+DhoiJiIaDf3t4d3Z4en6ChYiJiYeEgHx5d3Z3eX2BhIeJiYiFgX16d3Z2eHt/g4eJiYiGgn56d3Z2d3p+goaJiomHg397eHZ1dnl9gYWIioqIhYF8eXZ1dnh8gISIioqJhoJ+eXZ1dXd6f4OHiYqKh4N/end1dXZ5fYKGiYuKiISAfHh1dHV4fIGFiYuLiYaBfXl1dHV3e3+EiIqLioeDfnp2dHR2eX6Dh4qLi4iEf3t3dHR1eHyBhomLi4mGgXx4dXN0d3uAhYmLjIqHgn15dXNzdnp+g4iLjIuIhH96dnNzdXh9goeKjIyJhYB7d3RzdHd7gYaKjIyKh4J8eHRyc3Z6f4SJjI2LiIN+eXVycnR4fYOIi42MiYWAenZzcnN3fIGHi42Ni4eBfHdzcnN2eoCFio2NjIiDfXh0cnJ0eX6EiYyOjYmFf3l1cnFzd3yCiIyOjYuGgHt2cnFydnuBhouOjoyIgnx3c3FxdHl/hYqNjo2JhH54dHFxc3d9g4mNj46LhoB6dXFwcnZ7goeMjo+Mh4J7dnJwcXR6gIaLjo+NiYN9d3NwcHN4foSKjo+Oi4V/eXNwcHJ2fIKIjY+PjIeBenVxb3F0eoGHjI+QjYmDfHZyb3BzeH+Fi4+QjoqFfnhycG9ydn2Dio6Qj4yHgHl0cG9xdXuCiI2QkI2Ignt1cW9wc3mAhoyQkI+KhH12cW9vcnd+hIuPkZCMhn94c29ucHV7g4mOkZCNiIF6dHBub3N5gYeNkJGPioN8dXBub3J3foaMkJGQi4V+d3FubnB2fISKj5GRjYeAeXNvbm90eoKJjpGRjomCe3RvbW5yeH+HjZGSkIuEfXZwbm5xdn2Fi5CSkY2Hf3hybm1vdHuDio+Sko6JgXpzb21ucnmAiI6RkpCLhHx1b21tcXd+hoyRkpGMhn53cW1tb3V8hIuQkpKOiIB5cm5sbnN6gYmPkpKQioN7dG9sbXF3f4eNkpORjIV9dXBsbHB1fYWMkZOSjod/d3FtbG5ze4OKkJOTj4mCenNubG1yeICIj5KTkYuEfHRvbGxwdn6GjZKTko2GfnZwbGxudHyEi5GTk4+JgXhxbWttcnmBiZCTk5CLg3tzbmtscHd/h46TlJKNhX11b2xrb3V9hYySlJOOiH93cGxrbXN6g4qQlJSQioJ6cm1rbHF4gIiPk5SSjIR8dG5ra292foaNkpSTjod+dm9ra25ze4SMkZSUkImBeHFsa2xxeYGJkJSUkYuDe3Nta2twdn+HjpOVk42GfXVva2tudHyFjZKVlI+IgHdwbGptcnqCi5GUlJGKgnpybGpscHeAiI+UlZKNhXx0bmprbnV9ho6TlZOPh352b2tqbXN7hIySlZSQiYF4cWxqbHF4gYqQlJWSjIR7c21qa292f4ePlJWTjoZ9dW5qam10fIWNk5WUkImAd3BramxyeYKLkZWVkYuCenJsamtwd4CIkJSVk42FfHRtampudX2GjpOVlI+Hf3Zva2ptcnuDjJKVlZGKgXhxbGprcHiBipCVlZKMhHtzbWpqb3Z+h4+UlZOOhn11bmpqbXN8hY2TlZSQiYB3cGtqbHF5gouRlZWSi4N6cmxqa293gIiQlJWTjYV8dG1qam50fYaOk5WUj4h/dm9ramxyeoOMkpWVkYqCeXFramtweIGJkJWVkoyEe3NtampudX6Hj5SVlI6HfnVuamptc3yEjZOVlJCJgHdwa2pscXmCipGVlZKLg3pybGprb3d/iI+UlZONhX10bmpqbnR9ho6TlZSPiH92b2tqbHJ6g4uSlZWRioJ5cWxqa3B4gImQlJWSjIR7c21qam51foeOlJWUjod+dW5qam1ze4SMkpWUkImBeHBramxxeYKKkZWVkouDenJsamtvdn+Ij5SVk42GfXRuampudH2FjZOVlI+If3dwa2pscnqDi5GVlZGKgnlxbGprcHiAiZCUlZKMhHx0bWprb3V+ho6TlZOOh352b2tqbXN7hIySlZSQiYF4cWxqbHF5gYqQlJSRi4N7c21qa3B2f4ePk5WTjYZ9dW5ra250fIWNkpWTj4iAd3Bsam1yeoOLkZSUkIqCeXJta2xxeICIj5OUkoyEfHRua2tvdX6GjZKUk46HfnZwbGtuc3uEi5GUk5CJgXhxbGttcnmBiZCTlJGLg3tzbmtscHd/h46TlJKNhn11b2xrbXN6goqQk5OQioJ6c21rbXF4gIiOk5SRjIR8dW9sbG92fYaNkpOSjod/d3BsbG50e4OLkJOTj4mBeXJtbG1yeYGJj5OTkIuDe3RvbG1wd3+GjZKTkYyGfnZwbWxvdXyEi5GTko6IgHhybWxuc3qCiY+Sko+KgnpzbmxtcniAh46Sk5CLhH11cG1tcHZ9hYyRkpGNhn93cW1tb3R7g4qPkpKOiIF5c25tbnN5gYiOkZKPioN8dXBtbnF3foaMkZKQjIV+d3FubXB1fISLj5KRjYeAeXNvbW90eoKJjpGRjomCe3Rwbm5yeH+HjZCRj4uEfXZxbm5xdn2Fi4+RkIyGf3hyb25wdXuCiY6RkY2IgXp0cG5vc3mAh42QkY6Kg3x2cW5vcnh+hYuPkY+LhX53cm9vcXZ8g4qOkJCMh4B5dHBvcHR6gYiNkJCNiYJ7dXFvcHN5f4aMj5COioR9d3Jvb3J3fYSKjpCPi4Z/eXNwb3F2e4KIjY+PjIeBe3Vxb3F0eoCHjI+PjYmDfXdycHBzeH6Fio6PjoqFfnhzcHByd3yDiY2PjouGgHp1cXBxdXuBh4yOj4yIgnx2cnBxdHl/hYqOj42JhH54c3Fxc3h9g4mNjo6KhX96dXJxcnZ8goeMjo6Lh4F7dnJxcnV6gIaKjY6MiIN9eHNxcnR5foSJjI6NiYR/eXVycnN3fYKIjI2NioaAe3ZzcnN2e4GGio2Ni4eCfHd0cnJ1en+FiYyNjIiDfnl1cnJ0eH2DiIuNjImFgHp2c3J0d3yBhoqMjIqGgXx3dHNzdnuAhYmMjIuHg315dXNzdXl+g4iLjIuIhH96dnRzdXh9goeKjIuJhYB7d3RzdHd8gIWJi4uKhoJ9eHV0dHZ6f4SIi4uKh4N+enZ0dHZ5foKHiouLiISAe3d1dHV4fIGFiYuLiYWBfHh1dHV3e4CEiIqLiYaCfnp2dXV3en6Dh4mKioeDf3t3dXV2eX2BhomKioiEgHx4dnV2eHyAhIiKioiFgn15d3V2eHt/g4eJiomGg397eHZ2d3p+goaIiYmHhIB8eHZ2d3l9gYSHiYmHhYF9eXd2d3l8gIOGiImIhYJ+e3h2dnh7foKFiImIhoN/fHl3dnh6fYGEh4iIh4WBfnt4d3d5fH+ChYeIh4WCf3x5d3d5e36BhIeIh4aDgH16eHd4en2AhIaHh4aEgX17eXh4enx/g4WHh4aEgn58eXh4eXx/goSGh4aFgn98enh4eXt+gYOGh4eFg4B9e3l4eXt9gIOFhoaGhIF+fHp5eXp8f4KEhoaGhIJ/fHp5eXp8foGDhYaGhIKAfXt6eXp7foCDhYaGhYOBfnx6eXp7fX+ChIWGhYOBf3x7enp7fH+Bg4WFhYSCf317enp6fH6Ag4SFhYSCgH58e3p6fH6AgoSFhYSDgX99e3p6e31/gYOEhYSDgX99fHt7e31/gYKEhISDgoB+fHt7e3x+gIKDhISDgoB+fXt7e3x+f4GDhISDgoF/fXx7e3x9f4GCg4SDg4F/fnx8e3x9foCCg4ODg4KAfn18fHx9foCBgoODg4KAf318fHx9fn+BgoODg4KBf359fHx9fX+AgYKDg4KBgH59fHx8fX6AgYKDg4KBgH9+fXx9fX5/gYKCg4KBgH9+fX19fX5/gIGCgoKCgYB+fn19fX5/gIGCgoKCgYB/fn19fX5/gIGBgoKCgYB/fn59fX5+f4CBgoKCgYB/f359fX5+f4CBgYKBgYCAf35+fn5+f4CAgYGBgYGAf35+fn5+f3+AgYGBgYGAf39+fn5+f3+AgIGBgYGAgH9+fn5+f3+AgIGBgYGAgH9/fn5+f3+AgICBgYGAgH9/f35+f39/gICBgYGAgH9/f39+f39/gICAgICAgIB/f39/f39/gICAgICAgIB/f39/f39/f4CAgICAgIB/f39/f39/f4CAgICAgICAf39/f39/f4CAgICAgICAf39/f39/f4CAgICAgICAf39/f39/f3+AgICAgICAf39/f39/f3+AgICAgICAgH9/f39/f3+AgICAgICAgH9/f39/f39/gICAgICAgH9/f39/f39/gICAgICAgIB/"></audio>
+
+    <p class="hint">Speak plays the canned clip <em>and</em> the speech-synthesis line, so both the audio path and the agent-interface path can be tested.</p>
+  </main>
+
+<script>
+(function () {
+  "use strict";
+  var LINE = "I'm scripted, not live.";
+  var q = document.getElementById('q');
+  var answer = document.getElementById('answer');
+  var clip = document.getElementById('clip');
+
+  // AGENT-INTERFACE HOOK: a real agent would plug in here. Replace the body
+  // of scriptedReply() with a call to the agent (postMessage bridge, fetch,
+  // etc.) and render its reply. The status line above must then change to
+  // reflect live state — never claim "live" while this stub is in place.
+  function scriptedReply() { return LINE; }
+
+  function ask() {
+    // NOTE: intentionally ignores the input — the ONLY answer this app can
+    // ever give to anything is the line below.
+    answer.textContent = scriptedReply();
+    speak();
+  }
+
+  function speakLine() {
+    // Path 1: canned audio clip (tests the <audio> path).
+    try { clip.currentTime = 0; var p = clip.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+    // Path 2: agent-interface path via speech synthesis saying the line.
+    try {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(LINE));
+      }
+    } catch (e) {}
+  }
+
+  function speak() { answer.textContent = LINE; speakLine(); }
+  function stop() { try { clip.pause(); } catch (e) {} try { window.speechSynthesis.cancel(); } catch (e) {} }
+
+  document.getElementById('ask').addEventListener('click', ask);
+  document.getElementById('speak').addEventListener('click', speak);
+  document.getElementById('stop').addEventListener('click', stop);
+  q.addEventListener('keydown', function (e) { if (e.key === 'Enter') ask(); });
+})();
+</script>
+</body>
+</html>
