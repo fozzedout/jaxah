@@ -41,7 +41,7 @@ function normaliseApp(a) {
   a.title = a.title || a.name;
   a.icon = a.icon || '▢';
   a.size = a.size || 'window';            // small | window | full
-  a.launch = a.launch || 'auto';         // auto | window | sheet
+  a.launch = a.launch || 'auto';         // auto | window | sheet | standalone
   a.desktop = a.desktop || {};
   a.phone = a.phone || {};
   if (!a.desktop.slot) a.desktop.slot = 'window';
@@ -140,6 +140,10 @@ function focusWin(id) {
 function openApp(id) {
   var app = byId[id];
   if (!app) { floor.show('no such app: ' + id); return; }
+  if (app.launch === 'standalone') {
+    location.assign(app.url);
+    return;
+  }
   if (openWins[id]) {
     openWins[id].classList.remove('min');
     focusWin(id);

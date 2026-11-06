@@ -10,9 +10,9 @@
       "icon": "🔤",
       "url": "https://lexfall.com",
       "category": "Games",
-      "description": "Flagship word game. Graduated to its own site; framed here, standalone link in the titlebar.",
+      "description": "Flagship word game. Opens standalone on its own site.",
       "size": "window",
-      "launch": "auto",
+      "launch": "standalone",
       "desktop": { "slot": "window", "width": 980, "height": 660 },
       "phone": { "slot": "sheet" },
       "pinned": true
