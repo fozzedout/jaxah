@@ -243,6 +243,7 @@ function focusWin(id) {
   });
   refreshTasks();
   saveWins(); // focus order is the restore order
+  if (openWins[id] && location.hash !== '#app/' + id) history.replaceState(null, '', '#app/' + id);
 }
 
 function openApp(id) {
@@ -317,7 +318,11 @@ function openApp(id) {
       if (dir.indexOf('w') !== -1) w = sw - dx;
       if (dir.indexOf('n') !== -1) hh = sh - dy;
       w = Math.max(300, Math.min(w, wins.clientWidth - WINDOW_MARGIN));
-      hh = Math.max(220, Math.min(hh, wins.clientHeight - WINDOW_MARGIN));
+      var maxH = wins.clientHeight - WINDOW_MARGIN;
+      // A north resize keeps the bottom fixed, including at the stage's
+      // top margin, so the position clamp on release cannot move it.
+      if (dir.indexOf('n') !== -1) maxH = Math.min(maxH, st + sh - WINDOW_MARGIN);
+      hh = Math.max(220, Math.min(hh, maxH));
       // Anchor the opposite edge: derive the position from the clamped
       // size so dragging past the minimum cannot shift the far edge.
       var l = dir.indexOf('w') !== -1 ? sl + sw - w : sl;
@@ -465,7 +470,6 @@ function openApp(id) {
   recordWinGeo(id);
   setHalo('calm');
   try { localStorage.setItem('airis-os.last', id); } catch (e) {}
-  if (location.hash !== '#app/' + id) history.replaceState(null, '', '#app/' + id);
 }
 
 function closeApp(id) {
@@ -810,7 +814,7 @@ function boot(manifest) {
   var dm = (location.hash || '').match(/^#app\/(.+)$/);
   if (dm && byId[dm[1]]) {
     if (byId[dm[1]].launch === 'standalone') { route(); return; }
-    if (!byId[dm[1]].hidden) deepId = dm[1];
+    deepId = dm[1]; // Explicit links may open hidden apps; automatic restore may not.
   }
   var toOpen = savedWins.open.filter(function (id) {
     return byId[id] && !byId[id].hidden && byId[id].launch !== 'standalone';
