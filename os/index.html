@@ -55,7 +55,7 @@
     <header id="statusbar">
       <span id="sb-time">--:--</span>
       <span id="sb-name">Airis OS</span>
-      <span id="sb-theme" title="theme">◐</span>
+      <button id="sb-theme" title="theme" aria-label="Toggle theme">◐</button>
     </header>
 
     <main id="stage">
@@ -71,7 +71,7 @@
 
     <footer id="taskbar">
       <button id="tb-summon" aria-label="Summon Airis"><span id="halo" class="prompt-dot calm" aria-hidden="true"></span></button>
-      <div id="task-apps" aria-label="open apps"></div>
+      <div id="task-apps" role="group" aria-label="open apps"></div>
       <button id="tb-clock" title="time">--:--</button>
     </footer>
 

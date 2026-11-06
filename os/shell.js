@@ -162,7 +162,7 @@ function openApp(id) {
     '<span>' + esc(app.icon) + '</span>' +
     '<span class="w-name">' + esc(app.name) + '</span>' +
     '<span class="w-btns">' +
-    (external ? '<a class="w-ext" role="button" title="open standalone" href="' + esc(app.url) + '" target="_blank" rel="noopener">↗</a>' : '') +
+    (external ? '<a class="w-ext" title="open standalone" aria-label="open standalone" href="' + esc(app.url) + '" target="_blank" rel="noopener">↗</a>' : '') +
     '<button class="w-min" title="minimise" aria-label="minimise">–</button>' +
     '<button class="w-close" title="close" aria-label="close">×</button>' +
     '</span>';

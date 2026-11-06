@@ -93,12 +93,12 @@ button { font: inherit; color: inherit; }
 .w-title:active { cursor: grabbing; }
 .w-title .w-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .w-btns { display: flex; gap: 2px; }
-.w-btns button {
+.w-btns button, .w-btns a.w-ext {
   min-width: 40px; min-height: 40px; border: none; background: transparent; border-radius: 9px;
   cursor: pointer; font-size: 15px; color: var(--dim); text-decoration: none;
   display: inline-grid; place-items: center;
 }
-.w-btns button:hover { background: var(--tile); color: var(--ink); }
+.w-btns button:hover, .w-btns a.w-ext:hover { background: var(--tile); color: var(--ink); }
 .w-btns .w-close:hover { background: rgba(248, 113, 113, .25); color: var(--red); }
 .window iframe { flex: 1; width: 100%; min-height: 0; border: none; background: #0a1114; }
 
@@ -172,6 +172,7 @@ button { font: inherit; color: inherit; }
   background: transparent; border: none; border-bottom: 1px solid var(--tile-border);
 }
 #summon-in:focus { outline: none; }
+#summon-in:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
 #summon-out { max-height: 46vh; overflow-y: auto; padding: 6px; }
 .sr {
   display: flex; gap: 10px; align-items: center; width: 100%; text-align: left;
@@ -214,7 +215,7 @@ button { font: inherit; color: inherit; }
   }
   .window.max { inset: 0 !important; }
   .w-title { height: 56px; cursor: default; padding-top: env(safe-area-inset-top); }
-  .w-btns button { min-width: 48px; min-height: 48px; }
+  .w-btns button, .w-btns a.w-ext { min-width: 48px; min-height: 48px; }
   .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */
 
   #whisper { top: calc(46px + env(safe-area-inset-top)); bottom: auto; }
