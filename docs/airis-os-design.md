@@ -63,12 +63,14 @@ index.html — terminal visible by default; OS chrome hidden until ready
 - **Apps.** Standalone pages loaded in
   `<iframe sandbox="allow-scripts">`. Without `allow-same-origin`, apps have
   opaque origins and cannot access shell DOM or storage. No message bridge
-  is defined. Local app URLs are relative to `/os/`; Lexfall is the explicit
-  external exception at `https://lexfall.com`, also allowed by the shell CSP.
+  is defined. Local app URLs are relative to `/os/`. Lexfall opens standalone
+  in its own browser tab at `https://lexfall.com` because the site sends
+  `frame-ancestors 'none'`, which forbids embedding.
 
 The sandbox bounds each app to its own rectangle. The shell CSP limits
-scripts, assets, media, and connections to the static site, with Lexfall
-allowed as an external frame. The shell adds no auth or backend.
+scripts, assets, media, and connections to the static site. Its frame policy
+still allows Lexfall, but the manifest launches it standalone rather than in
+an external frame. The shell adds no auth or backend.
 
 ## 3. Terminal fallback: the floor everything stands on
 
@@ -113,6 +115,9 @@ The windows container has one fixed stacking context above home-screen
 chrome (including the dock, markers, and Whisper Strip). Individual window
 focus changes only the order inside that container. Summon is above it in
 its own fixed layer, so repeated window focus cannot cover the palette.
+Desktop windows stay within the stage's 10px margins on cascade, drag, and
+resize, keeping them above the taskbar and clear of its Halo. Window heights
+shrink below the usual 220px minimum when the stage is too short to fit it.
 Desktop taskbar controls remain outside the app work area. Phone sheets
 fill their area even after resizing from desktop, and the dock cannot
 intercept taps in an app. Sandboxed app code cannot alter these layers.

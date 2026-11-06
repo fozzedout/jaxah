@@ -81,7 +81,7 @@ button { font: inherit; color: inherit; }
   background: var(--glass); border: 1px solid var(--tile-border);
   box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  min-width: 300px; min-height: 220px;
+  min-width: 300px; min-height: min(220px, calc(100% - 20px));
 }
 .window.min { display: none; }
 .window.max { inset: 10px !important; width: auto !important; height: auto !important; }

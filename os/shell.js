@@ -116,18 +116,42 @@ document.addEventListener('keydown', function (e) {
 });
 
 /* ── window manager (desktop) / sheet (phone) ─────────────────────────── */
+var WINDOW_MARGIN = 10; // Matches .window.max's inset; keeps apps clear of the taskbar/Halo.
+
 function sizeFor(app) {
   var vw = wins.clientWidth, vh = wins.clientHeight;
+  var maxW = Math.max(0, vw - WINDOW_MARGIN * 2);
+  var maxH = Math.max(0, vh - WINDOW_MARGIN * 2);
   var w, h;
   if (app.size === 'small') { w = 480; h = 560; }
-  else if (app.size === 'full') { w = vw - 20; h = vh - 20; }
+  else if (app.size === 'full') { w = maxW; h = maxH; }
   else { // "window"
     var dw = app.desktop.width || 920, dh = app.desktop.height || 620;
     w = vw >= 1024 ? dw : Math.min(dw, vw - 40);
     h = Math.min(dh, vh - 140);
   }
-  return { w: Math.max(300, Math.min(w, vw - 20)), h: Math.max(220, Math.min(h, vh - 20)) };
+  return { w: Math.min(maxW, Math.max(300, w)), h: Math.min(maxH, Math.max(220, h)) };
 }
+
+function fitWin(el, app) {
+  if (isPhone() || app.size === 'full') return;
+  // #windows ends at the taskbar's top edge. Fit the whole window, not
+  // just its title bar, so the prompt marker below it remains clear.
+  var s = sizeFor(app);
+  var left = parseFloat(el.style.left) || WINDOW_MARGIN;
+  var top = parseFloat(el.style.top) || WINDOW_MARGIN;
+  el.style.width = s.w + 'px';
+  el.style.height = s.h + 'px';
+  el.style.left = Math.max(WINDOW_MARGIN, Math.min(left, wins.clientWidth - s.w - WINDOW_MARGIN)) + 'px';
+  el.style.top = Math.max(WINDOW_MARGIN, Math.min(top, wins.clientHeight - s.h - WINDOW_MARGIN)) + 'px';
+}
+
+// Also refit after returning from the hidden terminal, and include minimised
+// windows so restoring one after a resize cannot bring back stale geometry.
+new ResizeObserver(function () {
+  if (!wins.clientWidth || !wins.clientHeight) return;
+  Object.keys(openWins).forEach(function (id) { fitWin(openWins[id], byId[id]); });
+}).observe(wins);
 
 function focusWin(id) {
   Object.keys(openWins).forEach(function (k) {
@@ -183,10 +207,9 @@ function openApp(id) {
   if (app.size !== 'full' && !isPhone()) {
     var s = sizeFor(app);
     var n = cascade++ % 6;
-    el.style.width = s.w + 'px';
-    el.style.height = s.h + 'px';
-    el.style.left = Math.max(10, (wins.clientWidth - s.w) / 2 + (n - 2) * 28) + 'px';
-    el.style.top = Math.max(10, (wins.clientHeight - s.h) / 3 + (n - 2) * 24) + 'px';
+    el.style.left = (wins.clientWidth - s.w) / 2 + (n - 2) * 28 + 'px';
+    el.style.top = (wins.clientHeight - s.h) / 3 + (n - 2) * 24 + 'px';
+    fitWin(el, app);
   }
   el.style.zIndex = ++zTop;
 
@@ -198,8 +221,9 @@ function openApp(id) {
     var dx = ev.clientX - r.left, dy = ev.clientY - r.top;
     title.setPointerCapture && title.setPointerCapture(ev.pointerId);
     var move = function (me) {
-      el.style.left = Math.min(wins.clientWidth - 80, Math.max(-r.width + 80, me.clientX - dx)) + 'px';
-      el.style.top = Math.min(wins.clientHeight - 46, Math.max(0, me.clientY - dy)) + 'px';
+      el.style.left = me.clientX - dx + 'px';
+      el.style.top = me.clientY - dy + 'px';
+      fitWin(el, app);
     };
     var up = function () {
       title.removeEventListener('pointermove', move);
