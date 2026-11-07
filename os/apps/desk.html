@@ -1,0 +1,2298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Desk — Airis OS</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #e8f1f0;
+    --dim: #9fb8b4;
+    --faint: #7d9490;
+    --teal: #5eead4;
+    --amber: #e6b57a;
+    --line: rgba(255,255,255,.12);
+    --tile: rgba(255,255,255,.06);
+    --glass: rgba(9,22,26,.72);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: radial-gradient(100% 85% at 50% 0%, #16403c 0%, #0b1e24 52%, #060c11 100%);
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .panel {
+    border-radius: 16px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 16px 36px rgba(0,0,0,.42);
+  }
+  #stage { position: fixed; inset: 0; }
+  #gl {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    touch-action: none; cursor: crosshair;
+  }
+  #ui { position: absolute; inset: 0; pointer-events: none; }
+  #ui > * { pointer-events: auto; }
+
+  #title {
+    position: absolute; top: 14px; left: 14px; padding: 10px 14px 11px;
+    max-width: 300px;
+  }
+  #title h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .2px; }
+  #title p { margin: 3px 0 0; font-size: 11.5px; line-height: 1.4; color: var(--dim); }
+
+  /* Legend lives in the back-right corner: the desk's far edge is the
+     narrow end of the trapezoid, so this panel mostly covers bare floor. */
+  #legend {
+    position: absolute; right: 14px; top: 14px;
+    width: 306px; max-width: calc(100vw - 28px);
+    overflow: hidden;
+  }
+  #legend-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    width: 100%; padding: 9px 12px; font: inherit; font-size: 10.5px; letter-spacing: .7px;
+    text-transform: uppercase; color: var(--dim);
+    background: transparent; border: 0; cursor: pointer;
+  }
+  #legend-toggle:hover { color: var(--ink); }
+  #legend-toggle .chev { color: var(--teal); font-size: 10px; }
+  #legend ul {
+    margin: 0; padding: 2px 12px 11px; list-style: none;
+    display: grid; gap: 6px; font-size: 11.5px; line-height: 1.38; color: var(--dim);
+  }
+  #legend[data-open="false"] ul { display: none; }
+  #legend li b { color: var(--ink); font-weight: 600; }
+  #legend li.dis {
+    margin-top: 2px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08);
+    color: var(--faint);
+  }
+  #legend kbd {
+    font: inherit; font-size: 11px; color: #06201d; background: var(--teal);
+    border-radius: 5px; padding: 0 5px;
+  }
+
+  #bar { position: absolute; right: 14px; bottom: 14px; display: flex; gap: 8px; }
+  button.action {
+    padding: 10px 14px; font: inherit; font-size: 12.5px; border-radius: 12px;
+    border: 1px solid var(--line); background: #134e4a; color: #ecfdf5;
+    cursor: pointer; min-height: 40px;
+  }
+  button.action:hover { background: #0f766e; }
+  button.action.ghost { background: rgba(255,255,255,.06); }
+  button.action.ghost:hover { background: rgba(255,255,255,.12); }
+  button:focus-visible, #legend-toggle:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+  #hint {
+    position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
+    max-width: min(560px, calc(100vw - 40px));
+    padding: 9px 16px; border-radius: 999px;
+    background: rgba(8,20,24,.74); border: 1px solid rgba(94,234,212,.22);
+    color: #bfe6e0; font-size: 12.5px; text-align: center;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    transition: opacity .8s ease, transform .8s ease;
+    pointer-events: none;
+  }
+  #hint.gone { opacity: 0; transform: translate(-50%, 10px); }
+
+  #tip {
+    position: absolute; left: 0; top: 0;
+    padding: 6px 10px; border-radius: 9px;
+    background: rgba(8,20,24,.88); border: 1px solid rgba(94,234,212,.3);
+    box-shadow: 0 10px 24px rgba(0,0,0,.45);
+    font-size: 12px; color: #d9fbf4; white-space: nowrap;
+    pointer-events: none !important;
+  }
+  #tip b { color: #fff; font-weight: 600; }
+  #tip span { color: var(--amber); }
+  #tip[hidden] { display: none; }
+
+  /* The chrome is a HUD: only its controls take the pointer, so the whole
+     desk stays playable straight through the title and legend panels. */
+  #title { pointer-events: none; }
+  #legend { pointer-events: none; }
+  #legend-toggle { pointer-events: auto; }
+
+  @media (max-width: 760px) {
+    #title { max-width: 200px; padding: 8px 12px 9px; }
+    #title p { display: none; }
+    #legend {
+      left: 14px; right: 14px; top: auto; bottom: 66px;
+      width: auto; max-width: none;
+    }
+    #hint { bottom: 124px; font-size: 12px; }
+    #bar { gap: 6px; }
+    button.action { padding: 9px 11px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" aria-label="Physics desk. Drag files with the pointer; the legend lists the gestures."></canvas>
+
+  <div id="ui">
+    <div class="panel" id="title">
+      <h1>🗂️ Desk</h1>
+      <p>Physics desk experiment. Gestures are the verbs, space is the noun.</p>
+    </div>
+
+    <div class="panel" id="legend" data-open="true">
+      <button id="legend-toggle" type="button" aria-expanded="true">
+        <span>Gestures</span><span class="chev">▾</span>
+      </button>
+      <ul id="legend-list">
+        <li><b>Scrunch</b> — on empty desk, draw a slow loop around a few files and let go. Close the loop and pull inward to squeeze live.</li>
+        <li><b>Fan out</b> — hold ~0.3s on a pile (or grab its outer edge), then drag outward.</li>
+        <li><b>Leaf</b> — drag sideways across a pile's face. Slow = one card per 40px; a flick skims several.</li>
+        <li><b>Shove</b> — fast swipe (≈120ms) on empty desk. Topples piles and breaks clusters.</li>
+        <li><b>Tidy</b> — <kbd>T</kbd> gathers one pile per type.</li>
+        <li class="dis"><b>Pile centre:</b> slow drag = move the pile · quick non-sideways yank = pull the top card off · sideways = Leaf. Double-tap fans. Widgets never join piles.</li>
+      </ul>
+    </div>
+
+    <div id="bar">
+      <button id="tidy" class="action" type="button">Tidy types · T</button>
+      <button id="reset" class="action ghost" type="button">Reset</button>
+    </div>
+
+    <div id="hint">Lasso a few files slowly, then let go · <b>T</b> tidies by type.</div>
+    <div id="tip" hidden></div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ══════════════════════════════════════════════════════════════════
+   CONFIG — every tunable lives here.
+   Units are world units (the desk is roughly 11 × 13) and seconds.
+   itemSize / thick are derived from the desk on resize, so all the
+   spring constants below work at any window size.
+   ══════════════════════════════════════════════════════════════════ */
+const CFG = {
+  /* ── simulation ─────────────────────────────────────────────── */
+  DT: 1 / 60,               // fixed physics step
+  MAX_STEPS: 4,             // hard cap per frame — no spiral of death
+
+  /* ── desk fit (camera never moves except to refit on resize) ── */
+  FOV: 40,
+  PITCH: 56,                // degrees below horizontal; fixed tilt
+  BASE_DIST: 14,            // starting camera distance, then refit
+  AREA_TARGET: 128,         // world area the desk should roughly cover
+  DESK_FILL: 0.92,          // inset of the desk inside the visible floor
+  ITEM_AREA: 0.0135,        // itemSize² ≈ deskArea × this
+  ITEM_MIN: 0.5,
+  ITEM_MAX: 2.3,
+  THICK_RATIO: 0.10,        // card thickness as a fraction of itemSize
+
+  /* ── springs (s⁻²) and damping (s⁻¹) ────────────────────────── */
+  DRAG_K: 190, DRAG_D: 27,          // pointer spring for a held card
+  PILE_DRAG_K: 120, PILE_DRAG_D: 21, // pointer spring for a held pile
+  PILE_HOME_K: 30, PILE_HOME_D: 8.5, // tidy: pile flies to its layout slot
+  PILE_SLOT_K: 95, PILE_SLOT_D: 15,  // member -> stack slot
+  FAN_K: 75, FAN_D: 13,              // member -> fan slot
+  CLUSTER_K: 15, CLUSTER_D: 5,       // weak cohesion
+  SEP_MIN: 0.97, SEP_K: 150, SEP_CORRECT: 0.22, SEP_DAMP: 0.6,
+  WALL_K: 130, WALL_D: 11,           // soft walls
+  HEIGHT_K: 230, HEIGHT_D: 23,       // vertical (stack) spring
+  SPIN_K: 75, SPIN_D: 10,            // yaw spring
+
+  /* ── motion ─────────────────────────────────────────────────── */
+  FRICTION: 2.3,            // exponential decay of free items (1/s)
+  PILE_FRICTION: 1.6,
+  HELD_LIFT: 0.5,           // held card floats this × itemSize up
+  THROW: 0.9,
+  MAX_THROW: 20,
+
+  /* ── fan layout ─────────────────────────────────────────────── */
+  FAN_STEP: 0.52,           // card spacing as a fraction of itemSize
+  FAN_ARC: 0.30,            // rad of arc across the fan
+  FAN_LIFT: 0.55,           // per-card height stagger × thick
+
+  /* ── gestures ───────────────────────────────────────────────── */
+  HOLD_MS: 300,
+  EDGE_R: 0.34,             // pile edge ring, × itemSize
+  LEAF_AXIS: 1.55,          // |dx| > this × |dy| means "sideways"
+  LEAF_PX_SLOW: 40,         // px of travel per card under 400 px/s
+  LEAF_PX_FAST: 11,         // px per card at 1500 px/s+
+  LEAF_SPEED_LO: 400,
+  LEAF_SPEED_HI: 1500,
+  FLING_MIN: 700,           // px/s at release that starts a fling
+  FLING_PX_PER_CARD: 340,
+  FLING_MAX: 5,
+  FLING_INTERVAL: 0.09,     // seconds between fling steps (decays)
+  FLIP_HOP: 0.30,           // lift-and-slide animation length (s)
+  PEEL_SPEED: 900,          // px/s on first movement = yank a card off
+  SHOVE_WINDOW: 130,        // ms: shake detection window
+  SHOVE_SPEED: 900,         // px/s inside that window
+  SHOVE_BAND: 0.75,         // band half-width × itemSize
+  SHOVE_POWER: 5.0,
+  SHOVE_TRAIL: 0.45,        // band fade (s)
+  SQUEEZE_TIME: 0.55,       // scrunch squeeze phase (s)
+  SQUEEZE_MIN: 0.07,        // final lasso scale
+  SQUEEZE_K: 95, SQUEEZE_D: 14,
+  LOOP_CLOSE: 0.42,         // close when within this × loop radius of start
+  DBL_MS: 320
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   HELPERS
+   ══════════════════════════════════════════════════════════════════ */
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+const dist2 = (ax, az, bx, bz) => (ax - bx) * (ax - bx) + (az - bz) * (az - bz);
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.round(((n >> 16) & 255) * f));
+  const g = Math.min(255, Math.round(((n >> 8) & 255) * f));
+  const b = Math.min(255, Math.round((n & 255) * f));
+  return `rgb(${r},${g},${b})`;
+}
+
+function roundRectPath(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* Five file types — the only kinds of fake file on this desk. */
+const TYPES = {
+  document: { label: 'Document', glyph: '📄', tint: '#c98f52' },
+  image:    { label: 'Image',    glyph: '🖼️', tint: '#5f9fd6' },
+  code:     { label: 'Code',     glyph: '{}', tint: '#67c69c' },
+  note:     { label: 'Note',     glyph: '📝', tint: '#dfbd5c' },
+  link:     { label: 'Link',     glyph: '🔗', tint: '#a795ee' }
+};
+
+const SEED_FILES = [
+  ['document', 'Q3 review.docx'], ['document', 'Onboarding brief'], ['document', 'Lease renewal'],
+  ['document', 'Budget draft'], ['document', 'Contract v3'], ['document', 'Spec addendum'],
+  ['document', 'Meeting notes'],
+  ['image', 'aurora.png'], ['image', 'desk-setup.jpg'], ['image', 'screenshot-14'],
+  ['image', 'map-sketch.png'], ['image', 'portrait-2.jpg'], ['image', 'grid-study.png'],
+  ['code', 'physics.js'], ['code', 'desk.ts'], ['code', 'shader.glsl'],
+  ['code', 'raycast.js'], ['code', 'scrunch.mjs'], ['code', 'clock.ts'],
+  ['note', 'groceries'], ['note', 'idea: gravity'], ['note', 'thursday list'],
+  ['note', 'reading queue'], ['note', 'seed names'], ['note', 'why piles'],
+  ['link', 'threejs.org'], ['link', 'bumptop talk'], ['link', 'airis os'],
+  ['link', 'inertia notes'], ['link', 'grid refs']
+];
+
+const FONT = 'ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif';
+
+/* ══════════════════════════════════════════════════════════════════
+   SCENE — renderer, fixed camera, floor. The camera is a fixed
+   PerspectiveCamera looking down at CFG.PITCH degrees; it only
+   changes distance on resize so the desk always fits.
+   ══════════════════════════════════════════════════════════════════ */
+const canvas = $('#gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.setClearAlpha(0);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(CFG.FOV, 1, 0.5, 300);
+
+/* Desk rectangle in world XZ (y = 0 is the floor). Refit on resize. */
+const desk = { minX: -6, maxX: 6, minZ: -6, maxZ: 6, w: 12, d: 12, cx: 0, cz: 0 };
+let itemSize = 1.3;
+let thick = itemSize * CFG.THICK_RATIO;
+
+const TEX = {};
+TEX.grid = makeGridTexture();
+TEX.shadow = makeShadowTexture();
+
+const floorMat = new THREE.MeshBasicMaterial({ color: 0x2a1d14, transparent: true, opacity: 0.62, depthWrite: false });
+const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), floorMat);
+floorMesh.rotation.x = -Math.PI / 2;
+floorMesh.position.y = -0.02;
+scene.add(floorMesh);
+
+const gridMat = new THREE.MeshBasicMaterial({ map: TEX.grid, transparent: true, opacity: 0.9, depthWrite: false });
+const gridMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), gridMat);
+gridMesh.rotation.x = -Math.PI / 2;
+gridMesh.position.y = 0;
+scene.add(gridMesh);
+
+/* ══════════════════════════════════════════════════════════════════
+   TEXTURES — everything is drawn with CanvasTexture, system fonts only.
+   ══════════════════════════════════════════════════════════════════ */
+function makeShadowTexture() {
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(S / 2, S / 2, 2, S / 2, S / 2, S / 2);
+  grad.addColorStop(0, 'rgba(0,0,0,.72)');
+  grad.addColorStop(0.55, 'rgba(0,0,0,.34)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, S, S);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/* Faint warm grid — amber and brown, deliberately not technical blue. */
+function makeGridTexture() {
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, S, S);
+  g.strokeStyle = 'rgba(233,183,120,.15)';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(0, 1); g.lineTo(S, 1);
+  g.moveTo(1, 0); g.lineTo(1, S);
+  g.stroke();
+  g.fillStyle = 'rgba(233,183,120,.11)';
+  g.fillRect(S / 2 - 1, S / 2 - 1, 2, 2);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+function faceTexture(it) {
+  const S = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  const pad = 7;
+  g.clearRect(0, 0, S, S);
+  roundRectPath(g, pad, pad, S - 2 * pad, S - 2 * pad, 30);
+  const grad = g.createLinearGradient(0, pad, 0, S - pad);
+  grad.addColorStop(0, shade(it.tint, 1.22));
+  grad.addColorStop(0.55, it.tint);
+  grad.addColorStop(1, shade(it.tint, 0.72));
+  g.fillStyle = grad;
+  g.fill();
+  g.lineWidth = 3;
+  g.strokeStyle = 'rgba(255,255,255,.38)';
+  g.stroke();
+
+  g.save();
+  g.globalAlpha = 0.1;
+  g.fillStyle = '#ffffff';
+  roundRectPath(g, pad + 9, pad + 9, S - 2 * pad - 18, 58, 18);
+  g.fill();
+  g.restore();
+
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = '84px ' + EMOJI_FONT;
+  g.fillStyle = '#10201d';
+  g.fillText(it.glyph, S / 2, S * 0.38);
+
+  let size = 27;
+  g.font = `600 ${size}px ${FONT}`;
+  while (g.measureText(it.name).width > S - 56 && size > 15) {
+    size -= 1;
+    g.font = `600 ${size}px ${FONT}`;
+  }
+  let txt = it.name;
+  if (g.measureText(txt).width > S - 44) {
+    while (txt.length > 4 && g.measureText(txt + '…').width > S - 44) txt = txt.slice(0, -1);
+    txt += '…';
+  }
+  g.fillStyle = 'rgba(12,26,24,.88)';
+  g.fillText(txt, S / 2, S * 0.72);
+
+  g.font = `600 16px ${FONT}`;
+  g.fillStyle = 'rgba(12,26,24,.5)';
+  g.fillText((TYPES[it.kind] ? TYPES[it.kind].label : 'Widget').toUpperCase(), S / 2, S * 0.85);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function labelTexture(text) {
+  const W = 256, H = 64;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, W, H);
+  roundRectPath(g, 2, 6, W - 4, H - 12, 22);
+  g.fillStyle = 'rgba(8,20,24,.82)';
+  g.fill();
+  g.lineWidth = 2;
+  g.strokeStyle = 'rgba(94,234,212,.35)';
+  g.stroke();
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  let size = 26;
+  g.font = `600 ${size}px ${FONT}`;
+  while (g.measureText(text).width > W - 34 && size > 12) {
+    size -= 1;
+    g.font = `600 ${size}px ${FONT}`;
+  }
+  g.fillStyle = '#d9fbf4';
+  g.fillText(text, W / 2, H / 2);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MODEL — items, piles, clusters, fans, widgets and their labels.
+   One shared BoxGeometry + one shared PlaneGeometry for every card
+   (scaled per instance), so draw calls stay at ~3 per item.
+   ══════════════════════════════════════════════════════════════════ */
+const GEO = {
+  box: new THREE.BoxGeometry(1, 1, 1),
+  face: new THREE.PlaneGeometry(1, 1),
+  shadow: new THREE.PlaneGeometry(1, 1)
+};
+const MAT = {
+  edge: new THREE.MeshBasicMaterial({ color: 0x0e1a1c })
+};
+
+const items = [];        // every card and widget
+const piles = [];
+const clusters = [];
+const fans = [];
+const pickables = [];    // meshes the raycaster tests
+let uid = 1;
+
+function baseItem(spec) {
+  return {
+    id: uid++,
+    kind: spec.kind,
+    name: spec.name,
+    glyph: spec.glyph || '',
+    tint: spec.tint || '#8fa8a4',
+    isWidget: !!spec.isWidget,
+    widgetKind: spec.widgetKind || null,
+    x: spec.x, z: spec.z,
+    vx: 0, vz: 0,
+    y: spec.y || 0, vy: 0,
+    rot: spec.rot != null ? spec.rot : (Math.random() - 0.5) * 0.05,
+    rv: 0, rotT: 0,
+    group: null, fan: null, held: false,
+    slot: { x: spec.x, z: spec.z, y: 0, rot: 0, k: 0, d: 0 },
+    hx: spec.x, hz: spec.z,
+    hopT: 0, hopDur: 0.3, hopAmp: 0,
+    count: 0, lastSecond: -1
+  };
+}
+
+function mountCard(it, texture) {
+  const g3 = new THREE.Group();
+  g3.scale.setScalar(itemSize);
+  g3.position.set(it.x, it.y, it.z);
+  g3.rotation.y = it.rot;
+
+  // dark slab under the face — this is the "thickness" that stacks
+  const box = new THREE.Mesh(GEO.box, MAT.edge);
+  box.scale.set(0.90, CFG.THICK_RATIO, 0.90);
+  box.position.y = CFG.THICK_RATIO * 0.5;
+  box.userData.item = it;
+  g3.add(box);
+
+  const mat = new THREE.MeshBasicMaterial({
+    map: texture, transparent: false, alphaTest: 0.3, side: THREE.FrontSide
+  });
+  const face = new THREE.Mesh(GEO.face, mat);
+  face.rotation.x = -Math.PI / 2;
+  face.position.y = CFG.THICK_RATIO + 0.004;
+  face.userData.item = it;
+  g3.add(face);
+  scene.add(g3);
+
+  // soft shadow that grows + fades as the card lifts
+  const shMat = new THREE.MeshBasicMaterial({
+    map: TEX.shadow, transparent: true, opacity: 0.34, depthWrite: false
+  });
+  const sh = new THREE.Mesh(GEO.shadow, shMat);
+  sh.rotation.x = -Math.PI / 2;
+  sh.position.set(it.x, 0.02, it.z);
+  sh.renderOrder = 1;
+  scene.add(sh);
+
+  it.g3 = g3;
+  it.face = face;
+  it.box = box;
+  it.shadow = sh;
+  pickables.push(box, face);
+}
+
+function makeItem(kind, name, x, z) {
+  const t = TYPES[kind];
+  const it = baseItem({ kind, name, glyph: t.glyph, tint: t.tint, x, z });
+  mountCard(it, faceTexture(it));
+  items.push(it);
+  return it;
+}
+
+function makeWidget(widgetKind, name, x, z, draw) {
+  const it = baseItem({ kind: 'widget', name, glyph: '▦', tint: '#16292d', x, z, isWidget: true, widgetKind });
+  it.draw = draw;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  it.ctx = c.getContext('2d');
+  draw(it.ctx, it);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  it.texture = tex;
+  mountCard(it, tex);
+  items.push(it);
+  return it;
+}
+
+/* ── DOM tooltip / 3D pile labels ───────────────────────────────── */
+const tipEl = $('#tip');
+
+function pileLabelText(p) {
+  const n = p.members.length;
+  if (!n) return '';
+  const k0 = p.members[0].kind;
+  const uniform = p.members.every((m) => m.kind === k0);
+  if (uniform && TYPES[k0]) return TYPES[k0].label + ' · ' + n;
+  return p.members[n - 1].name + ' · ' + n;
+}
+
+function refreshPileLabel(p) {
+  const text = pileLabelText(p);
+  if (!text) return;
+  p.labelText = text;
+  if (!p.label) {
+    const mat = new THREE.SpriteMaterial({ transparent: true, depthWrite: false });
+    p.label = new THREE.Sprite(mat);
+    p.label.renderOrder = 6;
+    scene.add(p.label);
+  }
+  const tex = labelTexture(text);
+  if (p.label.material.map) p.label.material.map.dispose();
+  p.label.material.map = tex;
+  p.label.material.needsUpdate = true;
+}
+
+/* ── piles ──────────────────────────────────────────────────────── */
+function createPile(x, z, members) {
+  const p = {
+    id: uid++, kind: 'pile',
+    x, z, vx: 0, vz: 0,
+    tx: x, tz: z,
+    rot: 0, held: false, home: false,
+    members: [], label: null, labelText: ''
+  };
+  piles.push(p);
+  for (const it of members) attachToPile(p, it);
+  refreshPileLabel(p);
+  return p;
+}
+
+function attachToPile(p, it) {
+  detach(it);
+  it.held = false;
+  it.group = p;
+  p.members.push(it);
+}
+
+function addToPile(p, it) {
+  attachToPile(p, it);
+  refreshPileLabel(p);
+}
+
+function detachFromPile(p, it) {
+  const i = p.members.indexOf(it);
+  if (i >= 0) p.members.splice(i, 1);
+  if (it.group === p) it.group = null;
+  if (p.members.length === 0) removePile(p);
+  else refreshPileLabel(p);
+}
+
+function removePile(p) {
+  const i = piles.indexOf(p);
+  if (i >= 0) piles.splice(i, 1);
+  if (p.label) {
+    scene.remove(p.label);
+    if (p.label.material.map) p.label.material.map.dispose();
+    p.label.material.dispose();
+    p.label = null;
+  }
+}
+
+/* ── clusters (loose groups with weak cohesion) ─────────────────── */
+function makeCluster(members) {
+  const list = members.filter((m) => m);
+  if (list.length < 2) return null;
+  const c = {
+    id: uid++, kind: 'cluster', members: [],
+    x: list[0].x, z: list[0].z
+  };
+  clusters.push(c);
+  for (const it of list) {
+    it.group = c;
+    it.fan = null;
+    c.members.push(it);
+  }
+  return c;
+}
+
+function detachFromCluster(c, it) {
+  const i = c.members.indexOf(it);
+  if (i >= 0) c.members.splice(i, 1);
+  if (it.group === c) it.group = null;
+  if (c.members.length < 2) {
+    const j = clusters.indexOf(c);
+    if (j >= 0) clusters.splice(j, 1);
+    for (const m of c.members) m.group = null;
+    c.members.length = 0;
+  }
+}
+
+/* ── fans (fanned-out cards that hold their slots) ──────────────── */
+function convertPileToFan(pile) {
+  const fan = {
+    id: uid++,
+    members: pile.members.slice(),
+    ax: pile.x, az: pile.z,
+    dx: 0, dz: 1, amount: 0.22, rot: 0
+  };
+  pile.members.length = 0;
+  removePile(pile);
+  for (const it of fan.members) {
+    it.group = null;
+    it.fan = fan;
+  }
+  fans.push(fan);
+  return fan;
+}
+
+function detachFromFan(it) {
+  const f = it.fan;
+  if (!f) return;
+  const i = f.members.indexOf(it);
+  if (i >= 0) f.members.splice(i, 1);
+  it.fan = null;
+  if (f.members.length < 2) {
+    const j = fans.indexOf(f);
+    if (j >= 0) fans.splice(j, 1);
+    for (const m of f.members) { m.fan = null; m.group = null; }
+    f.members.length = 0;
+  }
+}
+
+/* Detach an item from whatever grouping it is in (pile / cluster / fan). */
+function detach(it) {
+  if (it.fan) detachFromFan(it);
+  if (it.group) {
+    if (it.group.kind === 'pile') detachFromPile(it.group, it);
+    else if (it.group.kind === 'cluster') detachFromCluster(it.group, it);
+  }
+  it.group = null;
+  it.fan = null;
+}
+
+/* ── widgets ────────────────────────────────────────────────────── */
+function drawClock(ctx, it) {
+  const S = 256;
+  ctx.clearRect(0, 0, S, S);
+  roundRectPath(ctx, 7, 7, S - 14, S - 14, 34);
+  ctx.fillStyle = '#0c2126';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(94,234,212,.5)';
+  ctx.stroke();
+
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#8ef0e2';
+  ctx.font = `700 72px ${FONT}`;
+  ctx.fillText(hh + ':' + mm, S / 2, S * 0.44);
+  ctx.font = `600 30px ${FONT}`;
+  ctx.fillStyle = 'rgba(230,181,122,.92)';
+  ctx.fillText(':' + ss, S / 2, S * 0.66);
+  ctx.font = `600 17px ${FONT}`;
+  ctx.fillStyle = 'rgba(159,184,180,.8)';
+  ctx.fillText('CLOCK · DRAG ME', S / 2, S * 0.84);
+}
+
+function drawCounter(ctx, it) {
+  const S = 256;
+  ctx.clearRect(0, 0, S, S);
+  roundRectPath(ctx, 7, 7, S - 14, S - 14, 34);
+  ctx.fillStyle = '#0c2126';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(230,181,122,.5)';
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f2d9b0';
+  ctx.font = `700 92px ${FONT}`;
+  ctx.fillText(String(it.count), S / 2, S * 0.42);
+  ctx.font = `600 19px ${FONT}`;
+  ctx.fillStyle = 'rgba(159,184,180,.85)';
+  ctx.fillText('TAPS', S / 2, S * 0.62);
+  ctx.fillStyle = 'rgba(94,234,212,.75)';
+  ctx.font = `600 16px ${FONT}`;
+  ctx.fillText('TAP ME', S / 2, S * 0.84);
+}
+
+function tickWidgets() {
+  const sec = Math.floor(Date.now() / 1000);
+  for (const it of items) {
+    if (it.widgetKind === 'clock' && it.lastSecond !== sec) {
+      it.lastSecond = sec;
+      it.draw(it.ctx, it);
+      it.texture.needsUpdate = true;
+    }
+  }
+}
+
+function tapWidget(it) {
+  if (it.widgetKind === 'counter') {
+    it.count += 1;
+    it.draw(it.ctx, it);
+    it.texture.needsUpdate = true;
+  }
+  it.hopT = it.hopDur = 0.22;
+  it.hopAmp = itemSize * 0.16;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SEED / RESET
+   ══════════════════════════════════════════════════════════════════ */
+function seedWorld() {
+  const rand = mulberry32(0x51edbeef);
+  const margin = itemSize * 0.75;
+  const placed = [];
+  const made = [];
+
+  for (const [kind, name] of SEED_FILES) {
+    let best = null;
+    let bestD = -1;
+    for (let tries = 0; tries < 60; tries++) {
+      const x = lerp(desk.minX + margin, desk.maxX - margin, 0.06 + rand() * 0.88);
+      const z = lerp(desk.minZ + margin, desk.maxZ - margin, 0.06 + rand() * 0.88);
+      let dmin = Infinity;
+      for (const q of placed) dmin = Math.min(dmin, Math.hypot(q.x - x, q.z - z));
+      if (dmin > bestD) { bestD = dmin; best = { x, z }; }
+      if (dmin > itemSize * 1.3) break;
+    }
+    const it = makeItem(kind, name, best.x, best.z);
+    it.rot = (rand() - 0.5) * 0.09;
+    placed.push({ x: best.x, z: best.z });
+    made.push(it);
+  }
+
+  // Two starting piles: documents and code.
+  const docs = made.filter((it) => it.kind === 'document').slice(0, 4);
+  const codes = made.filter((it) => it.kind === 'code').slice(0, 3);
+  const pileA = { x: -desk.w * 0.22, z: desk.cz - desk.d * 0.12 };
+  const pileB = { x: desk.w * 0.1, z: desk.cz + desk.d * 0.2 };
+  for (const [anchor, list] of [[pileA, docs], [pileB, codes]]) {
+    const p = createPile(anchor.x, anchor.z, list);
+    for (const it of list) {
+      it.x = anchor.x + (rand() - 0.5) * itemSize * 0.12;
+      it.z = anchor.z + (rand() - 0.5) * itemSize * 0.12;
+      it.hopT = it.hopDur = 0.5;
+      it.hopAmp = itemSize * 0.1;
+    }
+    p.rot = (rand() - 0.5) * 0.1;
+  }
+
+  // One seeded cluster: loose notes that a shove has not collapsed yet.
+  const notes = made.filter((it) => it.kind === 'note').slice(0, 3);
+  const spot = { x: desk.w * 0.28, z: desk.minZ + desk.d * 0.22 };
+  notes.forEach((it, i) => {
+    it.x = spot.x + Math.cos(i * 2.1) * itemSize * 0.55;
+    it.z = spot.z + Math.sin(i * 2.1) * itemSize * 0.55;
+  });
+  makeCluster(notes);
+
+  // Widgets sit at the front corners and never join piles.
+  makeWidget('clock', 'Clock', -desk.w * 0.3, desk.maxZ - itemSize * 1.15, drawClock);
+  makeWidget('counter', 'Taps', desk.w * 0.3, desk.maxZ - itemSize * 1.15, drawCounter);
+}
+
+function resetDesk() {
+  squeeze = null;
+  leafFling = null;
+  hoverPile = null;
+  resetGesture();
+  hideLoop();
+  for (const it of items) {
+    scene.remove(it.g3);
+    scene.remove(it.shadow);
+    if (it.face.material.map) it.face.material.map.dispose();
+    it.face.material.dispose();
+    it.shadow.material.dispose();
+  }
+  items.length = 0;
+  pickables.length = 0;
+  for (const p of piles.slice()) removePile(p);
+  piles.length = 0;
+  clusters.length = 0;
+  fans.length = 0;
+  hideHint();
+  seedWorld();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PHYSICS — hand-rolled, 2D on the floor (x,z) plus a height per item.
+   Fixed timestep + accumulator; springs and dampers everywhere;
+   pairwise separation between items that are not in the same pile.
+   Every number is in CFG at the top so the feel can be tuned.
+   ══════════════════════════════════════════════════════════════════ */
+let squeeze = null;   // { entries, cx, cz, scale, scale0, k, t, dur, live, poly }
+
+function assignSlots() {
+  // cluster centroids first
+  for (const c of clusters) {
+    let sx = 0, sz = 0, n = 0;
+    for (const it of c.members) { sx += it.x; sz += it.z; n++; }
+    if (n) { c.x = sx / n; c.z = sz / n; }
+  }
+
+  for (const it of items) {
+    const s = it.slot;
+    s.k = 0;
+    s.d = 0;
+
+    if (it.held) {
+      s.x = it.hx;
+      s.z = it.hz;
+      s.y = itemSize * CFG.HELD_LIFT;
+      s.rot = it.rotT;
+      s.k = CFG.DRAG_K;
+      s.d = CFG.DRAG_D;
+    } else if (it.fan) {
+      const f = it.fan;
+      const n = f.members.length;
+      const i = f.members.indexOf(it);
+      const t = n > 1 ? i - (n - 1) / 2 : 0;
+      const off = t * itemSize * CFG.FAN_STEP * f.amount;
+      s.x = f.ax + f.dx * off;
+      s.z = f.az + f.dz * off;
+      s.rot = f.rot + t * CFG.FAN_ARC * f.amount;
+      s.y = i * thick * CFG.FAN_LIFT;
+      s.k = CFG.FAN_K;
+      s.d = CFG.FAN_D;
+    } else if (it.group && it.group.kind === 'pile') {
+      const p = it.group;
+      const i = p.members.indexOf(it);
+      s.x = p.x;
+      s.z = p.z;
+      s.y = i * thick + (p.held ? itemSize * 0.14 : 0);
+      s.rot = p.rot + (i % 2 ? 0.018 : -0.012);
+      s.k = CFG.PILE_SLOT_K;
+      s.d = CFG.PILE_SLOT_D;
+    } else if (it.group && it.group.kind === 'cluster') {
+      const c = it.group;
+      s.x = c.x;
+      s.z = c.z;
+      s.y = 0;
+      s.rot = it.rotT;
+      s.k = CFG.CLUSTER_K;
+      s.d = CFG.CLUSTER_D;
+    } else {
+      s.x = it.x;
+      s.z = it.z;
+      s.y = 0;
+      s.rot = it.rotT;
+    }
+    it.rotT = s.rot;
+  }
+
+  // A scrunch overrides the slots of the enclosed items: they are pulled
+  // toward the shrinking lasso, ramping up as the squeeze progresses.
+  if (squeeze) {
+    for (const e of squeeze.entries) {
+      const s = e.it.slot;
+      s.x = squeeze.cx + (e.hx - squeeze.cx) * squeeze.scale;
+      s.z = squeeze.cz + (e.hz - squeeze.cz) * squeeze.scale;
+      s.y = 0;
+      s.k = squeeze.k;
+      s.d = CFG.SQUEEZE_D;
+    }
+  }
+}
+
+function stepGroups(dt) {
+  for (const p of piles) {
+    if (p.held) {
+      p.vx += ((p.tx - p.x) * CFG.PILE_DRAG_K - p.vx * CFG.PILE_DRAG_D) * dt;
+      p.vz += ((p.tz - p.z) * CFG.PILE_DRAG_K - p.vz * CFG.PILE_DRAG_D) * dt;
+    } else if (p.home) {
+      p.vx += ((p.tx - p.x) * CFG.PILE_HOME_K - p.vx * CFG.PILE_HOME_D) * dt;
+      p.vz += ((p.tz - p.z) * CFG.PILE_HOME_K - p.vz * CFG.PILE_HOME_D) * dt;
+      if (dist2(p.x, p.z, p.tx, p.tz) < 0.0016 && Math.hypot(p.vx, p.vz) < 0.15) p.home = false;
+    } else {
+      const f = Math.exp(-CFG.PILE_FRICTION * dt);
+      p.vx *= f;
+      p.vz *= f;
+    }
+    p.x += p.vx * dt;
+    p.z += p.vz * dt;
+    const m = itemSize * 0.5;
+    p.x = clamp(p.x, desk.minX + m, desk.maxX - m);
+    p.z = clamp(p.z, desk.minZ + m, desk.maxZ - m);
+  }
+}
+
+function separate(dt) {
+  const n = items.length;
+  const minD = itemSize * CFG.SEP_MIN;
+  const minD2 = minD * minD;
+  for (let i = 0; i < n; i++) {
+    const a = items[i];
+    if (a.held) continue; // a held card is in the air: it passes over things
+    for (let j = i + 1; j < n; j++) {
+      const b = items[j];
+      if (b.held) continue;
+      if (a.group && a.group === b.group && a.group.kind === 'pile') continue;
+      if (a.fan && a.fan === b.fan) continue;
+      let dx = b.x - a.x;
+      let dz = b.z - a.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= minD2) continue;
+      let d = Math.sqrt(d2);
+      if (d < 1e-5) {
+        dx = (Math.random() - 0.5) * 0.02;
+        dz = (Math.random() - 0.5) * 0.02;
+        d = Math.hypot(dx, dz) || 0.02;
+      }
+      const nx = dx / d;
+      const nz = dz / d;
+      const overlap = minD - d;
+
+      const f = overlap * CFG.SEP_K * dt;
+      a.vx -= nx * f;
+      a.vz -= nz * f;
+      b.vx += nx * f;
+      b.vz += nz * f;
+
+      const corr = overlap * CFG.SEP_CORRECT;
+      a.x -= nx * corr;
+      a.z -= nz * corr;
+      b.x += nx * corr;
+      b.z += nz * corr;
+
+      const rel = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;
+      if (rel < 0) {
+        const imp = -rel * CFG.SEP_DAMP;
+        a.vx -= nx * imp;
+        a.vz -= nz * imp;
+        b.vx += nx * imp;
+        b.vz += nz * imp;
+      }
+    }
+  }
+}
+
+function walls(dt) {
+  const m = itemSize * 0.5;
+  const loX = desk.minX + m, hiX = desk.maxX - m;
+  const loZ = desk.minZ + m, hiZ = desk.maxZ - m;
+  for (const it of items) {
+    if (it.x < loX) {
+      it.vx += (loX - it.x) * CFG.WALL_K * dt;
+      it.vx *= 1 - Math.min(0.5, CFG.WALL_D * dt);
+    } else if (it.x > hiX) {
+      it.vx -= (it.x - hiX) * CFG.WALL_K * dt;
+      it.vx *= 1 - Math.min(0.5, CFG.WALL_D * dt);
+    }
+    if (it.z < loZ) {
+      it.vz += (loZ - it.z) * CFG.WALL_K * dt;
+      it.vz *= 1 - Math.min(0.5, CFG.WALL_D * dt);
+    } else if (it.z > hiZ) {
+      it.vz -= (it.z - hiZ) * CFG.WALL_K * dt;
+      it.vz *= 1 - Math.min(0.5, CFG.WALL_D * dt);
+    }
+    // hard failsafe so nothing can ever escape the desk
+    it.x = clamp(it.x, desk.minX, desk.maxX);
+    it.z = clamp(it.z, desk.minZ, desk.maxZ);
+  }
+}
+
+function applyFriction(it, dt) {
+  const free = !it.held && it.slot.k === 0;
+  const k = free ? CFG.FRICTION : 0.5;
+  const f = Math.exp(-k * dt);
+  it.vx *= f;
+  it.vz *= f;
+}
+
+function heights(dt) {
+  for (const it of items) {
+    let ty = it.slot.y;
+    if (it.hopT > 0) {
+      it.hopT = Math.max(0, it.hopT - dt);
+      const u = 1 - it.hopT / Math.max(0.001, it.hopDur);
+      ty += Math.sin(Math.PI * clamp(u, 0, 1)) * it.hopAmp;
+    }
+    it.vy += ((ty - it.y) * CFG.HEIGHT_K - it.vy * CFG.HEIGHT_D) * dt;
+    it.y += it.vy * dt;
+    if (it.y < 0) { it.y = 0; if (it.vy < 0) it.vy = 0; }
+  }
+}
+
+function spin(dt) {
+  for (const it of items) {
+    const loose = !it.group && !it.fan && !it.held;
+    if (loose && Math.hypot(it.vx, it.vz) > 0.25) {
+      it.rv *= Math.exp(-CFG.SPIN_D * dt);
+    } else {
+      it.rv += ((it.rotT - it.rot) * CFG.SPIN_K - it.rv * CFG.SPIN_D) * dt;
+    }
+    it.rot += it.rv * dt;
+  }
+}
+
+function stepSqueeze(dt) {
+  const sq = squeeze;
+  if (!sq) return;
+  sq.t += dt;
+  if (sq.live) {
+    // live squeeze: the pointer sets the scale, stiffness ramps in
+    sq.ramp = Math.min(1, sq.ramp + dt * 5);
+    sq.k = CFG.SQUEEZE_K * sq.ramp;
+    return;
+  }
+  const u = clamp(sq.t / sq.dur, 0, 1);
+  sq.scale = lerp(sq.scale0, CFG.SQUEEZE_MIN, smoothstep(u));
+  sq.k = CFG.SQUEEZE_K * (0.25 + 0.75 * u);
+  if (sq.poly) drawLoop(sq.poly, sq.scale, sq.cx, sq.cz, true);
+  if (u >= 1) finishSqueeze();
+}
+
+function finishSqueeze() {
+  const sq = squeeze;
+  squeeze = null;
+  hideLoop();
+  if (!sq) return;
+  const list = sq.entries.map((e) => e.it);
+  if (list.length >= 2) {
+    // order by distance to the centre at the end: closest ends on top
+    list.sort((a, b) => dist2(b.x, b.z, sq.cx, sq.cz) - dist2(a.x, a.z, sq.cx, sq.cz));
+    const p = createPile(sq.cx, sq.cz, list);
+    p.rot = 0;
+    for (const it of list) {
+      it.hopT = it.hopDur = 0.35;
+      it.hopAmp = itemSize * 0.22;
+    }
+  }
+}
+
+function stepSim(dt) {
+  stepSqueeze(dt);
+  stepGroups(dt);
+  assignSlots();
+
+  // spring–damper to each item's slot
+  for (const it of items) {
+    const s = it.slot;
+    if (s.k > 0) {
+      it.vx += ((s.x - it.x) * s.k - it.vx * s.d) * dt;
+      it.vz += ((s.z - it.z) * s.k - it.vz * s.d) * dt;
+    }
+  }
+
+  separate(dt);
+  walls(dt);
+
+  for (const it of items) {
+    it.x += it.vx * dt;
+    it.z += it.vz * dt;
+    applyFriction(it, dt);
+  }
+
+  heights(dt);
+  spin(dt);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PICKING & SCREEN <-> DESK MAPPING
+   ══════════════════════════════════════════════════════════════════ */
+const raycaster = new THREE.Raycaster();
+const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const ndc = new THREE.Vector2();
+
+function toNdc(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / Math.max(1, r.width)) * 2 - 1,
+    -((e.clientY - r.top) / Math.max(1, r.height)) * 2 + 1);
+  return ndc;
+}
+
+function pointerDesk(e) {
+  const v = toNdc(e);
+  raycaster.setFromCamera(v, camera);
+  const out = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(floorPlane, out)) return null;
+  return { x: out.x, z: out.z };
+}
+
+function pickItem(e) {
+  const v = toNdc(e);
+  raycaster.setFromCamera(v, camera);
+  const hits = raycaster.intersectObjects(pickables, false);
+  for (const h of hits) {
+    const it = h.object.userData.item;
+    if (it) return it; // raycaster sorts by distance: topmost card wins
+  }
+  return null;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LASSO / SHOVE VISUALS
+   ══════════════════════════════════════════════════════════════════ */
+const LOOP_MAX = 96;
+const loopArr = new Float32Array(LOOP_MAX * 3);
+const lassoGeo = new THREE.BufferGeometry();
+lassoGeo.setAttribute('position', new THREE.BufferAttribute(loopArr, 3));
+lassoGeo.setDrawRange(0, 0);
+const lassoLine = new THREE.Line(lassoGeo, new THREE.LineBasicMaterial({
+  color: 0x7fe9d6, transparent: true, opacity: 0.9, depthWrite: false
+}));
+lassoLine.frustumCulled = false;
+lassoLine.visible = false;
+scene.add(lassoLine);
+
+const fillArr = new Float32Array((LOOP_MAX - 2) * 3 * 3);
+const lassoFillGeo = new THREE.BufferGeometry();
+lassoFillGeo.setAttribute('position', new THREE.BufferAttribute(fillArr, 3));
+lassoFillGeo.setDrawRange(0, 0);
+const lassoFill = new THREE.Mesh(lassoFillGeo, new THREE.MeshBasicMaterial({
+  color: 0x5eead4, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide
+}));
+lassoFill.frustumCulled = false;
+lassoFill.visible = false;
+scene.add(lassoFill);
+
+function drawLoop(pts, scale, cx, cz, closed) {
+  const n = Math.min(pts.length, LOOP_MAX);
+  if (n < 2) { hideLoop(); return; }
+  for (let i = 0; i < n; i++) {
+    loopArr[i * 3] = cx + (pts[i].x - cx) * scale;
+    loopArr[i * 3 + 1] = 0.035;
+    loopArr[i * 3 + 2] = cz + (pts[i].z - cz) * scale;
+  }
+  lassoGeo.attributes.position.needsUpdate = true;
+  lassoGeo.setDrawRange(0, n);
+  lassoLine.visible = true;
+
+  if (closed && n > 2) {
+    let k = 0;
+    for (let i = 1; i < n - 1; i++) {
+      for (const j of [0, i, i + 1]) {
+        fillArr[k++] = cx + (pts[j].x - cx) * scale;
+        fillArr[k++] = 0.03;
+        fillArr[k++] = cz + (pts[j].z - cz) * scale;
+      }
+    }
+    lassoFillGeo.attributes.position.needsUpdate = true;
+    lassoFillGeo.setDrawRange(0, (n - 2) * 3);
+    lassoFill.visible = true;
+  } else {
+    lassoFill.visible = false;
+  }
+}
+
+function hideLoop() {
+  lassoLine.visible = false;
+  lassoFill.visible = false;
+  lassoGeo.setDrawRange(0, 0);
+  lassoFillGeo.setDrawRange(0, 0);
+}
+
+/* fading shove band */
+const transients = [];
+
+function spawnTrail(points, width, life) {
+  if (points.length < 2) return;
+  const n = points.length;
+  const verts = new Float32Array(n * 2 * 3);
+  for (let i = 0; i < n; i++) {
+    const a = points[Math.max(0, i - 1)];
+    const b = points[Math.min(n - 1, i + 1)];
+    let dx = b.x - a.x, dz = b.z - a.z;
+    const len = Math.hypot(dx, dz) || 1;
+    dx /= len; dz /= len;
+    const nx = -dz, nz = dx;
+    verts[i * 6] = points[i].x + nx * width * 0.5;
+    verts[i * 6 + 1] = 0.045;
+    verts[i * 6 + 2] = points[i].z + nz * width * 0.5;
+    verts[i * 6 + 3] = points[i].x - nx * width * 0.5;
+    verts[i * 6 + 4] = 0.045;
+    verts[i * 6 + 5] = points[i].z - nz * width * 0.5;
+  }
+  const idx = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2, b = i * 2 + 1, c = (i + 1) * 2, d = (i + 1) * 2 + 1;
+    idx.push(a, b, c, b, d, c);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  geo.setIndex(idx);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffd7a6, transparent: true, opacity: 0.32,
+    depthWrite: false, side: THREE.DoubleSide
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  transients.push({ mesh, life, max: life });
+}
+
+function updateTransients(dt) {
+  for (let i = transients.length - 1; i >= 0; i--) {
+    const t = transients[i];
+    t.life -= dt;
+    t.mesh.material.opacity = Math.max(0, 0.32 * (t.life / t.max));
+    if (t.life <= 0) {
+      scene.remove(t.mesh);
+      t.mesh.geometry.dispose();
+      t.mesh.material.dispose();
+      transients.splice(i, 1);
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   GESTURES — the whole point. Pointer events only, one active pointer.
+   ══════════════════════════════════════════════════════════════════ */
+const g = {
+  mode: 'idle', // idle | item | pilePending | fanPending | pileMove | leaf | fan | loopPending | loop | shove
+  pointerId: null,
+  downT: 0,
+  downScreen: { x: 0, y: 0 },
+  samples: [],
+  moved: false,
+  holdCue: false,
+  item: null,
+  pile: null,
+  fan: null,
+  grabOff: null,
+  loop: [],
+  loopClosed: false,
+  leafAcc: 0,
+  leafCount: 0,
+  leafLastX: 0,
+  leafDir: 1,
+  leafStep: CFG.LEAF_PX_SLOW,
+  shovePath: null,
+  firstMove: null,
+  worldVel: { x: 0, z: 0 },
+  prevW: null,
+  downWorld: { x: 0, z: 0 }
+};
+
+let hoverPile = null;
+let leafFling = null;
+const lastTap = { pile: null, t: 0 };
+
+function pushSample(e) {
+  const t = performance.now();
+  g.samples.push({ t, x: e.clientX, y: e.clientY });
+  while (g.samples.length > 14) g.samples.shift();
+}
+
+/* Smoothed pointer speed in px/s. The window is widened when samples
+   arrive faster than 12ms apart, so a zero-length sample pair can never
+   report an infinite speed. */
+function screenSpeed(k) {
+  const s = g.samples;
+  if (s.length < 2) return 0;
+  const b = s[s.length - 1];
+  let i = Math.max(0, s.length - 1 - k);
+  while (i > 0 && b.t - s[i].t < 12) i--;
+  const a = s[i];
+  const dt = Math.max(1, b.t - a.t) / 1000;
+  return Math.hypot(b.x - a.x, b.y - a.y) / dt;
+}
+
+function noteWorldVel(p) {
+  if (!p) return;
+  const t = performance.now();
+  if (!g.prevW) { g.prevW = { x: p.x, z: p.z, t }; return; }
+  const dt = Math.max(0.01, (t - g.prevW.t) / 1000);
+  const vx = (p.x - g.prevW.x) / dt;
+  const vz = (p.z - g.prevW.z) / dt;
+  g.worldVel.x = lerp(g.worldVel.x, vx, 0.45);
+  g.worldVel.z = lerp(g.worldVel.z, vz, 0.45);
+  g.prevW.x = p.x;
+  g.prevW.z = p.z;
+  g.prevW.t = t;
+}
+
+function resetGesture() {
+  g.mode = 'idle';
+  g.pointerId = null;
+  g.item = null;
+  g.pile = null;
+  g.fan = null;
+  g.grabOff = null;
+  g.loop.length = 0;
+  g.loopClosed = false;
+  g.moved = false;
+  g.holdCue = false;
+  g.prevW = null;
+  g.worldVel.x = 0;
+  g.worldVel.z = 0;
+  g.shovePath = null;
+  g.firstMove = null;
+  hideLoop();
+}
+
+/* geometry helpers for lasso */
+function loopCentroid(pts) {
+  let x = 0, z = 0;
+  for (const p of pts) { x += p.x; z += p.z; }
+  return { x: x / pts.length, z: z / pts.length };
+}
+function loopRadius(pts, c) {
+  let r = 0;
+  for (const p of pts) r += Math.hypot(p.x - c.x, p.z - c.z);
+  return r / pts.length;
+}
+function pointInLoop(x, z, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x, zi = pts[i].z, xj = pts[j].x, zj = pts[j].z;
+    if (((zi > z) !== (zj > z)) && (x < ((xj - xi) * (z - zi)) / (zj - zi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+/* ── start / stop of an item drag (also widgets) ─────────────────── */
+function beginItemDrag(it, p) {
+  detach(it);            // pulling a card out of a pile exposes the next one
+  it.held = true;
+  it.hx = it.x;
+  it.hz = it.z;
+  g.mode = 'item';
+  g.item = it;
+  g.grabOff = p ? { x: it.x - p.x, z: it.z - p.z } : { x: 0, z: 0 };
+}
+
+function startPileMove(p) {
+  const pl = g.pile;
+  pl.held = true;
+  pl.home = false;
+  pl.tx = pl.x;
+  pl.tz = pl.z;
+  g.mode = 'pileMove';
+  g.grabOff = p ? { x: pl.x - p.x, z: pl.z - p.z } : { x: 0, z: 0 };
+}
+
+/* ── FAN OUT ───────────────────────────────────────────────────────
+   Converting a pile into a fan: slots are laid along the drag vector,
+   each card offset by a fraction of its width with a small rotation
+   arc, so they stay overlapped and readable. Slots are held by
+   springs (CFG.FAN_K) after release until each card is picked.      */
+function startFan(pile, p) {
+  if (!pile || pile.members.length < 2) return;
+  const fan = convertPileToFan(pile);
+  g.mode = 'fan';
+  g.fan = fan;
+  g.pile = null;
+  fanMove(p);
+}
+
+function fanMove(p) {
+  const f = g.fan;
+  if (!f || !p) return;
+  const dx = p.x - f.ax;
+  const dz = p.z - f.az;
+  const len = Math.hypot(dx, dz);
+  if (len > itemSize * 0.08) {
+    f.dx = dx / len;
+    f.dz = dz / len;
+  }
+  // spread amount follows drag distance
+  f.amount = clamp(len / (itemSize * 2.2), 0.18, 1.8);
+}
+
+/* ── LEAFING ───────────────────────────────────────────────────────
+   Horizontal drag across a pile face flips cards. The step distance
+   shrinks with pointer speed (40px/card below 400px/s, 11px/card at
+   1500px/s+), so a flick skims. A fling after release keeps flipping
+   with a decaying rate.                                            */
+function startLeaf() {
+  g.mode = 'leaf';
+  g.leafAcc = 0;
+  g.leafCount = 0;
+  g.leafLastX = g.downScreen.x;
+  g.leafDir = 1;
+}
+
+function flipPile(pile, dir) {
+  const n = pile.members.length;
+  if (!pile || n < 2) return;
+  let it;
+  if (dir > 0) {
+    it = pile.members.pop();
+    pile.members.unshift(it);
+  } else {
+    it = pile.members.shift();
+    pile.members.push(it);
+  }
+  it.hopT = it.hopDur = CFG.FLIP_HOP;
+  it.hopAmp = itemSize * 0.85;
+  it.rv = (dir > 0 ? 1 : -1) * 1.1;
+  refreshPileLabel(pile);
+}
+
+function leafMove(e, screen, p) {
+  const pile = g.pile;
+  if (!pile) return;
+  const dx = screen.x - g.leafLastX;
+  g.leafLastX = screen.x;
+  const spd = screenSpeed(4);
+  const u = clamp((spd - CFG.LEAF_SPEED_LO) / (CFG.LEAF_SPEED_HI - CFG.LEAF_SPEED_LO), 0, 1);
+  g.leafStep = lerp(CFG.LEAF_PX_SLOW, CFG.LEAF_PX_FAST, u);
+  g.leafAcc += dx;
+  let guard = 0;
+  while (Math.abs(g.leafAcc) >= g.leafStep && guard++ < 12) {
+    const dir = g.leafAcc > 0 ? 1 : -1;
+    flipPile(pile, dir);
+    g.leafAcc -= dir * g.leafStep;
+    g.leafDir = dir;
+    g.leafCount += 1;
+  }
+  noteWorldVel(p);
+}
+
+/* ── PEEL: a quick non-sideways yank pulls the top card off ──────── */
+function startPeel(p) {
+  const pile = g.pile;
+  const top = pile.members[pile.members.length - 1];
+  if (!top) return;
+  detach(top);
+  top.held = true;
+  top.hx = top.x;
+  top.hz = top.z;
+  top.hopT = top.hopDur = 0.22;
+  top.hopAmp = itemSize * 0.5;
+  g.mode = 'item';
+  g.item = top;
+  g.grabOff = p ? { x: top.x - p.x, z: top.z - p.z } : { x: 0, z: 0 };
+  refreshPileLabel(pile);
+}
+
+/* ── decide which pile gesture the first movement means ──────────── */
+function decidePileGesture(p, dx, dy) {
+  const since = performance.now() - g.downT;
+  const spd = screenSpeed(4);
+  if (g.holdCue || since >= CFG.HOLD_MS) { startFan(g.pile, p); return; }
+  if (Math.abs(dx) > Math.abs(dy) * CFG.LEAF_AXIS) { startLeaf(); return; }
+  if (spd > CFG.PEEL_SPEED) { startPeel(p); return; }
+  startPileMove(p);
+}
+
+/* ── SHOVE ─────────────────────────────────────────────────────────
+   A fast swipe on empty desk. The band swept by the swipe gets an
+   impulse along the swipe direction; piles in it topple (members are
+   detached and become a loose cluster), clusters break apart.       */
+function startShove(p) {
+  g.mode = 'shove';
+  g.shovePath = [{ x: g.downWorld.x, z: g.downWorld.z }];
+  if (p) g.shovePath.push({ x: p.x, z: p.z });
+  hideLoop();
+}
+
+function addShovePoint(p) {
+  if (!p || !g.shovePath) return;
+  const last = g.shovePath[g.shovePath.length - 1];
+  if (Math.hypot(p.x - last.x, p.z - last.z) > itemSize * 0.06) {
+    g.shovePath.push({ x: p.x, z: p.z });
+    if (g.shovePath.length > 64) g.shovePath.shift();
+  }
+}
+
+function applyShove(a, b, speedPx) {
+  if (!a || !b) return;
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const len = Math.hypot(dx, dz);
+  if (len < itemSize * 0.3) return;
+  const ux = dx / len;
+  const uz = dz / len;
+  const band = itemSize * CFG.SHOVE_BAND;
+  const reach = band + itemSize * 0.45;
+  const power = CFG.SHOVE_POWER * clamp(speedPx / 900, 0.6, 3);
+  const toppled = new Map();
+
+  for (const it of items) {
+    const t = clamp((it.x - a.x) * ux + (it.z - a.z) * uz, 0, len);
+    const cx = a.x + ux * t;
+    const cz = a.z + uz * t;
+    const d = Math.hypot(it.x - cx, it.z - cz);
+    if (d > reach) continue;
+    const fall = 1 - d / reach;
+
+    const fromPile = it.group && it.group.kind === 'pile' ? it.group : null;
+    detach(it); // also breaks the cluster a shoved item belongs to
+    if (fromPile) {
+      if (!toppled.has(fromPile)) toppled.set(fromPile, []);
+      toppled.get(fromPile).push(it);
+    }
+
+    const imp = power * (0.35 + 0.65 * fall);
+    it.vx += ux * imp;
+    it.vz += uz * imp;
+    const side = (Math.random() - 0.5) * imp * 0.55;
+    it.vx += -uz * side;
+    it.vz += ux * side;
+    it.rv += (Math.random() - 0.5) * 4;
+    it.hopT = it.hopDur = 0.4;
+    it.hopAmp = itemSize * (0.25 + 0.5 * Math.random());
+  }
+
+  for (const members of toppled.values()) {
+    if (members.length >= 3) makeCluster(members);
+  }
+
+  const path = (g.shovePath && g.shovePath.length >= 2)
+    ? g.shovePath
+    : [{ x: a.x, z: a.z }, { x: b.x, z: b.z }];
+  spawnTrail(path, band * 2, CFG.SHOVE_TRAIL);
+}
+
+/* ── SCRUNCH ───────────────────────────────────────────────────────
+   Drag a loop on empty desk. On release the loop visibly shrinks and
+   enclosed items are pulled inward by ramping springs while still
+   colliding, then settle into a pile ordered by distance to centre.
+   Closing the loop while still down starts a live squeeze whose
+   scale follows the pointer.                                        */
+function startSqueeze(inside, c, live, poly) {
+  squeeze = {
+    entries: inside.map((it) => ({ it, hx: it.x, hz: it.z })),
+    cx: c.x, cz: c.z,
+    scale: 1, scale0: 1,
+    k: live ? CFG.SQUEEZE_K : 0,
+    ramp: live ? 0 : 1,
+    t: 0,
+    dur: CFG.SQUEEZE_TIME,
+    live: !!live,
+    poly: poly || null
+  };
+}
+
+function beginLiveSqueeze() {
+  const pts = g.loop;
+  const c = loopCentroid(pts);
+  const inside = items.filter((it) => !it.isWidget && pointInLoop(it.x, it.z, pts));
+  g.loopClosed = inside.length >= 2;
+  if (inside.length >= 2) startSqueeze(inside, c, true, pts.slice());
+}
+
+function finishLoop(p) {
+  const pts = g.loop;
+  if (pts.length < 4) { hideLoop(); squeeze = null; return; }
+  if (squeeze && squeeze.live) {
+    // already squeezed live: finish with a short snap
+    squeeze.live = false;
+    squeeze.scale0 = squeeze.scale;
+    squeeze.t = 0;
+    squeeze.dur = 0.16;
+    squeeze.ramp = 1;
+    return;
+  }
+  const c = loopCentroid(pts);
+  const inside = items.filter((it) => !it.isWidget && pointInLoop(it.x, it.z, pts));
+  if (inside.length < 2) { hideLoop(); return; }
+  startSqueeze(inside, c, false, pts.slice());
+}
+
+/* ── pointer handlers ───────────────────────────────────────────── */
+function onPointerDown(e) {
+  if (g.mode !== 'idle') return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  hideHint();
+  // The legend is a first-run aid; the moment you start playing it folds
+  // away so the whole desk is unobstructed (reopen it with the toggle).
+  if (legendEl.dataset.open === 'true') setLegend(false);
+  g.pointerId = e.pointerId;
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+
+  g.downT = performance.now();
+  g.downScreen = { x: e.clientX, y: e.clientY };
+  g.samples.length = 0;
+  pushSample(e);
+  g.moved = false;
+  g.holdCue = false;
+  g.item = null;
+  g.pile = null;
+  g.fan = null;
+  g.prevW = null;
+  g.worldVel.x = 0;
+  g.worldVel.z = 0;
+  g.loop = [];
+  g.loopClosed = false;
+  g.firstMove = null;
+
+  const p = pointerDesk(e);
+  if (!p) { g.pointerId = null; return; }
+  g.downWorld = p;
+
+  const hit = pickItem(e);
+  if (hit) {
+    if (hit.isWidget) { beginItemDrag(hit, p); return; }
+    const grp = hit.group;
+    if (grp && grp.kind === 'pile' && grp.members.length >= 2) {
+      g.pile = grp;
+      g.item = hit;
+      g.mode = 'pilePending';
+      return;
+    }
+    beginItemDrag(hit, p);
+    return;
+  }
+  g.mode = 'loopPending';
+}
+
+function onPointerMove(e) {
+  if (g.mode === 'idle') {
+    hoverCheck(e);
+    return;
+  }
+  if (e.pointerId !== g.pointerId) return;
+  pushSample(e);
+  const p = pointerDesk(e);
+  const screen = { x: e.clientX, y: e.clientY };
+  const dx = screen.x - g.downScreen.x;
+  const dy = screen.y - g.downScreen.y;
+
+  if (g.mode === 'item') {
+    if (!p) return;
+    noteWorldVel(p);
+    const it = g.item;
+    const m = itemSize * 0.5;
+    it.hx = clamp(p.x + g.grabOff.x, desk.minX + m, desk.maxX - m);
+    it.hz = clamp(p.z + g.grabOff.z, desk.minZ + m, desk.maxZ - m);
+    if (Math.hypot(dx, dy) > 5) g.moved = true;
+    return;
+  }
+
+  if (g.mode === 'pilePending') {
+    if (!g.moved && Math.hypot(dx, dy) > 7) {
+      g.moved = true;
+      decidePileGesture(p, dx, dy);
+    }
+    return;
+  }
+
+  if (g.mode === 'fanPending') {
+    if (!g.moved && Math.hypot(dx, dy) > 6) {
+      g.moved = true;
+      startFan(g.pile, p);
+    }
+    return;
+  }
+
+  if (g.mode === 'pileMove') {
+    if (!p) return;
+    noteWorldVel(p);
+    const pl = g.pile;
+    const m = itemSize * 0.5;
+    pl.tx = clamp(p.x + g.grabOff.x, desk.minX + m, desk.maxX - m);
+    pl.tz = clamp(p.z + g.grabOff.z, desk.minZ + m, desk.maxZ - m);
+    return;
+  }
+
+  if (g.mode === 'leaf') {
+    leafMove(e, screen, p);
+    return;
+  }
+
+  if (g.mode === 'fan') {
+    fanMove(p);
+    return;
+  }
+
+  if (g.mode === 'loopPending') {
+    noteWorldVel(p);
+    // SHOVE test. Speed is measured from the FIRST MOVE sample, never from
+    // pointerdown: the pointerdown -> first-move gap is often ~0ms and would
+    // read as an infinite flick. Distance and a >=24ms window are required,
+    // and the whole gesture must still be inside CFG.SHOVE_WINDOW.
+    if (!g.firstMove) {
+      g.firstMove = { x: screen.x, y: screen.y, t: performance.now() };
+      return;
+    }
+    const nowT = performance.now();
+    const el = nowT - g.firstMove.t;
+    const travel = Math.hypot(screen.x - g.firstMove.x, screen.y - g.firstMove.y);
+    if (nowT - g.downT <= CFG.SHOVE_WINDOW + 70 && el >= 24 && travel > 18 &&
+        travel / (el / 1000) > CFG.SHOVE_SPEED) {
+      startShove(p);
+      return;
+    }
+    if (Math.hypot(dx, dy) > 5) {
+      g.mode = 'loop';
+      g.loop.push({ x: g.downWorld.x, z: g.downWorld.z });
+      addLoopPoint(p);
+    }
+    return;
+  }
+
+  if (g.mode === 'loop') {
+    noteWorldVel(p);
+    addLoopPoint(p);
+    const pts = g.loop;
+    if (pts.length >= 6) {
+      const c = loopCentroid(pts);
+      const r = Math.max(itemSize * 0.4, loopRadius(pts, c));
+      const dStart = Math.hypot(p.x - g.downWorld.x, p.z - g.downWorld.z);
+      if (!g.loopClosed && dStart < r * CFG.LOOP_CLOSE && loopRadius(pts, c) > itemSize * 0.5) {
+        beginLiveSqueeze();
+      }
+      if (squeeze && squeeze.live) {
+        squeeze.scale = clamp(Math.hypot(p.x - c.x, p.z - c.z) / r, 0.06, 1);
+        squeeze.cx = c.x;
+        squeeze.cz = c.z;
+        drawLoop(pts, squeeze.scale, c.x, c.z, true);
+      } else {
+        drawLoop(pts, 1, c.x, c.z, false);
+      }
+    }
+    return;
+  }
+
+  if (g.mode === 'shove') {
+    addShovePoint(p);
+    return;
+  }
+}
+
+function addLoopPoint(p) {
+  if (!p) return;
+  const last = g.loop[g.loop.length - 1];
+  if (!last || Math.hypot(p.x - last.x, p.z - last.z) > itemSize * 0.05) {
+    if (g.loop.length >= LOOP_MAX) g.loop.shift();
+    g.loop.push({ x: p.x, z: p.z });
+  }
+}
+
+function onPointerUp(e) {
+  if (e.pointerId !== g.pointerId) return;
+  try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+  const p = pointerDesk(e);
+  const spd = screenSpeed(4);
+  const moved = g.moved || Math.hypot(e.clientX - g.downScreen.x, e.clientY - g.downScreen.y) > 5;
+
+  switch (g.mode) {
+    case 'item': {
+      const it = g.item;
+      if (it) {
+        it.held = false;
+        const v = g.worldVel;
+        const sp = Math.hypot(v.x, v.z);
+        const sc = sp > CFG.MAX_THROW ? CFG.MAX_THROW / sp : 1;
+        it.vx = v.x * sc * CFG.THROW;
+        it.vz = v.z * sc * CFG.THROW;
+        it.rv += v.x * 0.25;
+        if (!moved && it.isWidget) tapWidget(it);
+        else if (!it.isWidget) maybeJoinPile(it, p);
+      }
+      break;
+    }
+    case 'pileMove': {
+      const pl = g.pile;
+      if (pl) {
+        pl.held = false;
+        const v = g.worldVel;
+        const sp = Math.hypot(v.x, v.z);
+        const sc = sp > CFG.MAX_THROW ? CFG.MAX_THROW / sp : 1;
+        pl.vx = v.x * sc * CFG.THROW;
+        pl.vz = v.z * sc * CFG.THROW;
+      }
+      break;
+    }
+    case 'pilePending': {
+      const pile = g.pile;
+      if (pile && !moved) {
+        const t = performance.now();
+        if (lastTap.pile === pile && t - lastTap.t < CFG.DBL_MS) {
+          lastTap.pile = null;
+          // double-tap fans the pile without a drag
+          const fan = convertPileToFan(pile);
+          fan.dx = 1;
+          fan.dz = 0;
+          fan.amount = 1.0;
+        } else {
+          lastTap.pile = pile;
+          lastTap.t = t;
+        }
+      }
+      break;
+    }
+    case 'leaf': {
+      if (g.pile && spd > CFG.FLING_MIN) {
+        const n = clamp(Math.round(spd / CFG.FLING_PX_PER_CARD), 1, CFG.FLING_MAX);
+        leafFling = { pile: g.pile, dir: g.leafDir, left: n, timer: CFG.FLING_INTERVAL };
+      }
+      break;
+    }
+    case 'loop': {
+      // A real lasso (2+ files enclosed) always wins: a fast first leg of a
+      // loop must not turn the whole gesture into a swipe.
+      if (countLoopItems() >= 2) finishLoop(p);
+      else if (!fastFlickShove(e, spd)) finishLoop(p);
+      break;
+    }
+    case 'loopPending': {
+      fastFlickShove(e, spd);
+      break;
+    }
+    case 'shove': {
+      const end = p || g.downWorld;
+      applyShove(g.downWorld, end, spd);
+      break;
+    }
+    default:
+      break;
+  }
+  resetGesture();
+}
+
+function countLoopItems() {
+  if (g.loop.length < 4) return 0;
+  let n = 0;
+  for (const it of items) {
+    if (!it.isWidget && pointInLoop(it.x, it.z, g.loop)) n++;
+  }
+  return n;
+}
+
+/* A fast swipe can be interpreted late: the early-speed test needs at
+   least two move samples, which a quick flick may not deliver before the
+   pointer is lifted. Fall back to average speed over the whole gesture —
+   but only when the path enclosed almost nothing, so a lasso is safe. */
+function fastFlickShove(e, speedPx) {
+  const el = Math.max(16, performance.now() - g.downT);
+  const travel = Math.hypot(e.clientX - g.downScreen.x, e.clientY - g.downScreen.y);
+  if (el > 420 || travel < 40) return false;
+  if (travel / (el / 1000) <= CFG.SHOVE_SPEED) return false;
+  const end = pointerDesk(e) || g.downWorld;
+  applyShove(g.downWorld, end, Math.max(speedPx, travel / (el / 1000)));
+  return true;
+}
+
+function onPointerCancel(e) {
+  if (e.pointerId !== g.pointerId) return;
+  if (g.mode === 'item' && g.item) g.item.held = false;
+  if (g.mode === 'pileMove' && g.pile) g.pile.held = false;
+  resetGesture();
+}
+
+/* Dropping a card on top of a pile joins that pile (top slot). The drop
+   point is the POINTER, not the card: the drag spring lags a quick yank,
+   and testing the lagging card would suck a freshly peeled card back in. */
+function maybeJoinPile(it, drop) {
+  if (it.isWidget) return;
+  if (Math.hypot(it.vx, it.vz) > 2.5) return;
+  const px = drop ? drop.x : it.x;
+  const pz = drop ? drop.z : it.z;
+  let best = null;
+  let bd = Infinity;
+  for (const p of piles) {
+    if (p === it.group) continue;
+    const d = Math.hypot(p.x - px, p.z - pz);
+    if (d < itemSize * 0.72 && d < bd) { bd = d; best = p; }
+  }
+  if (best && Math.hypot(best.x - it.x, best.z - it.z) < itemSize * 1.4) addToPile(best, it);
+}
+
+function hoverCheck(e) {
+  const it = pickItem(e);
+  if (it && it.group && it.group.kind === 'pile' && it.group.members.length >= 2) {
+    hoverPile = it.group;
+  } else {
+    hoverPile = null;
+  }
+  canvas.style.cursor = it ? 'grab' : 'crosshair';
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   UI — legend, buttons, keyboard, resize.
+   ══════════════════════════════════════════════════════════════════ */
+const hintEl = $('#hint');
+let hintHidden = false;
+function hideHint() {
+  if (hintHidden) return;
+  hintHidden = true;
+  hintEl.classList.add('gone');
+}
+setTimeout(hideHint, 8000);
+
+const legendEl = $('#legend');
+const legendBtn = $('#legend-toggle');
+function setLegend(open) {
+  legendEl.dataset.open = open ? 'true' : 'false';
+  legendBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  legendBtn.querySelector('.chev').textContent = open ? '▾' : '▸';
+}
+legendBtn.addEventListener('click', () => setLegend(legendEl.dataset.open !== 'true'));
+if (window.innerWidth < 760 || window.innerHeight < 430) setLegend(false);
+
+$('#tidy').addEventListener('click', tidyDesk);
+$('#reset').addEventListener('click', resetDesk);
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 't' || e.key === 'T') { tidyDesk(); }
+  else if (e.key === 'r' || e.key === 'R') { resetDesk(); }
+  else if (e.key === 'l' || e.key === 'L') { setLegend(legendEl.dataset.open !== 'true'); }
+});
+
+/* TIDY BY TYPE: gather every non-widget item into one pile per type,
+   laid out in a grid; items fly in on springs (nothing teleports).  */
+function tidyDesk() {
+  hideHint();
+  setLegend(false);
+  const byType = new Map();
+  for (const it of items) {
+    if (it.isWidget) continue;
+    if (!byType.has(it.kind)) byType.set(it.kind, []);
+    byType.get(it.kind).push(it);
+  }
+  for (const p of piles.slice()) removePile(p);
+  for (const c of clusters.slice()) {
+    for (const m of c.members) m.group = null;
+    c.members.length = 0;
+  }
+  clusters.length = 0;
+  for (const f of fans.slice()) {
+    for (const m of f.members) { m.fan = null; m.group = null; }
+    f.members.length = 0;
+  }
+  fans.length = 0;
+  for (const it of items) {
+    if (it.held) { it.held = false; }
+    it.group = null;
+    it.fan = null;
+  }
+
+  const types = [...byType.keys()].sort();
+  if (!types.length) return;
+  const k = types.length;
+  const aspect = Math.max(0.2, desk.w / Math.max(1, desk.d));
+  const cols = Math.max(1, Math.min(k, Math.ceil(Math.sqrt(k * aspect))));
+  const rows = Math.ceil(k / cols);
+  // A centred grid with a fixed gap: piles are tall, and a row pushed right
+  // up against the far edge would project off the top of the screen. The
+  // whole grid is biased toward the viewer, where the floor is roomiest.
+  const gapX = Math.max(itemSize * 2.1, 1.5);
+  const gapZ = Math.max(itemSize * 2.0, 1.4);
+  const totalW = (cols - 1) * gapX;
+  const totalD = (rows - 1) * gapZ;
+  const zCenter = lerp(desk.minZ, desk.maxZ, 0.58);
+  const m = itemSize * 1.05;
+
+  types.forEach((kind, i) => {
+    const list = byType.get(kind);
+    const cx = i % cols;
+    const cz = Math.floor(i / cols);
+    const x = -totalW / 2 + cx * gapX;
+    const z = zCenter - totalD / 2 + cz * gapZ;
+    // keep every pile fully on the desk
+    const px = clamp(x, desk.minX + m, desk.maxX - m);
+    const pz = clamp(z, desk.minZ + m, desk.maxZ - m);
+
+    list.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    const pile = createPile(
+      list.reduce((s, it) => s + it.x, 0) / list.length,
+      list.reduce((s, it) => s + it.z, 0) / list.length,
+      list
+    );
+    pile.tx = px;
+    pile.tz = pz;
+    pile.home = true;
+    for (const it of pile.members) {
+      it.hopT = it.hopDur = 0.45;
+      it.hopAmp = itemSize * 0.18;
+    }
+  });
+}
+
+/* ── desk fitting / resize ──────────────────────────────────────── */
+const _v3 = new THREE.Vector3();
+const _probe = new THREE.Raycaster();
+
+function floorHit(nx, ny) {
+  _probe.setFromCamera({ x: nx, y: ny }, camera);
+  const out = new THREE.Vector3();
+  return _probe.ray.intersectPlane(floorPlane, out) ? out : null;
+}
+
+function visibleDeskRect() {
+  const bl = floorHit(-1, -1);
+  const br = floorHit(1, -1);
+  const tl = floorHit(-1, 1);
+  const tr = floorHit(1, 1);
+  if (!bl || !br || !tl || !tr) return { halfW: 5, zNear: 6, zFar: -6, area: 60 };
+  const xNear = Math.min(Math.abs(bl.x), Math.abs(br.x));
+  const xFar = Math.min(Math.abs(tl.x), Math.abs(tr.x));
+  const halfW = Math.min(xNear, xFar) * CFG.DESK_FILL;
+  // front edge pulled in further: that band belongs to the UI chrome
+  const zNear = Math.max(bl.z, br.z) * 0.86;
+  const zFar = Math.min(tl.z, tr.z) * 0.955;
+  return { halfW, zNear, zFar, area: halfW * 2 * Math.max(1, zNear - zFar) };
+}
+
+function placeCamera(dist) {
+  const a = THREE.MathUtils.degToRad(CFG.PITCH);
+  camera.position.set(0, dist * Math.sin(a), dist * Math.cos(a));
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+}
+
+function fitDesk() {
+  const w = canvas.clientWidth || window.innerWidth || 800;
+  const h = canvas.clientHeight || window.innerHeight || 600;
+  camera.aspect = Math.max(0.15, w / Math.max(1, h));
+
+  let dist = CFG.BASE_DIST;
+  for (let i = 0; i < 6; i++) {
+    placeCamera(dist);
+    const e = visibleDeskRect();
+    if (e.area >= CFG.AREA_TARGET) break;
+    dist *= Math.min(1.8, Math.max(1.04, Math.sqrt(CFG.AREA_TARGET / Math.max(0.5, e.area))));
+  }
+  placeCamera(dist);
+
+  const e = visibleDeskRect();
+  desk.minX = -e.halfW;
+  desk.maxX = e.halfW;
+  desk.minZ = e.zFar;
+  desk.maxZ = e.zNear;
+  desk.w = e.halfW * 2;
+  desk.d = Math.max(1, e.zNear - e.zFar);
+  desk.cx = 0;
+  desk.cz = (e.zFar + e.zNear) * 0.5;
+
+  itemSize = clamp(Math.sqrt(CFG.ITEM_AREA * desk.w * desk.d), CFG.ITEM_MIN, CFG.ITEM_MAX);
+  thick = itemSize * CFG.THICK_RATIO;
+  camera.far = dist * 8;
+  camera.updateProjectionMatrix();
+
+  floorMesh.scale.set(desk.w * 1.16, desk.d * 1.1, 1);
+  floorMesh.position.set(0, -0.02, desk.cz);
+  gridMesh.scale.set(desk.w, desk.d, 1);
+  gridMesh.position.set(0, 0, desk.cz);
+  TEX.grid.repeat.set(desk.w / 1.55, desk.d / 1.55);
+  TEX.grid.needsUpdate = true;
+
+  // rescale every card (shared unit geometry)
+  for (const it of items) {
+    it.g3.scale.setScalar(itemSize);
+    const sc = itemSize;
+    it.shadow.scale.set(sc, sc, 1);
+  }
+  clampAll();
+}
+
+function clampAll() {
+  const m = itemSize * 0.5;
+  for (const it of items) {
+    it.x = clamp(it.x, desk.minX + m, desk.maxX - m);
+    it.z = clamp(it.z, desk.minZ + m, desk.maxZ - m);
+    it.hx = clamp(it.hx, desk.minX + m, desk.maxX - m);
+    it.hz = clamp(it.hz, desk.minZ + m, desk.maxZ - m);
+  }
+  for (const p of piles) {
+    p.x = clamp(p.x, desk.minX + m, desk.maxX - m);
+    p.z = clamp(p.z, desk.minZ + m, desk.maxZ - m);
+    p.tx = clamp(p.tx, desk.minX + m, desk.maxX - m);
+    p.tz = clamp(p.tz, desk.minZ + m, desk.maxZ - m);
+  }
+}
+
+function applySize() {
+  const w = Math.max(1, canvas.clientWidth || window.innerWidth || 800);
+  const h = Math.max(1, canvas.clientHeight || window.innerHeight || 600);
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setSize(w, h, false);
+  fitDesk();
+}
+
+let resizeQueued = false;
+function onResize() {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => {
+    resizeQueued = false;
+    applySize();
+  });
+}
+
+window.addEventListener('resize', onResize);
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(onResize).observe(document.body);
+}
+
+/* ── tooltip / labels sync ──────────────────────────────────────── */
+function syncScene() {
+  for (const it of items) {
+    it.g3.position.set(it.x, it.y, it.z);
+    it.g3.rotation.y = it.rot;
+    const lift = it.y;
+    const sc = itemSize * (1.04 + lift * 0.9);
+    it.shadow.position.set(it.x, 0.02, it.z);
+    it.shadow.scale.set(sc, sc, 1);
+    it.shadow.material.opacity = Math.max(0.04, 0.36 - lift * 0.55);
+  }
+  for (const p of piles) {
+    if (!p.label) continue;
+    const topY = Math.max(0, p.members.length - 1) * thick + (p.held ? itemSize * 0.14 : 0);
+    p.label.position.set(p.x, topY + itemSize * 1.02, p.z);
+    p.label.scale.set(itemSize * 1.42, itemSize * 0.355, 1);
+  }
+}
+
+function updateTip() {
+  let pile = null;
+  if (g.mode === 'leaf' && g.pile) pile = g.pile;
+  else if (hoverPile) pile = hoverPile;
+  if (!pile || !pile.members || pile.members.length < 2) {
+    tipEl.hidden = true;
+    return;
+  }
+  const n = pile.members.length;
+  const top = pile.members[n - 1];
+  // "3 / 7" = the card you are currently looking at. Hovering shows the top
+  // card (7 / 7); while leafing it follows how many cards you have skimmed.
+  const idx = (g.mode === 'leaf' && g.pile === pile)
+    ? clamp(g.leafCount, 1, n)
+    : n;
+  tipEl.hidden = false;
+  tipEl.innerHTML = '<b>' + esc(top.name) + '</b> <span>' + idx + ' / ' + n + '</span>';
+
+  const y = Math.max(0, n - 1) * thick + itemSize * 1.15;
+  _v3.set(pile.x, y, pile.z);
+  camera.updateMatrixWorld();
+  _v3.project(camera);
+  const w = canvas.clientWidth || 1;
+  const h = canvas.clientHeight || 1;
+  const px = (_v3.x * 0.5 + 0.5) * w;
+  const py = (-_v3.y * 0.5 + 0.5) * h;
+  tipEl.style.transform = `translate(-50%, -100%) translate(${px.toFixed(1)}px, ${(py - 4).toFixed(1)}px)`;
+}
+
+/* ── gesture housekeeping (fling, hold cue) ────────────────────── */
+function updateGesture(dt) {
+  if (g.mode === 'pilePending' && !g.holdCue && !g.moved &&
+      performance.now() - g.downT > CFG.HOLD_MS) {
+    g.holdCue = true;
+    const pl = g.pile;
+    const top = pl && pl.members[pl.members.length - 1];
+    if (top) {
+      top.hopT = top.hopDur = 0.32;
+      top.hopAmp = itemSize * 0.22;
+    }
+  }
+
+  if (leafFling) {
+    leafFling.timer -= dt;
+    if (leafFling.timer <= 0) {
+      if (leafFling.pile && leafFling.pile.members.length >= 2) {
+        flipPile(leafFling.pile, leafFling.dir);
+      }
+      leafFling.left -= 1;
+      if (leafFling.left <= 0) leafFling = null;
+      else leafFling.timer = CFG.FLING_INTERVAL * (1 + (CFG.FLING_MAX - leafFling.left) * 0.4);
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LOOP
+   ══════════════════════════════════════════════════════════════════ */
+let last = 0;
+let acc = 0;
+
+function frame(t) {
+  requestAnimationFrame(frame);
+  const dt = last ? Math.min(0.1, (t - last) / 1000) : 1 / 60;
+  last = t;
+  if (document.hidden) { acc = 0; return; }
+
+  acc += dt;
+  let steps = 0;
+  while (acc >= CFG.DT && steps < CFG.MAX_STEPS) {
+    stepSim(CFG.DT);
+    acc -= CFG.DT;
+    steps++;
+  }
+  if (steps >= CFG.MAX_STEPS) acc = 0; // drop the backlog, never spiral
+
+  updateGesture(dt);
+  updateTransients(dt);
+  tickWidgets();
+  syncScene();
+  updateTip();
+  renderer.render(scene, camera);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { acc = 0; last = 0; }
+});
+
+canvas.addEventListener('pointerdown', onPointerDown);
+canvas.addEventListener('pointermove', onPointerMove);
+canvas.addEventListener('pointerup', onPointerUp);
+canvas.addEventListener('pointercancel', onPointerCancel);
+canvas.addEventListener('pointerleave', (e) => {
+  if (g.mode === 'idle') { hoverPile = null; tipEl.hidden = true; }
+});
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+/* boot: size + desk fit first, because the seed depends on itemSize */
+applySize();
+seedWorld();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

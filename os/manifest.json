@@ -32,6 +32,33 @@
       "pinned": true
     },
     {
+      "id": "desk",
+      "name": "Desk",
+      "title": "Desk",
+      "icon": "🗂️",
+      "url": "./apps/desk.html",
+      "category": "Airis",
+      "description": "Physics desk experiment. Gestures are the verbs, space is the noun.",
+      "size": "large",
+      "launch": "auto",
+      "desktop": { "slot": "window", "width": 900, "height": 620 },
+      "phone": { "slot": "sheet" }
+    },
+    {
+      "id": "house",
+      "name": "House",
+      "title": "House",
+      "icon": "🏠",
+      "url": "./apps/house.html",
+      "category": "Airis",
+      "description": "The room. A place you can stand in, with her in it.",
+      "size": "large",
+      "launch": "auto",
+      "desktop": { "slot": "window", "width": 1100, "height": 720 },
+      "phone": { "slot": "sheet" },
+      "pinned": false
+    },
+    {
       "id": "todo",
       "name": "To Do",
       "title": "To Do",
