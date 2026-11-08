@@ -27,6 +27,9 @@ body { background: #100e13; }
 #walk-pad button { border:1px solid #c49b7788; border-radius:12px; background:#241c1ddd; color:#f2dfca; font:20px/1 ui-sans-serif,system-ui,sans-serif; touch-action:none; user-select:none; }
 #walk-pad button:active, #walk-pad button[aria-pressed="true"] { background:#76513b; }
 #walk-pad [data-dir="up"] { grid-area:1/2; } #walk-pad [data-dir="left"] { grid-area:2/1; } #walk-pad [data-dir="down"] { grid-area:2/2; } #walk-pad [data-dir="right"] { grid-area:2/3; }
+#walk-hint { position:absolute; z-index:1; top:calc(14px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); padding:9px 13px; border:1px solid #c49b7788; border-radius:999px; background:#191419e8; color:#f2dfca; font:12px/1.3 ui-sans-serif,system-ui,sans-serif; text-align:center; white-space:nowrap; pointer-events:none; transition:opacity .6s ease; }
+#walk-hint.is-gone { opacity:0; }
+#camera-debug { position:absolute; z-index:3; top:calc(14px + env(safe-area-inset-top)); right:14px; padding:6px 8px; border-radius:6px; background:#100e13dd; color:#d9cbb8; font:11px/1.4 ui-monospace,monospace; pointer-events:none; }
 @media (max-width:699px) { #status { right:132px; } #form { left:138px; } }
 @media (min-width:700px) { #status { bottom:calc(18px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc(100vw - 476px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
 </style>
@@ -35,6 +38,8 @@ body { background: #100e13; }
 <div id="stage">
   <canvas id="gl" aria-label="A warm room with Airis. Drag to look around; tap an object or ask Airis for it."></canvas>
   <div id="veil"></div><div id="grain"></div>
+  <div id="walk-hint">Touch and hold to walk · drag left/right to steer</div>
+  <output id="camera-debug" hidden aria-live="off"></output>
   <div id="walk-pad" role="group" aria-label="Walk controls">
     <button type="button" data-dir="up" aria-label="Walk forward" aria-pressed="false">▲</button>
     <button type="button" data-dir="left" aria-label="Walk left" aria-pressed="false">◀</button>
@@ -226,19 +231,30 @@ const lookAt = new THREE.Vector3(-1.05, 1.1, -1.35);
 let yaw = Math.atan2(pos.x - lookAt.x, pos.z - lookAt.z), pitch = -.12;
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
-let pointerId = null, pointerStart = null, dragged = false;
+let pointerId = null, pointerStart = null, dragged = false, touchWalking = false, touchStartedAt = 0;
+const walkHint = document.querySelector('#walk-hint');
+const cameraDebug = document.querySelector('#camera-debug');
+const debugEnabled = new URLSearchParams(location.search).has('debug');
+cameraDebug.hidden = !debugEnabled;
+function hideWalkHint() { walkHint.classList.add('is-gone'); }
 canvas.addEventListener('pointerdown', event => {
   if (pointerId !== null) return;
   pointerId = event.pointerId;
   pointerStart = { x: event.clientX, y: event.clientY };
   dragged = false;
+  touchWalking = event.pointerType === 'touch';
+  touchStartedAt = performance.now();
+  if (touchWalking) setDirection('up', true);
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', event => {
   if (event.pointerId !== pointerId || !pointerStart) return;
   const dx = event.clientX - pointerStart.x, dy = event.clientY - pointerStart.y;
   if (Math.hypot(dx, dy) > 6) dragged = true;
-  if (dragged) {
+  if (touchWalking) {
+    yaw -= dx * .012;
+    pointerStart = { x: event.clientX, y: event.clientY };
+  } else if (dragged) {
     yaw -= dx * .004;
     pitch = THREE.MathUtils.clamp(pitch - dy * .003, -.62, .5);
     pointerStart = { x: event.clientX, y: event.clientY };
@@ -246,7 +262,9 @@ canvas.addEventListener('pointermove', event => {
 });
 canvas.addEventListener('pointerup', event => {
   if (event.pointerId !== pointerId) return;
-  if (!dragged) {
+  const wasTouchWalk = touchWalking;
+  if (wasTouchWalk) setDirection('up', false);
+  if (!dragged && (!wasTouchWalk || performance.now() - touchStartedAt < 250)) {
     ndc.set(event.offsetX / canvas.clientWidth * 2 - 1, -event.offsetY / canvas.clientHeight * 2 + 1);
     ray.setFromCamera(ndc, camera);
     const hit = ray.intersectObjects([book, wallItem], true).find(result => result.object.visible);
@@ -258,8 +276,14 @@ canvas.addEventListener('pointerup', event => {
   }
   pointerId = null;
   pointerStart = null;
+  touchWalking = false;
 });
-canvas.addEventListener('pointercancel', event => { if (event.pointerId === pointerId) pointerId = null; });
+canvas.addEventListener('pointercancel', event => {
+  if (event.pointerId === pointerId) {
+    if (touchWalking) setDirection('up', false);
+    pointerId = null; pointerStart = null; touchWalking = false;
+  }
+});
 
 // Desk top surface is at .78 + .14/2. Each item rests on it: centre = top + its own half-height.
 // The two items get separate spots on the desk so they never land inside each other.
@@ -471,6 +495,7 @@ function moveCamera(dt) {
     if (!blocked(pos.x, z)) pos.z = z;
     pos.y = 1.6;
   }
+  if (Math.hypot(pos.x - current.x, pos.z - current.z) > .0001) hideWalkHint();
 }
 let previous = performance.now();
 let blinkAt = previous + 3000 + Math.random() * 3000;
@@ -580,6 +605,7 @@ function animate(now) {
   } else { gazeSince = 0; headPivot.rotation.y *= Math.max(0, 1 - dt * 3); }
   if (carried) carriedGlow.position.set(.38, .86, .12);
   camera.position.copy(pos);
+  if (debugEnabled) cameraDebug.textContent = `camera x ${pos.x.toFixed(2)} · z ${pos.z.toFixed(2)}`;
   camera.rotation.order = 'YXZ';
   camera.rotation.set(pitch, yaw, 0);
   renderer.render(scene, camera);
