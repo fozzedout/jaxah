@@ -15,32 +15,26 @@ body { background: #100e13; }
 #veil { background: radial-gradient(ellipse at center, transparent 48%, rgba(7,6,10,.5)); }
 #grain { opacity: .075; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
 #hud { position: absolute; inset: 0; pointer-events: none; }
-#status { position: absolute; left: 14px; bottom: calc(76px + env(safe-area-inset-bottom)); max-width: min(420px, calc(100vw - 28px)); font: 11px/1.45 ui-monospace, monospace; color: #c8b8a5; text-shadow: 0 2px 6px #000; }
+/* HUD text sits above the form on a phone and left of it on wider screens: separate regions at every width. */
+#status { position: absolute; left: 14px; right: 14px; bottom: calc(72px + env(safe-area-inset-bottom)); max-width: 420px; font: 11px/1.45 ui-monospace, monospace; color: #c8b8a5; text-shadow: 0 2px 6px #000; }
 #result, #click-result, #ask-result { min-height: 1.45em; }
 #say { color: #f0d0a4; }
 #form { position: absolute; left: 14px; right: 14px; bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 7px; pointer-events: auto; }
 #command { min-width: 0; flex: 1; height: 48px; padding: 0 14px; border: 1px solid #9d765b88; border-radius: 12px; background: #191419e8; color: #fff1dc; font-size: 16px; }
-#send, #reset, #pad button { border: 1px solid #9d765b88; border-radius: 12px; background: #392a27; color: #f2dfca; }
+#send, #reset { border: 1px solid #9d765b88; border-radius: 12px; background: #392a27; color: #f2dfca; }
 #send, #reset { font: 13px inherit; padding: 0 15px; min-height: 48px; }
-#pad { position: absolute; right: 14px; bottom: calc(78px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(3,48px); grid-template-rows: repeat(2,48px); gap: 3px; pointer-events: auto; }
-#pad button { font-size: 20px; touch-action: none; }
-#pad button:nth-child(1) { grid-column: 2; }
-#pad button:nth-child(2) { grid-column: 1; grid-row: 2; }
-#pad button:nth-child(3) { grid-column: 2; grid-row: 2; }
-#pad button:nth-child(4) { grid-column: 3; grid-row: 2; }
-@media (min-width:700px) { #status { bottom:18px; } #form { left:auto; width:420px; bottom:14px; } #pad { bottom:14px; right:450px; } }
+@media (min-width:700px) { #status { bottom:calc(18px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc(100vw - 476px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
 </style>
 </head>
 <body>
 <div id="stage">
-  <canvas id="gl" aria-label="A warm room with Airis. Drag to look; use the pad or WASD to walk."></canvas>
+  <canvas id="gl" aria-label="A warm room with Airis. Drag to look around; tap an object or ask Airis for it."></canvas>
   <div id="veil"></div><div id="grain"></div>
   <div id="hud"><div id="status">
     <div id="result">a click costs your attention for the whole trip; an ask costs a sentence.</div>
     <div id="click-result"></div><div id="ask-result"></div><div id="say" aria-live="polite"></div>
   </div>
-  <form id="form"><input id="command" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="bring the book · go to the window" aria-label="Ask Airis"><button id="send" type="submit">Ask</button><button id="reset" type="button">Reset</button></form>
-  <div id="pad" aria-label="Walk"><button data-dir="f">↑</button><button data-dir="l">←</button><button data-dir="b">↓</button><button data-dir="r">→</button></div></div>
+  <form id="form"><input id="command" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="bring the book · go to the window" aria-label="Ask Airis"><button id="send" type="submit">Ask</button><button id="reset" type="button">Reset</button></form></div>
 </div>
 <script>
 window.addEventListener('error', event => {
@@ -141,7 +135,7 @@ box(scene, 2.55, 1.4, -3.65, .12, 2.8, 1.1, alcoveMat);
 box(scene, .55, 1.4, -3.65, .12, 2.8, 1.1, alcoveMat);
 box(scene, 1.55, .03, -3.7, 2, .08, 1.2, darkMat);
 const door = group(scene, .95, 0, -3);
-door.rotation.y = -.58;
+door.rotation.y = -1.35;
 box(door, .55, 1.27, 0, 1.1, 2.54, .08, wood);
 
 // Desk and a correctly scaled chair tucked on its near side.
@@ -155,10 +149,10 @@ wallItem.userData.item = 'wall';
 box(wallItem, 0, 0, 0, .07, .68, .55, woodTop);
 box(wallItem, .05, 0, 0, .035, .52, .39, material(0x30404b, .8, { emissive: 0x122334, emissiveIntensity: .3 }));
 box(scene, 1.5, .48, -4.25, 1.15, .09, .34, alcoveMat);
-const book = group(scene);
+const book = group(scene, 1.12, .68, -4.22);
 book.userData.item = 'book';
-box(book, 1.12, .68, -4.22, .22, .32, .25, material(0x171521, .9, { emissive: 0x080711, emissiveIntensity: .2 }));
-box(book, 1.12, .68, -4.085, .18, .27, .018, material(0x282633));
+box(book, 0, 0, 0, .22, .32, .25, material(0x171521, .9, { emissive: 0x080711, emissiveIntensity: .2 }));
+box(book, 0, 0, .135, .18, .27, .018, material(0x282633));
 const items = { book, wall: wallItem };
 const itemHomes = { book: new THREE.Vector3(1.12, .68, -4.22), wall: new THREE.Vector3(-2.88, 1.8, -.65) };
 
@@ -214,8 +208,11 @@ const carriedGlow = new THREE.Mesh(new THREE.SphereGeometry(.055, 10, 8), new TH
 carriedGlow.visible = false;
 airis.add(carriedGlow);
 
-const pos = new THREE.Vector3(.6, 1.6, 2.4);
-let yaw = -.18, pitch = -.08;
+// Start in the near-right corner looking across the room, so the desk, Airis,
+// the wall object and the doorway all sit in the first frame.
+const pos = new THREE.Vector3(2.35, 1.6, 2.55);
+const lookAt = new THREE.Vector3(-1.05, 1.1, -1.35);
+let yaw = Math.atan2(pos.x - lookAt.x, pos.z - lookAt.z), pitch = -.12;
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let pointerId = null, pointerStart = null, dragged = false;
@@ -253,39 +250,97 @@ canvas.addEventListener('pointerup', event => {
 });
 canvas.addEventListener('pointercancel', event => { if (event.pointerId === pointerId) pointerId = null; });
 
-const deskSpot = new THREE.Vector3(-.85, .87, -.35);
+// Desk top surface is at .78 + .14/2. Each item rests on it: centre = top + its own half-height.
+// The two items get separate spots on the desk so they never land inside each other.
+const DESK_TOP = .85;
+const itemHalfHeight = { book: .16, wall: .34 };
+const itemDeskX = { book: -.4, wall: -1.1 };
+function deskSpotFor(item) {
+  const name = item.userData.item;
+  return new THREE.Vector3(itemDeskX[name], DESK_TOP + itemHalfHeight[name], -.35);
+}
 const waypoints = {
-  doorOutside: new THREE.Vector3(1.55, 0, -2.48),
-  doorway: new THREE.Vector3(1.55, 0, -3.18),
-  book: new THREE.Vector3(1.12, 0, -3.85),
-  wall: new THREE.Vector3(-2.15, 0, -.65),
-  desk: new THREE.Vector3(-.85, 0, .28),
+  doorOutside: new THREE.Vector3(1.65, 0, -2.48),
+  doorway: new THREE.Vector3(1.65, 0, -3.18),
+  book: new THREE.Vector3(1.12, 0, -3.75),
+  wall: new THREE.Vector3(-2.3, 0, -.65),
+  // Standing at the desk's free right end, clear of the chair on its near side.
+  desk: new THREE.Vector3(.55, 0, -.35),
 };
-function deskRoute(start, destination) {
-  const minX = -1.78, maxX = .08, minZ = -.86, maxZ = .16, margin = .32;
-  const crosses = start.x > minX - margin && start.x < maxX + margin && destination.x > minX - margin && destination.x < maxX + margin && Math.min(start.z, destination.z) < maxZ + margin && Math.max(start.z, destination.z) > minZ - margin;
-  if (!crosses) return [destination.clone()];
-  const leftCorner = new THREE.Vector3(minX - margin, 0, destination.z < minZ ? minZ - margin : maxZ + margin);
-  const rightCorner = new THREE.Vector3(maxX + margin, 0, leftCorner.z);
-  const corner = Math.abs(start.x - leftCorner.x) < Math.abs(start.x - rightCorner.x) ? leftCorner : rightCorner;
-  return [corner, destination.clone()];
+// Furniture footprints (x/z), inflated by how far Airis's centre must stay away from them.
+const obstacles = [
+  { name: 'desk', x1: -1.675, x2: -.025, z1: -.76, z2: .06, pad: .5 },
+  { name: 'chair', x1: -1.09, x2: -.61, z1: .31, z2: .835, pad: .5 },
+  { name: 'lamp', x1: 1.56, x2: 1.94, z1: -.09, z2: .29, pad: .4 },
+].map(o => ({ ...o, a: o.x1 - o.pad, b: o.x2 + o.pad, c: o.z1 - o.pad, d: o.z2 + o.pad }));
+const inside = (o, p, e = 0) => p.x > o.a + e && p.x < o.b - e && p.z > o.c + e && p.z < o.d - e;
+function segmentHits(o, p, q) {
+  // Slab test against the inflated box shrunk a hair, so walking along its edge is allowed.
+  const e = .001, a = o.a + e, b = o.b - e, c = o.c + e, d = o.d - e;
+  let t0 = 0, t1 = 1;
+  for (const [from, delta, lo, hi] of [[p.x, q.x - p.x, a, b], [p.z, q.z - p.z, c, d]]) {
+    if (Math.abs(delta) < 1e-9) { if (from <= lo || from >= hi) return false; continue; }
+    let ta = (lo - from) / delta, tb = (hi - from) / delta;
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+    if (t0 >= t1) return false;
+  }
+  return true;
+}
+// Shortest path around furniture over the inflated boxes' corners. Obstacles that already
+// contain the start or destination are ignored so she can always leave or arrive.
+function route(start, destination) {
+  const active = obstacles.filter(o => !inside(o, start) && !inside(o, destination));
+  const clear = (p, q) => !active.some(o => segmentHits(o, p, q));
+  const from = new THREE.Vector3(start.x, 0, start.z);
+  if (clear(from, destination)) return [destination.clone()];
+  const nodes = [from, destination.clone()];
+  for (const o of active) for (const x of [o.a, o.b]) for (const z of [o.c, o.d]) {
+    const p = new THREE.Vector3(x, 0, z);
+    if (Math.abs(x) < 2.5 && Math.abs(z) < 2.5 && !active.some(other => inside(other, p, .001))) nodes.push(p);
+  }
+  const dist = nodes.map(() => Infinity), prev = nodes.map(() => -1), done = nodes.map(() => false);
+  dist[0] = 0;
+  for (;;) {
+    let u = -1;
+    for (let i = 0; i < nodes.length; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    if (u < 0 || u === 1) break;
+    done[u] = true;
+    for (let v = 0; v < nodes.length; v++) {
+      if (done[v] || !clear(nodes[u], nodes[v])) continue;
+      const alt = dist[u] + nodes[u].distanceTo(nodes[v]);
+      if (alt < dist[v]) { dist[v] = alt; prev[v] = u; }
+    }
+  }
+  if (prev[1] < 0) return [destination.clone()];
+  const path = [];
+  for (let i = 1; i > 0; i = prev[i]) path.unshift(nodes[i].clone());
+  return path;
 }
 function routeTo(point, itemName) {
-  if (itemName === 'book') return [waypoints.doorOutside.clone(), waypoints.doorway.clone(), waypoints.book.clone()];
-  if (itemName === 'wall') return deskRoute(airis.position, point);
-  return deskRoute(airis.position, point);
+  if (itemName === 'book') return [...route(airis.position, waypoints.doorOutside), waypoints.doorway.clone(), waypoints.book.clone()];
+  return route(airis.position, point);
 }
 let busy = null, carried = null, gazeSince = 0, gazeYaw = 0;
+const fmt = v => `(${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`;
+const trace = [];
+function traceEvent(event, item) {
+  const row = { event, item: item.userData.item, at: item.getWorldPosition(new THREE.Vector3()), airis: airis.position.clone(), t: performance.now() };
+  trace.push(row);
+  console.log(`[house] ${row.event} ${row.item} item=${fmt(row.at)} airis=${fmt(row.airis)}`);
+}
 let clickStart = 0;
 function clickFetch(item) {
   clickStart = performance.now();
+  traceEvent('click-pickup', item);
   item.visible = false;
-  busy = { kind: 'click', item, elapsed: 0, target: deskSpot.clone().add(new THREE.Vector3((Math.random() - .5) * .45, 0, (Math.random() - .5) * .25)) };
+  busy = { kind: 'click', item, elapsed: 0, target: deskSpotFor(item).add(new THREE.Vector3((Math.random() - .5) * .4, 0, (Math.random() - .5) * .25)) };
 }
 function setDownCarried() {
   if (!carried) return;
-  carried.position.copy(deskSpot);
+  carried.position.copy(deskSpotFor(carried));
   carried.visible = true;
+  traceEvent('bring-setdown', carried);
   carriedGlow.visible = false;
   carried = null;
 }
@@ -298,15 +353,15 @@ function replaceTask(task) {
 }
 function taskBring(name) {
   const item = items[name];
-  if (item.position.distanceTo(deskSpot) < .35) {
+  if (item.position.distanceTo(deskSpotFor(item)) < .35) {
     say.textContent = "It's already on the desk.";
     askResult.textContent = 'ask: already on the desk';
     return;
   }
   const path = routeTo(waypoints[name], name);
-  if (name === 'book') path.push(waypoints.doorway.clone(), waypoints.doorOutside.clone());
-  path.push(...deskRoute(path[path.length - 1], waypoints.desk));
-  replaceTask({ kind: 'bring', name, item, phase: 'walkOut', path, pause: 0 });
+  const back = name === 'book' ? [waypoints.doorway.clone(), waypoints.doorOutside.clone()] : [];
+  back.push(...route(back.length ? back[back.length - 1] : waypoints[name], waypoints.desk));
+  replaceTask({ kind: 'bring', name, item, phase: 'walkOut', path, returnPath: back, pause: 0 });
   askResult.textContent = 'ask: in progress';
 }
 const targets = { window: new THREE.Vector3(-1.4, 0, -2.2), door: waypoints.doorOutside, desk: waypoints.desk, lamp: new THREE.Vector3(1.75, 0, .7), here: new THREE.Vector3(0, 0, 1.25) };
@@ -324,7 +379,7 @@ function startTask(text) {
   if (/\b(go|walk|stand|move)\b/.test(query)) {
     const dest = /window/.test(query) ? 'window' : /door/.test(query) ? 'door' : /desk/.test(query) ? 'desk' : /lamp/.test(query) ? 'lamp' : /here|me/.test(query) ? 'here' : null;
     if (!dest) { say.textContent = "I don't know where you mean."; return; }
-    replaceTask({ kind: 'walk', path: deskRoute(airis.position, targets[dest]), face: true });
+    replaceTask({ kind: 'walk', path: route(airis.position, targets[dest]), face: true });
     return;
   }
   say.textContent = "I don't know what you mean.";
@@ -343,30 +398,19 @@ function resetObjects() {
 form.addEventListener('submit', event => { event.preventDefault(); startTask(input.value); input.value = ''; });
 document.querySelector('#reset').addEventListener('click', resetObjects);
 
-const held = new Set(), keys = new Set();
-document.querySelectorAll('#pad button').forEach(button => {
-  button.addEventListener('pointerdown', event => { event.stopPropagation(); event.preventDefault(); button.setPointerCapture(event.pointerId); held.add(button.dataset.dir); });
-  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(type, () => held.delete(button.dataset.dir));
-});
-window.addEventListener('keydown', event => {
-  const target = document.activeElement;
-  if (target && (target.matches('input, textarea') || (target.matches('button') && target.closest('form')))) return;
-  const key = event.key.toLowerCase();
-  if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) { keys.add(key); event.preventDefault(); }
-});
-window.addEventListener('keyup', event => keys.delete(event.key.toLowerCase()));
-function clearInput() { held.clear(); keys.clear(); }
-window.addEventListener('blur', clearInput);
-document.addEventListener('visibilitychange', clearInput);
-
-let quality = 0, avgMs = 0, slowFrames = 0, recoverySince = 0;
+let quality = 0, avgMs = 0, slowFrames = 0, recoverySince = 0, framed = false;
 function resize() {
   const width = stage.clientWidth, height = stage.clientHeight;
   if (!width || !height) return;
   renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1) * (quality === 1 ? .85 : quality >= 2 ? .65 : 1));
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
+  // Portrait keeps at least ~60deg across, so the room reads as a room on a phone.
+  const minHorizontal = THREE.MathUtils.degToRad(60);
+  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(minHorizontal / 2) / camera.aspect)), 68, 100);
   camera.updateProjectionMatrix();
+  // First frame only: a tall screen tilts down so the floor, not the ceiling, fills the extra height.
+  if (!framed) { pitch = camera.aspect < 1 ? -.34 : -.12; framed = true; }
 }
 new ResizeObserver(resize).observe(stage);
 window.addEventListener('orientationchange', resize);
@@ -398,6 +442,7 @@ function updateTask(dt, now) {
     if (t >= 1) {
       busy.item.position.copy(busy.target);
       busy.item.visible = true;
+      traceEvent('click-setdown', busy.item);
       clickResult.textContent = `click: fetched by hand, ${((performance.now() - clickStart) / 1000).toFixed(1)}s`;
       busy = null;
     }
@@ -408,11 +453,12 @@ function updateTask(dt, now) {
     const duration = busy.phase === 'pickupPause' ? .4 : .3;
     if (busy.pause < duration) return;
     if (busy.phase === 'pickupPause') {
+      traceEvent('bring-pickup', busy.item);
       busy.item.visible = false;
       carried = busy.item;
       carriedGlow.visible = true;
       busy.phase = 'walkBack';
-      busy.path = busy.path.slice(0, busy.index).reverse();
+      busy.path = busy.returnPath;
       busy.index = 0;
     } else {
       setDownCarried();
@@ -487,6 +533,9 @@ window.__house = {
   get shadows() { return renderer.shadowMap.enabled; },
   get quality() { return quality; },
   cmd: startTask,
+  trace,
+  obstacles: obstacles.map(({ name, x1, x2, z1, z2 }) => ({ name, x1, x2, z1, z2 })),
+  item(name) { const o = items[name]; if (!o) return null; o.updateWorldMatrix(true, true); const b = new THREE.Box3().setFromObject(o); return { minY: b.min.y, maxY: b.max.y, minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z, visible: o.visible }; },
   task: () => busy?.phase || (busy?.kind === 'walk' ? 'walk' : null),
   airis: { get x() { return airis.position.x; }, get z() { return airis.position.z; } },
   project(name) {
