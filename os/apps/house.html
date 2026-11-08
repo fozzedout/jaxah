@@ -14,7 +14,7 @@ body { background: #100e13; }
 #veil, #grain { position: absolute; inset: 0; pointer-events: none; }
 #veil { background: radial-gradient(ellipse at center, transparent 48%, rgba(7,6,10,.5)); }
 #grain { opacity: .075; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
-#hud { position: absolute; inset: 0; pointer-events: none; }
+#hud { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 /* HUD text sits above the form on a phone and left of it on wider screens: separate regions at every width. */
 #status { position: absolute; left: 14px; right: 14px; bottom: calc(204px + env(safe-area-inset-bottom)); max-width: 420px; font: 11px/1.45 ui-monospace, monospace; pointer-events: auto; color: #c8b8a5; text-shadow: 0 2px 6px #000; }
 #result, #click-result, #ask-result { min-height: 1.45em; }
@@ -29,28 +29,33 @@ body { background: #100e13; }
 #walk-pad [data-dir="up"] { grid-area:1/2; } #walk-pad [data-dir="left"] { grid-area:2/1; } #walk-pad [data-dir="down"] { grid-area:2/2; } #walk-pad [data-dir="right"] { grid-area:2/3; }
 #walk-hint { position:absolute; z-index:1; top:calc(14px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); padding:9px 13px; border:1px solid #c49b7788; border-radius:999px; background:#191419e8; color:#f2dfca; font:12px/1.3 ui-sans-serif,system-ui,sans-serif; text-align:center; white-space:nowrap; pointer-events:none; transition:opacity .6s ease; }
 #walk-hint.is-gone { opacity:0; }
+/* The wall note is the app on face 0: a real textarea, laid onto the 3D pane. */
+#wall-note { position:absolute; z-index:1; left:0; top:0; width:420px; height:252px; padding:16px 20px; transform-origin:0 0; display:none; overflow:hidden; }
+#wall-note .hdr { font:600 12px/1 ui-monospace,monospace; letter-spacing:.16em; text-transform:uppercase; color:#c79a6d; padding:0 0 7px; }
+#wall-note textarea { display:block; width:100%; height:calc(100% - 19px); margin:0; padding:0; resize:none; border:0; outline:0; background:transparent; color:#f7e8d0; font:26px/1.4 ui-monospace,monospace; caret-color:#ffb066; overflow-y:auto; }
 #camera-debug { position:absolute; z-index:3; top:calc(14px + env(safe-area-inset-top)); right:14px; padding:6px 8px; border-radius:6px; background:#100e13dd; color:#d9cbb8; font:11px/1.4 ui-monospace,monospace; pointer-events:none; }
 @media (max-width:699px) { #status { right:132px; } #form { left:138px; } }
-@media (min-width:700px) { #status { bottom:calc(204px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc(100vw - 476px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
+@media (min-width:700px) { #status { bottom:calc(204px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc((100vw - 60vh) / 2 - 28px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
 </style>
 </head>
 <body>
 <div id="stage">
-  <canvas id="gl" aria-label="A warm room with Airis. Drag to look around; tap an object or ask Airis for it."></canvas>
+  <canvas id="gl" aria-label="An octagonal room with Airis. Sit on the stool, nudge it to square up to a face, type on the wall note."></canvas>
   <div id="veil"></div><div id="grain"></div>
-  <div id="walk-hint">Touch and hold to walk · drag left/right to steer</div>
+  <div id="wall-note"><div class="hdr">wall note</div><textarea id="note-text" spellcheck="false" aria-label="Wall note — saved on this device"></textarea></div>
+  <div id="walk-hint">Hold to nudge the stool · drag to look</div>
   <output id="camera-debug" hidden aria-live="off"></output>
-  <div id="walk-pad" role="group" aria-label="Walk controls">
-    <button type="button" data-dir="up" aria-label="Walk forward" aria-pressed="false">▲</button>
-    <button type="button" data-dir="left" aria-label="Walk left" aria-pressed="false">◀</button>
-    <button type="button" data-dir="down" aria-label="Walk backward" aria-pressed="false">▼</button>
-    <button type="button" data-dir="right" aria-label="Walk right" aria-pressed="false">▶</button>
+  <div id="walk-pad" role="group" aria-label="Nudge the stool controls">
+    <button type="button" data-dir="up" aria-label="Nudge toward the wall" aria-pressed="false">▲</button>
+    <button type="button" data-dir="left" aria-label="Nudge left" aria-pressed="false">◀</button>
+    <button type="button" data-dir="down" aria-label="Nudge back from the wall" aria-pressed="false">▼</button>
+    <button type="button" data-dir="right" aria-label="Nudge right" aria-pressed="false">▶</button>
   </div>
   <div id="hud"><div id="status">
     <div id="result">a click costs your attention for the whole trip; an ask costs a sentence.</div>
     <div id="click-result"></div><div id="ask-result"></div><div id="say" aria-live="polite"></div>
   </div>
-  <form id="form"><input id="command" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="bring the book · go to the window" aria-label="Ask Airis"><button id="send" type="submit">Ask</button><button id="reset" type="button">Reset</button></form></div>
+  <form id="form"><input id="command" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="nudge back · face 2 · note milk" aria-label="Ask Airis"><button id="send" type="submit">Ask</button><button id="reset" type="button">Reset</button></form></div>
 </div>
 <script>
 window.addEventListener('error', event => {
@@ -96,7 +101,6 @@ scene.add(new THREE.AmbientLight(0x82738a, .25));
 const material = (color, roughness = .9, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });
 const wallMat = material(0x9b7764);
 const floorMat = material(0x62432f);
-const darkMat = material(0x100f17);
 const wood = material(0x573923);
 const woodTop = material(0x795538);
 const metal = material(0x252128, .6);
@@ -116,63 +120,116 @@ function group(parent = scene, x = 0, y = 0, z = 0) {
   parent.add(result);
   return result;
 }
-function wallWithHoles(z, xMin, xMax, yMax, thickness, holes, mat) {
-  const xs = [xMin, xMax, ...holes.flatMap(h => [h.x1, h.x2])].sort((a, b) => a - b);
-  const unique = xs.filter((x, i) => i === 0 || Math.abs(x - xs[i - 1]) > .0001);
-  for (let i = 0; i < unique.length - 1; i++) {
-    const left = unique[i], right = unique[i + 1];
-    if (right <= xMin || left >= xMax) continue;
-    const mid = (left + right) / 2;
-    if (!holes.some(h => mid > h.x1 && mid < h.x2)) box(scene, mid, yMax / 2, z, right - left, yMax, thickness, mat);
-  }
-  for (const hole of holes) {
-    box(scene, (hole.x1 + hole.x2) / 2, (hole.y2 + yMax) / 2, z, hole.x2 - hole.x1, yMax - hole.y2, thickness, mat);
-    if (hole.y1 > 0) box(scene, (hole.x1 + hole.x2) / 2, hole.y1 / 2, z, hole.x2 - hole.x1, hole.y1, thickness, mat);
-  }
+// --- the room is an octagon -------------------------------------------------
+// Eight flat faces. Squared up to one face, the two beside it stay in view at the
+// edges: a wall to work on, plus a bit to the left and a bit to the right.
+const FACE_COUNT = 8;
+const FACE_WIDTH = 2.7;                                                 // each face, wide enough for the wall note
+const ROOM_RADIUS = .5 * FACE_WIDTH / Math.sin(Math.PI / FACE_COUNT);   // centre to corner
+const APOTHEM = .5 * FACE_WIDTH / Math.tan(Math.PI / FACE_COUNT);       // centre to face
+const WALL_HEIGHT = 2.8, WALL_THICK = .16;
+const faceYaw = k => k * Math.PI * 2 / FACE_COUNT;                                       // camera yaw squared up to face k
+const faceOut = k => new THREE.Vector3(-Math.sin(faceYaw(k)), 0, -Math.cos(faceYaw(k)));  // face's outward normal
+const faceRight = k => new THREE.Vector3(Math.cos(faceYaw(k)), 0, -Math.sin(faceYaw(k))); // along the face, to the right
+// A point on face k's inner surface, `depth` metres out into the room.
+function facePoint(k, depth = 0) {
+  const out = faceOut(k);
+  return new THREE.Vector3(out.x * (APOTHEM - depth), 0, out.z * (APOTHEM - depth));
 }
-box(scene, 0, -.09, 0, 6, .18, 6, floorMat).castShadow = false;
-box(scene, -3, 1.4, 0, .16, 2.8, 6, wallMat);
-box(scene, 3, 1.4, 0, .16, 2.8, 6, wallMat);
-box(scene, 0, 1.4, 3, 6, 2.8, .16, wallMat);
-const windowHole = { x1: -2.4, x2: -.7, y1: .65, y2: 2.25 };
-const doorHole = { x1: .95, x2: 2.15, y1: 0, y2: 2.55 };
-wallWithHoles(-3, -3, 3, 2.8, .16, [windowHole, doorHole], wallMat);
-const night = material(0x07132d, .7, { emissive: 0x07132d, emissiveIntensity: .7 });
-box(scene, -1.55, 1.45, -3.13, 1.66, 1.6, .04, night);
-for (let i = 0; i < 32; i++) {
-  const star = new THREE.Mesh(new THREE.SphereGeometry(.014, 6, 5), new THREE.MeshBasicMaterial({ color: 0xa9c9ff }));
-  star.position.set(-2.35 + Math.random() * 1.6, .7 + Math.random() * 1.5, -3.1);
-  scene.add(star);
+// Set a mesh onto face k: u slides along the face, y is its height, depth is out from the wall.
+function onFace(k, mesh, u = 0, y = 0, depth = .04) {
+  mesh.position.copy(facePoint(k, depth)).addScaledVector(faceRight(k), u).setY(y);
+  mesh.rotation.y = faceYaw(k);
+  scene.add(mesh);
+  return mesh;
 }
-// Near-black alcove materials keep the warm room lamp from illuminating its contents.
-const alcoveMat = material(0x080a12, 1, { emissive: 0x02030a, emissiveIntensity: .15 });
-box(scene, 1.55, 1.4, -4.15, 2, 2.8, .12, alcoveMat);
-box(scene, 2.55, 1.4, -3.65, .12, 2.8, 1.1, alcoveMat);
-box(scene, .55, 1.4, -3.65, .12, 2.8, 1.1, alcoveMat);
-box(scene, 1.55, .03, -3.7, 2, .08, 1.2, darkMat);
-const door = group(scene, .95, 0, -3);
-door.rotation.y = -1.35;
-box(door, .55, 1.27, 0, 1.1, 2.54, .08, wood);
+const octagon = new THREE.CylinderGeometry(ROOM_RADIUS, ROOM_RADIUS, .18, FACE_COUNT, 1, false, Math.PI / FACE_COUNT);
+const floor = new THREE.Mesh(octagon, floorMat);
+floor.position.y = -.09;
+floor.receiveShadow = true;
+scene.add(floor);
+const ceiling = new THREE.Mesh(octagon, material(0x3a3036, 1));
+ceiling.position.y = WALL_HEIGHT + .09;
+scene.add(ceiling);
+// A hair of tint between neighbouring faces, so the eight corners read.
+const wallMatB = material(0x86655a);
+const trimMat = material(0x3c2a22);
+for (let k = 0; k < FACE_COUNT; k++) {
+  const out = faceOut(k);
+  box(scene, out.x * (APOTHEM + WALL_THICK / 2), WALL_HEIGHT / 2, out.z * (APOTHEM + WALL_THICK / 2),
+    FACE_WIDTH, WALL_HEIGHT, WALL_THICK, k % 2 ? wallMatB : wallMat).rotation.y = faceYaw(k);
+  // Skirting and cornice: without them the eight faces read as one flat wall.
+  onFace(k, new THREE.Mesh(new THREE.BoxGeometry(FACE_WIDTH, .14, .05), trimMat), 0, .07, .025);
+  onFace(k, new THREE.Mesh(new THREE.BoxGeometry(FACE_WIDTH, .09, .05), trimMat), 0, WALL_HEIGHT - .045, .025);
+}
+// A soft ceiling fill keeps all eight faces lit; the lamp still warms one side.
+const ceilingLight = new THREE.PointLight(0xffb277, 14, 10, 2);
+ceilingLight.position.set(0, WALL_HEIGHT - .35, 0);
+scene.add(ceilingLight);
 
-// Desk and a correctly scaled chair tucked on its near side.
-box(scene, -.85, .78, -.35, 1.65, .14, .82, woodTop);
-for (const x of [-1.55, -.15]) for (const z of [-.66, -.04]) box(scene, x, .38, z, .09, .76, .09, wood);
-box(scene, -.85, .45, .55, .48, .1, .48, wood);
-for (const x of [-1.05, -.65]) for (const z of [.37, .73]) box(scene, x, .225, z, .045, .45, .045, wood);
-box(scene, -.85, .88, .79, .48, .82, .09, wood);
-const wallItem = group(scene, -2.88, 1.8, -.65);
+// Night window on the right-front face.
+const night = material(0x07132d, .7, { emissive: 0x07132d, emissiveIntensity: .7 });
+onFace(7, new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.45), night), 0, 1.55, .01);
+const starGeo = new THREE.SphereGeometry(.015, 6, 5);
+const starMat = new THREE.MeshBasicMaterial({ color: 0xa9c9ff });
+for (let i = 0; i < 36; i++) onFace(7, new THREE.Mesh(starGeo, starMat), (Math.random() - .5) * 1.4, 1.0 + Math.random() * 1.6, .03);
+for (const [u, y, w, h] of [[0, 2.32, 1.76, .1], [0, .78, 1.76, .1], [-.83, 1.55, .1, 1.54], [.83, 1.55, .1, 1.54]])
+  onFace(7, new THREE.Mesh(new THREE.BoxGeometry(w, h, .12), woodTop), u, y, .03);
+
+// Door on the back face.
+onFace(4, new THREE.Mesh(new THREE.BoxGeometry(1.16, 2.6, .1), woodTop), 0, 1.3, .02);
+onFace(4, new THREE.Mesh(new THREE.BoxGeometry(1.02, 2.48, .06), wood), 0, 1.24, .05);
+onFace(4, new THREE.Mesh(new THREE.BoxGeometry(.07, .07, .1), metal), .38, 1.06, .1);
+
+// --- the wall note: a real pane on face 0 ----------------------------------
+// The dark panel is the screen; the HTML overlay below draws the words on it.
+const NOTE_FACE = 0, NOTE_W = 2.4, NOTE_H = 1.44, NOTE_Y = 1.42;
+const NOTE_BOX_W = 420, NOTE_BOX_H = 252;   // the overlay's own CSS pixels
+onFace(NOTE_FACE, new THREE.Mesh(new THREE.BoxGeometry(NOTE_W + .16, NOTE_H + .16, .05), woodTop), 0, NOTE_Y, .015);
+onFace(NOTE_FACE, new THREE.Mesh(new THREE.PlaneGeometry(NOTE_W, NOTE_H),
+  material(0x151119, .95, { emissive: 0x0d0a12, emissiveIntensity: .45 })), 0, NOTE_Y, .045);
+
+// --- the two movable things ------------------------------------------------
+// The book sits on the floor in front of the home face; the wall object hangs on
+// the left-front face. Both are clickable and both can be asked for.
+const itemRestY = { book: .16, wall: .34 };
+const wallItem = group(scene);
 wallItem.userData.item = 'wall';
 box(wallItem, 0, 0, 0, .07, .68, .55, woodTop);
 box(wallItem, .05, 0, 0, .035, .52, .39, material(0x30404b, .8, { emissive: 0x122334, emissiveIntensity: .3 }));
-box(scene, 1.5, .48, -4.25, 1.15, .09, .34, alcoveMat);
-const book = group(scene, 1.12, .68, -4.22);
+wallItem.position.copy(facePoint(1, .04)).addScaledVector(faceRight(1), .35).setY(1.62);
+wallItem.rotation.y = faceYaw(1) - Math.PI / 2;   // its thin axis points back into the room
+const book = group(scene);
 book.userData.item = 'book';
-box(book, 0, 0, 0, .22, .32, .25, material(0x171521, .9, { emissive: 0x080711, emissiveIntensity: .2 }));
-box(book, 0, 0, .135, .18, .27, .018, material(0x282633));
+box(book, 0, 0, 0, .22, .32, .25, material(0x37243f, .9, { emissive: 0x120a17, emissiveIntensity: .25 }));
+box(book, 0, 0, .135, .18, .27, .018, material(0x8d7f6b));
+const bookHome = facePoint(0, .6).addScaledVector(faceRight(0), .85).setY(itemRestY.book);
+book.position.copy(bookHome);
+book.rotation.y = .35;
 const items = { book, wall: wallItem };
-const itemHomes = { book: new THREE.Vector3(1.12, .68, -4.22), wall: new THREE.Vector3(-2.88, 1.8, -.65) };
+const itemHomes = { book: bookHome.clone(), wall: wallItem.position.clone() };
 
-const lamp = group(scene, 1.75, 0, .1);
+// The stool the view sits on. It is moved by the walk controls, not by a free camera.
+const stool = group(scene);
+const stoolTop = new THREE.Mesh(new THREE.CylinderGeometry(.23, .23, .07, 16), woodTop);
+stoolTop.position.y = .69;
+stoolTop.castShadow = true;
+stool.add(stoolTop);
+for (let i = 0; i < 4; i++) {
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(.03, .035, .7, 8), wood);
+  const angle = i * Math.PI / 2 + Math.PI / 4;
+  leg.position.set(Math.cos(angle) * .17, .34, Math.sin(angle) * .17);
+  leg.rotation.z = Math.cos(angle) * -.09;
+  leg.rotation.x = Math.sin(angle) * .09;
+  leg.castShadow = true;
+  stool.add(leg);
+}
+const footRing = new THREE.Mesh(new THREE.TorusGeometry(.19, .012, 6, 16), wood);
+footRing.rotation.x = Math.PI / 2;
+footRing.position.y = .22;
+stool.add(footRing);
+
+const lamp = group(scene, 2.45, 0, .55);
 box(lamp, 0, .04, 0, .38, .08, .38, metal);
 const pole = new THREE.Mesh(new THREE.CylinderGeometry(.025, .035, 1.35, 8), metal);
 pole.position.y = .72;
@@ -188,7 +245,7 @@ bulb.shadow.mapSize.set(512, 512);
 lamp.add(bulb);
 
 // Airis is about 1.55m tall; the head turns before the body.
-const airis = group(scene, .75, 0, .45);
+const airis = group(scene, -1.75, 0, -2);
 const skirt = new THREE.Mesh(new THREE.ConeGeometry(.38, .88, 12), plum);
 skirt.position.y = .47;
 skirt.scale.z = .72;
@@ -224,11 +281,72 @@ const carriedGlow = new THREE.Mesh(new THREE.SphereGeometry(.055, 10, 8), new TH
 carriedGlow.visible = false;
 airis.add(carriedGlow);
 
-// Start in the near-right corner looking across the room, so the desk, Airis,
-// the wall object and the doorway all sit in the first frame.
-const pos = new THREE.Vector3(2.35, 1.6, 2.55);
-const lookAt = new THREE.Vector3(-1.05, 1.1, -1.35);
-let yaw = Math.atan2(pos.x - lookAt.x, pos.z - lookAt.z), pitch = -.12;
+// --- the stool is the viewpoint ---------------------------------------------
+// Sitting is the point: the view is square to one face, and the stool can be
+// nudged a step at a time, or pushed further back to take more of the room in.
+// Which face you are squared to, and where the stool sits, are saved values.
+const SEAT_HEIGHT = .72, EYE_HEIGHT = SEAT_HEIGHT + .44;
+const HOME_DEPTH = 3, HOME_LATERAL = 0;    // metres out from the face, metres along it
+const NUDGE_SIDE = .1, NUDGE_DEPTH = .14;
+const SIDE_LIMIT = .95, DEPTH_MIN = 1.5, DEPTH_MAX = 3.9, PAN_LIMIT = 1.15;
+const STORE_KEY = 'airis-os.house.v1';
+const store = {
+  load() { try { return JSON.parse(window.localStorage.getItem(STORE_KEY)) || {}; } catch (error) { return {}; } },
+  save(value) { try { window.localStorage.setItem(STORE_KEY, JSON.stringify(value)); } catch (error) { /* sandboxed: this session only */ } },
+};
+const saved = store.load();
+const savedSeat = (k, key, fallback, lo, hi) => {
+  const raw = Array.isArray(saved.seats) ? saved.seats[k] : null;
+  const value = raw && Number.isFinite(raw[key]) ? raw[key] : fallback;
+  return THREE.MathUtils.clamp(value, lo, hi);
+};
+const state = {
+  note: typeof saved.note === 'string' ? saved.note : '',
+  face: Number.isInteger(saved.face) ? THREE.MathUtils.clamp(saved.face, 0, FACE_COUNT - 1) : 0,
+  pan: Number.isFinite(saved.pan) ? THREE.MathUtils.clamp(saved.pan, -PAN_LIMIT, PAN_LIMIT) : 0,
+  seats: Array.from({ length: FACE_COUNT }, (_, k) => ({
+    lateral: savedSeat(k, 'lateral', HOME_LATERAL, -SIDE_LIMIT, SIDE_LIMIT),
+    depth: savedSeat(k, 'depth', HOME_DEPTH, DEPTH_MIN, DEPTH_MAX),
+  })),
+};
+let saveTimer = 0;
+function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => store.save(state), 250);
+}
+const pos = new THREE.Vector3();
+let yaw = 0, pitch = 0;
+function seatPoint(k, lateral, depth) {
+  return facePoint(k, depth).addScaledVector(faceRight(k), lateral).setY(EYE_HEIGHT);
+}
+function applySeat(save = true) {
+  const seat = state.seats[state.face];
+  pos.copy(seatPoint(state.face, seat.lateral, seat.depth));
+  yaw = faceYaw(state.face) + state.pan;
+  stool.position.copy(pos).setY(0);
+  stool.rotation.y = faceYaw(state.face);
+  syncStoolObstacle(pos);
+  if (save) persist();
+}
+function nudgeSeat(side, back) {
+  const seat = state.seats[state.face];
+  if (side) seat.lateral = THREE.MathUtils.clamp(seat.lateral + side * NUDGE_SIDE, -SIDE_LIMIT, SIDE_LIMIT);
+  if (back) seat.depth = THREE.MathUtils.clamp(seat.depth + back * NUDGE_DEPTH, DEPTH_MIN, DEPTH_MAX);
+  applySeat();
+  hideWalkHint();
+}
+function setFace(k) {
+  state.face = ((k % FACE_COUNT) + FACE_COUNT) % FACE_COUNT;
+  state.pan = 0;
+  applySeat();
+}
+
+// The wall note is a real textarea, laid onto the pane with a homography, so
+// the 3D pane and the words you type cannot drift apart.
+const noteEl = document.querySelector('#wall-note');
+const noteText = document.querySelector('#note-text');
+noteText.value = state.note;
+noteText.addEventListener('input', () => { state.note = noteText.value; persist(); });
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let pointerId = null, pointerStart = null, dragged = false, touchWalking = false, touchStartedAt = 0;
@@ -252,10 +370,10 @@ canvas.addEventListener('pointermove', event => {
   const dx = event.clientX - pointerStart.x, dy = event.clientY - pointerStart.y;
   if (Math.hypot(dx, dy) > 6) dragged = true;
   if (touchWalking) {
-    yaw -= dx * .012;
+    state.pan = THREE.MathUtils.clamp(state.pan - dx * .012, -PAN_LIMIT, PAN_LIMIT);
     pointerStart = { x: event.clientX, y: event.clientY };
   } else if (dragged) {
-    yaw -= dx * .004;
+    state.pan = THREE.MathUtils.clamp(state.pan - dx * .004, -PAN_LIMIT, PAN_LIMIT);
     pitch = THREE.MathUtils.clamp(pitch - dy * .003, -.62, .5);
     pointerStart = { x: event.clientX, y: event.clientY };
   }
@@ -277,6 +395,7 @@ canvas.addEventListener('pointerup', event => {
   pointerId = null;
   pointerStart = null;
   touchWalking = false;
+  persist();
 });
 canvas.addEventListener('pointercancel', event => {
   if (event.pointerId === pointerId) {
@@ -285,31 +404,50 @@ canvas.addEventListener('pointercancel', event => {
   }
 });
 
-// Desk top surface is at .78 + .14/2. Each item rests on it: centre = top + its own half-height.
-// The two items get separate spots on the desk so they never land inside each other.
-const DESK_TOP = .85;
-const itemHalfHeight = { book: .16, wall: .34 };
-const itemDeskX = { book: -.4, wall: -1.1 };
-function deskSpotFor(item) {
-  const name = item.userData.item;
-  return new THREE.Vector3(itemDeskX[name], DESK_TOP + itemHalfHeight[name], -.35);
-}
+// Where things are, now that the desk is gone: the book rests on the floor in
+// front of the home face, the wall object hangs on the left-front face.
 const waypoints = {
-  doorOutside: new THREE.Vector3(1.65, 0, -2.48),
-  doorway: new THREE.Vector3(1.65, 0, -3.18),
-  book: new THREE.Vector3(1.12, 0, -3.75),
-  wall: new THREE.Vector3(-2.3, 0, -.65),
-  // Standing at the desk's free right end, clear of the chair on its near side.
-  desk: new THREE.Vector3(.55, 0, -.35),
+  book: facePoint(0, .98).addScaledVector(faceRight(0), .85),
+  wall: facePoint(1, 1.15).addScaledVector(faceRight(1), .35),
+  door: facePoint(4, .9),
+  window: facePoint(7, 1.05),
+  lamp: new THREE.Vector3(1.6, 0, .55),
 };
-// Furniture footprints (x/z), inflated by how far Airis's centre must stay away from them.
+// The stool itself, the lamp and the door leaf are the only footprints in the room.
 const obstacles = [
-  { name: 'desk', x1: -1.675, x2: -.025, z1: -.76, z2: .06, pad: .5 },
-  { name: 'chair', x1: -1.09, x2: -.61, z1: .31, z2: .835, pad: .5 },
-  { name: 'lamp', x1: 1.56, x2: 1.94, z1: -.09, z2: .29, pad: .4 },
-  // Door panel's rotated footprint where it meets the room; keep it in the same collision list.
-  { name: 'door', x1: .911, x2: 1.230, z1: -3.009, z2: -1.918, pad: .12 },
+  { name: 'stool', x1: -.22, x2: .22, z1: -.22, z2: .22, pad: .45 },
+  { name: 'lamp', x1: 2.26, x2: 2.64, z1: .36, z2: .74, pad: .4 },
+  { name: 'door', x1: -.62, x2: .62, z1: 3.16, z2: 3.26, pad: .1 },
 ].map(o => ({ ...o, a: o.x1 - o.pad, b: o.x2 + o.pad, c: o.z1 - o.pad, d: o.z2 + o.pad }));
+const stoolObstacle = obstacles.find(o => o.name === 'stool');
+function syncStoolObstacle(p) {
+  stoolObstacle.x1 = p.x - .22; stoolObstacle.x2 = p.x + .22;
+  stoolObstacle.z1 = p.z - .22; stoolObstacle.z2 = p.z + .22;
+  stoolObstacle.a = stoolObstacle.x1 - stoolObstacle.pad;
+  stoolObstacle.b = stoolObstacle.x2 + stoolObstacle.pad;
+  stoolObstacle.c = stoolObstacle.z1 - stoolObstacle.pad;
+  stoolObstacle.d = stoolObstacle.z2 + stoolObstacle.pad;
+}
+function insideOctagon(p, margin = .45) {
+  for (let k = 0; k < FACE_COUNT; k++) {
+    const out = faceOut(k);
+    if (p.x * out.x + p.z * out.z > APOTHEM - margin) return false;
+  }
+  return true;
+}
+function clampInsideOctagon(p, margin = .5) {
+  for (let k = 0; k < FACE_COUNT; k++) {
+    const out = faceOut(k);
+    const over = p.x * out.x + p.z * out.z - (APOTHEM - margin);
+    if (over > 0) { p.x -= over * out.x; p.z -= over * out.z; }
+  }
+  return p;
+}
+// The spot beside the stool where Airis hands things over.
+function handoffPoint() {
+  return clampInsideOctagon(pos.clone().setY(0).addScaledVector(faceRight(state.face), .95), .55);
+}
+applySeat(false);
 const inside = (o, p, e = 0) => p.x > o.a + e && p.x < o.b - e && p.z > o.c + e && p.z < o.d - e;
 function segmentHits(o, p, q) {
   // Slab test against the inflated box shrunk a hair, so walking along its edge is allowed.
@@ -334,7 +472,7 @@ function route(start, destination) {
   const nodes = [from, destination.clone()];
   for (const o of active) for (const x of [o.a, o.b]) for (const z of [o.c, o.d]) {
     const p = new THREE.Vector3(x, 0, z);
-    if (Math.abs(x) < 2.5 && Math.abs(z) < 2.5 && !active.some(other => inside(other, p, .001))) nodes.push(p);
+    if (insideOctagon(p, .5) && !active.some(other => inside(other, p, .001))) nodes.push(p);
   }
   const dist = nodes.map(() => Infinity), prev = nodes.map(() => -1), done = nodes.map(() => false);
   dist[0] = 0;
@@ -354,10 +492,6 @@ function route(start, destination) {
   for (let i = 1; i > 0; i = prev[i]) path.unshift(nodes[i].clone());
   return path;
 }
-function routeTo(point, itemName) {
-  if (itemName === 'book') return [...route(airis.position, waypoints.doorOutside), waypoints.doorway.clone(), waypoints.book.clone()];
-  return route(airis.position, point);
-}
 let busy = null, carried = null, gazeSince = 0, gazeYaw = 0;
 const fmt = v => `(${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`;
 const trace = [];
@@ -367,15 +501,21 @@ function traceEvent(event, item) {
   console.log(`[house] ${row.event} ${row.item} item=${fmt(row.at)} airis=${fmt(row.airis)}`);
 }
 let clickStart = 0;
+// Both items come to rest on the floor beside the stool.
+function setDownSpot(item) {
+  const spot = handoffPoint();
+  spot.y = itemRestY[item.userData.item];
+  return spot;
+}
 function clickFetch(item) {
   clickStart = performance.now();
   traceEvent('click-pickup', item);
   item.visible = false;
-  busy = { kind: 'click', item, elapsed: 0, target: deskSpotFor(item).add(new THREE.Vector3((Math.random() - .5) * .4, 0, (Math.random() - .5) * .25)) };
+  busy = { kind: 'click', item, elapsed: 0, target: setDownSpot(item).add(new THREE.Vector3((Math.random() - .5) * .3, 0, (Math.random() - .5) * .3)) };
 }
 function setDownCarried() {
   if (!carried) return;
-  carried.position.copy(deskSpotFor(carried));
+  carried.position.copy(setDownSpot(carried));
   carried.visible = true;
   traceEvent('bring-setdown', carried);
   carriedGlow.visible = false;
@@ -390,23 +530,22 @@ function replaceTask(task) {
 }
 function taskBring(name) {
   const item = items[name];
-  if (item.position.distanceTo(deskSpotFor(item)) < .35) {
-    say.textContent = "It's already on the desk.";
-    askResult.textContent = 'ask: already on the desk';
-    return;
-  }
-  const path = routeTo(waypoints[name], name);
-  const back = name === 'book' ? [waypoints.doorway.clone(), waypoints.doorOutside.clone()] : [];
-  back.push(...route(back.length ? back[back.length - 1] : waypoints[name], waypoints.desk));
+  const path = route(airis.position, waypoints[name]);
+  const back = route(waypoints[name], handoffPoint());
   replaceTask({ kind: 'bring', name, item, phase: 'walkOut', path, returnPath: back, pause: 0 });
   askResult.textContent = 'ask: in progress';
 }
-const targets = { window: new THREE.Vector3(-1.4, 0, -2.2), door: waypoints.doorOutside, desk: waypoints.desk, lamp: new THREE.Vector3(1.75, 0, .7), here: new THREE.Vector3(0, 0, 1.25) };
+const destinations = {
+  window: () => waypoints.window,
+  door: () => waypoints.door,
+  lamp: () => waypoints.lamp,
+  here: handoffPoint,
+};
 function startTask(text) {
   const query = text.trim().toLowerCase();
   say.textContent = '';
   if (!query) return;
-  if (/^(reset|put it back)$/.test(query)) { resetObjects(); return; }
+  if (/^(reset|put it back)$/.test(query)) { resetRoom(); return; }
   if (/\b(bring|fetch|get|grab|give me)\b/.test(query)) {
     const item = /book|notebook|journal|diary/.test(query) ? 'book' : /wall thing|frame|picture|clock/.test(query) ? 'wall' : null;
     if (!item) { say.textContent = "I don't know what that is."; return; }
@@ -414,26 +553,64 @@ function startTask(text) {
     return;
   }
   if (/\b(go|walk|stand|move)\b/.test(query)) {
-    const dest = /window/.test(query) ? 'window' : /door/.test(query) ? 'door' : /desk/.test(query) ? 'desk' : /lamp/.test(query) ? 'lamp' : /here|me/.test(query) ? 'here' : null;
+    const dest = /window/.test(query) ? 'window' : /door/.test(query) ? 'door' : /lamp/.test(query) ? 'lamp' : /\b(here|me)\b/.test(query) ? 'here' : null;
     if (!dest) { say.textContent = "I don't know where you mean."; return; }
-    replaceTask({ kind: 'walk', path: route(airis.position, targets[dest]), face: true });
+    replaceTask({ kind: 'walk', path: route(airis.position, destinations[dest]()), face: true });
+    return;
+  }
+  // Seating commands: square up to a face, nudge the stool, centre the view.
+  if (/^(face|turn to)\s+\d+$/.test(query)) {
+    const n = Number(query.split(/\s+/).pop());
+    if (n < 1 || n > FACE_COUNT) { say.textContent = `Faces are numbered 1 to ${FACE_COUNT}.`; return; }
+    setFace(n - 1);
+    say.textContent = `squared up to face ${n}`;
+    return;
+  }
+  if (/^(turn|look)\s+(left|right)$/.test(query)) {
+    setFace(state.face + (query.endsWith('left') ? 1 : -1));
+    say.textContent = `squared up to face ${state.face + 1}`;
+    return;
+  }
+  if (/^(square|square up|straight ahead)$/.test(query)) {
+    state.pan = 0;
+    applySeat();
+    say.textContent = 'squared up';
+    return;
+  }
+  if (/^(nudge|step|shift)\s+(left|right|back|forward|in)$/.test(query)) {
+    const way = query.split(/\s+/).pop();
+    nudgeSeat(way === 'left' ? -1 : way === 'right' ? 1 : 0, way === 'back' ? 1 : way === 'forward' || way === 'in' ? -1 : 0);
+    say.textContent = `stool moved ${way}`;
+    return;
+  }
+  if (/^note\b/.test(query)) {
+    const body = text.trim().slice(4).trim();
+    if (!body) { say.textContent = 'nothing written'; return; }
+    state.note = state.note ? `${state.note}\n${body}` : body;
+    noteText.value = state.note;
+    persist();
+    say.textContent = 'note: written on the wall';
     return;
   }
   say.textContent = "I don't know what you mean.";
 }
-function resetObjects() {
+function resetRoom() {
   items.book.position.copy(itemHomes.book);
   items.wall.position.copy(itemHomes.wall);
   for (const item of Object.values(items)) item.visible = true;
   carried = null;
   carriedGlow.visible = false;
   busy = null;
+  state.face = 0;
+  state.pan = 0;
+  state.seats = Array.from({ length: FACE_COUNT }, () => ({ lateral: HOME_LATERAL, depth: HOME_DEPTH }));
+  applySeat();
   clickResult.textContent = '';
   askResult.textContent = '';
   say.textContent = '';
 }
 form.addEventListener('submit', event => { event.preventDefault(); startTask(input.value); input.value = ''; });
-document.querySelector('#reset').addEventListener('click', resetObjects);
+document.querySelector('#reset').addEventListener('click', resetRoom);
 
 let quality = 0, avgMs = 0, slowFrames = 0, recoverySince = 0, framed = false;
 function resize() {
@@ -442,12 +619,13 @@ function resize() {
   renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1) * (quality === 1 ? .85 : quality >= 2 ? .65 : 1));
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
-  // Portrait keeps at least ~60deg across, so the room reads as a room on a phone.
-  const minHorizontal = THREE.MathUtils.degToRad(60);
-  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(minHorizontal / 2) / camera.aspect)), 68, 100);
+  // Portrait needs a wider horizontal field to keep the two side faces in view,
+  // so on a tall screen the desired horizontal angle drives the vertical one.
+  const minHorizontal = THREE.MathUtils.degToRad(camera.aspect < 1 ? 68 : 60);
+  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(minHorizontal / 2) / camera.aspect)), 68, 113);
   camera.updateProjectionMatrix();
-  // First frame only: a tall screen tilts down so the floor, not the ceiling, fills the extra height.
-  if (!framed) { pitch = camera.aspect < 1 ? -.34 : -.12; framed = true; }
+  // First frame only: a tall screen tilts down a little so the floor reads too.
+  if (!framed) { pitch = camera.aspect < 1 ? -.12 : -.02; framed = true; }
 }
 new ResizeObserver(resize).observe(stage);
 window.addEventListener('orientationchange', resize);
@@ -457,9 +635,21 @@ const walkPad = document.querySelector('#walk-pad');
 const heldDirections = new Set();
 const keyDirections = new Map([['w', 'up'], ['ArrowUp', 'up'], ['s', 'down'], ['ArrowDown', 'down'], ['a', 'left'], ['ArrowLeft', 'left'], ['d', 'right'], ['ArrowRight', 'right']]);
 function setDirection(direction, held) {
-  if (held) heldDirections.add(direction); else heldDirections.delete(direction);
+  if (held) {
+    if (!heldDirections.has(direction)) {
+      heldDirections.add(direction);
+      // One step immediately on press, then one every STEP_INTERVAL while held.
+      stepClock = 0;
+      stepOnce(direction);
+    }
+  } else heldDirections.delete(direction);
   const button = walkPad.querySelector(`[data-dir="${direction}"]`);
   button?.setAttribute('aria-pressed', String(heldDirections.has(direction)));
+}
+const stepVectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+function stepOnce(direction) {
+  const vector = stepVectors[direction];
+  if (vector) nudgeSeat(vector[0], vector[1]);
 }
 walkPad.querySelectorAll('button').forEach(button => {
   const direction = button.dataset.dir;
@@ -476,26 +666,18 @@ window.addEventListener('keydown', event => {
 });
 window.addEventListener('keyup', event => { const direction = keyDirections.get(event.key); if (direction) setDirection(direction, false); });
 window.addEventListener('blur', () => { for (const direction of [...heldDirections]) setDirection(direction, false); });
+// Holding a direction nudges the stool, a small step at a time. Nothing here
+// moves a free camera: the seat is the seat.
+const STEP_INTERVAL = .13;
+let stepClock = 0;
 function moveCamera(dt) {
-  if (!heldDirections.size || busy) return;
   const forward = Number(heldDirections.has('up')) - Number(heldDirections.has('down'));
   const sideways = Number(heldDirections.has('right')) - Number(heldDirections.has('left'));
-  if (!forward && !sideways) return;
-  const length = Math.hypot(forward, sideways), speed = 1.8 * dt / length;
-  const dx = (-Math.sin(yaw) * forward + Math.cos(yaw) * sideways) * speed;
-  const dz = (-Math.cos(yaw) * forward - Math.sin(yaw) * sideways) * speed;
-  const current = { x: pos.x, z: pos.z };
-  const blocked = (x, z) => obstacles.some(o => segmentHits(o, current, { x, z }));
-  let x = THREE.MathUtils.clamp(pos.x + dx, -2.68, 2.68), z = THREE.MathUtils.clamp(pos.z + dz, -2.68, 2.68);
-  if (!blocked(x, z)) pos.set(x, 1.6, z);
-  else {
-    x = THREE.MathUtils.clamp(pos.x + dx, -2.68, 2.68);
-    if (!blocked(x, pos.z)) pos.x = x;
-    z = THREE.MathUtils.clamp(pos.z + dz, -2.68, 2.68);
-    if (!blocked(pos.x, z)) pos.z = z;
-    pos.y = 1.6;
-  }
-  if (Math.hypot(pos.x - current.x, pos.z - current.z) > .0001) hideWalkHint();
+  if (!forward && !sideways) { stepClock = 0; return; }
+  stepClock += dt;
+  if (stepClock < STEP_INTERVAL) return;
+  stepClock = 0;
+  nudgeSeat(sideways, -forward);
 }
 let previous = performance.now();
 let blinkAt = previous + 3000 + Math.random() * 3000;
@@ -508,6 +690,7 @@ function walkToward(point, dt) {
   const step = Math.min(distance, 1.05 * dt);
   airis.position.x += dx / distance * step;
   airis.position.z += dz / distance * step;
+  clampInsideOctagon(airis.position, .45);
   airis.rotation.y = Math.atan2(dx, dz);
   stride += step * 11;
   return false;
@@ -569,10 +752,54 @@ function updateTask(dt, now) {
   }
   if (busy.phase === 'done') busy = null;
 }
+// Project the pane's four corners and lay the textarea onto that quad. A plane's
+// projection is a homography, so the words stay glued to the panel at any angle.
+const noteCorners = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+const noteView = new THREE.Vector3();
+let noteShown = false;
+function showNote(show) {
+  if (show === noteShown) return;
+  noteShown = show;
+  noteEl.style.display = show ? 'block' : 'none';
+  if (!show && document.activeElement === noteText) noteText.blur();
+}
+function updateNoteOverlay() {
+  const forwardX = -Math.sin(yaw), forwardZ = -Math.cos(yaw);
+  const inward = faceOut(NOTE_FACE);   // faceOut is the outward normal
+  // Square-on to the pane, the view runs against its inward normal: dot ~ -1.
+  if (forwardX * -inward.x + forwardZ * -inward.z > -.34) { showNote(false); return; }
+  const centre = facePoint(NOTE_FACE, .05).setY(NOTE_Y);
+  const right = faceRight(NOTE_FACE);
+  const hw = NOTE_W / 2, hh = NOTE_H / 2;
+  noteCorners[0].copy(centre).addScaledVector(right, -hw); noteCorners[0].y += hh;   // top left
+  noteCorners[1].copy(centre).addScaledVector(right, hw); noteCorners[1].y += hh;    // top right
+  noteCorners[2].copy(centre).addScaledVector(right, hw); noteCorners[2].y -= hh;    // bottom right
+  noteCorners[3].copy(centre).addScaledVector(right, -hw); noteCorners[3].y -= hh;   // bottom left
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  const screen = [];
+  for (const corner of noteCorners) {
+    noteView.copy(corner).applyMatrix4(camera.matrixWorldInverse);
+    if (noteView.z > -.08) { showNote(false); return; }    // corner is behind the eye
+    const projected = corner.clone().project(camera);
+    screen.push({ x: (projected.x + 1) * width / 2, y: (1 - projected.y) * height / 2 });
+  }
+  const [p0, p1, p2, p3] = screen;
+  const dx1 = p1.x - p2.x, dx2 = p3.x - p2.x, dx3 = p0.x - p1.x + p2.x - p3.x;
+  const dy1 = p1.y - p2.y, dy2 = p3.y - p2.y, dy3 = p0.y - p1.y + p2.y - p3.y;
+  const det = dx1 * dy2 - dx2 * dy1;
+  if (Math.abs(det) < 1e-6) { showNote(false); return; }
+  const g = (dx3 * dy2 - dx2 * dy3) / det, h = (dx1 * dy3 - dx3 * dy1) / det;
+  const a = p1.x - p0.x + g * p1.x, b = p3.x - p0.x + h * p3.x;
+  const d = p1.y - p0.y + g * p1.y, e = p3.y - p0.y + h * p3.y;
+  showNote(true);
+  noteEl.style.transform = `matrix3d(${a / NOTE_BOX_W},${d / NOTE_BOX_W},0,${g / NOTE_BOX_W},` +
+    `${b / NOTE_BOX_H},${e / NOTE_BOX_H},0,${h / NOTE_BOX_H},0,0,1,0,${p0.x},${p0.y},0,1)`;
+}
 function animate(now) {
   requestAnimationFrame(animate);
   const dt = Math.min(.05, (now - previous) / 1000);
   previous = now;
+  yaw = faceYaw(state.face) + state.pan;
   avgMs = avgMs * .94 + dt * 1000 * .06;
   if (avgMs > 22) { slowFrames++; recoverySince = 0; }
   else {
@@ -605,9 +832,11 @@ function animate(now) {
   } else { gazeSince = 0; headPivot.rotation.y *= Math.max(0, 1 - dt * 3); }
   if (carried) carriedGlow.position.set(.38, .86, .12);
   camera.position.copy(pos);
-  if (debugEnabled) cameraDebug.textContent = `camera x ${pos.x.toFixed(2)} · z ${pos.z.toFixed(2)}`;
   camera.rotation.order = 'YXZ';
   camera.rotation.set(pitch, yaw, 0);
+  camera.updateMatrixWorld();
+  updateNoteOverlay();
+  if (debugEnabled) cameraDebug.textContent = `face ${state.face + 1} · x ${pos.x.toFixed(2)} · z ${pos.z.toFixed(2)} · side ${state.seats[state.face].lateral.toFixed(2)} · back ${(state.seats[state.face].depth - HOME_DEPTH).toFixed(2)} · fov ${camera.fov.toFixed(0)}`;
   renderer.render(scene, camera);
 }
 window.__house = {
@@ -621,6 +850,18 @@ window.__house = {
   item(name) { const o = items[name]; if (!o) return null; o.updateWorldMatrix(true, true); const b = new THREE.Box3().setFromObject(o); return { minY: b.min.y, maxY: b.max.y, minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z, visible: o.visible }; },
   task: () => busy?.phase || (busy?.kind === 'walk' ? 'walk' : null),
   airis: { get x() { return airis.position.x; }, get z() { return airis.position.z; } },
+  seat: () => ({
+    face: state.face, lateral: state.seats[state.face].lateral, depth: state.seats[state.face].depth,
+    pan: state.pan, homeDepth: HOME_DEPTH, eye: EYE_HEIGHT,
+  }),
+  cameraState: () => ({
+    x: pos.x, y: pos.y, z: pos.z, yaw, pitch, fov: camera.fov, aspect: camera.aspect,
+    horizontalFov: 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect) * 180 / Math.PI,
+  }),
+  nudge: nudgeSeat,
+  setFace,
+  note: { get text() { return state.note; }, get shown() { return noteShown; } },
+  room: { faces: FACE_COUNT, faceWidth: FACE_WIDTH, apothem: APOTHEM, wallHeight: WALL_HEIGHT },
   project(name) {
     const object = items[name];
     if (!object) return null;
