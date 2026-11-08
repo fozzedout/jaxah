@@ -23,6 +23,11 @@ body { background: #100e13; }
 #command { min-width: 0; flex: 1; height: 48px; padding: 0 14px; border: 1px solid #9d765b88; border-radius: 12px; background: #191419e8; color: #fff1dc; font-size: 16px; }
 #send, #reset { border: 1px solid #9d765b88; border-radius: 12px; background: #392a27; color: #f2dfca; }
 #send, #reset { font: 13px inherit; padding: 0 15px; min-height: 48px; }
+#walk-pad { position:absolute; z-index:2; left:14px; bottom:calc(82px + env(safe-area-inset-bottom)); width:112px; height:112px; display:grid; grid-template:repeat(3, 1fr)/repeat(3, 1fr); gap:3px; pointer-events:auto; touch-action:none; }
+#walk-pad button { border:1px solid #c49b7788; border-radius:12px; background:#241c1ddd; color:#f2dfca; font:20px/1 ui-sans-serif,system-ui,sans-serif; touch-action:none; user-select:none; }
+#walk-pad button:active, #walk-pad button[aria-pressed="true"] { background:#76513b; }
+#walk-pad [data-dir="up"] { grid-area:1/2; } #walk-pad [data-dir="left"] { grid-area:2/1; } #walk-pad [data-dir="down"] { grid-area:2/2; } #walk-pad [data-dir="right"] { grid-area:2/3; }
+@media (max-width:699px) { #status { right:132px; } #form { left:138px; } }
 @media (min-width:700px) { #status { bottom:calc(18px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc(100vw - 476px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
 </style>
 </head>
@@ -30,6 +35,12 @@ body { background: #100e13; }
 <div id="stage">
   <canvas id="gl" aria-label="A warm room with Airis. Drag to look around; tap an object or ask Airis for it."></canvas>
   <div id="veil"></div><div id="grain"></div>
+  <div id="walk-pad" role="group" aria-label="Walk controls">
+    <button type="button" data-dir="up" aria-label="Walk forward" aria-pressed="false">▲</button>
+    <button type="button" data-dir="left" aria-label="Walk left" aria-pressed="false">◀</button>
+    <button type="button" data-dir="down" aria-label="Walk backward" aria-pressed="false">▼</button>
+    <button type="button" data-dir="right" aria-label="Walk right" aria-pressed="false">▶</button>
+  </div>
   <div id="hud"><div id="status">
     <div id="result">a click costs your attention for the whole trip; an ask costs a sentence.</div>
     <div id="click-result"></div><div id="ask-result"></div><div id="say" aria-live="polite"></div>
@@ -272,6 +283,8 @@ const obstacles = [
   { name: 'desk', x1: -1.675, x2: -.025, z1: -.76, z2: .06, pad: .5 },
   { name: 'chair', x1: -1.09, x2: -.61, z1: .31, z2: .835, pad: .5 },
   { name: 'lamp', x1: 1.56, x2: 1.94, z1: -.09, z2: .29, pad: .4 },
+  // Door panel's rotated footprint where it meets the room; keep it in the same collision list.
+  { name: 'door', x1: .911, x2: 1.230, z1: -3.009, z2: -1.918, pad: .12 },
 ].map(o => ({ ...o, a: o.x1 - o.pad, b: o.x2 + o.pad, c: o.z1 - o.pad, d: o.z2 + o.pad }));
 const inside = (o, p, e = 0) => p.x > o.a + e && p.x < o.b - e && p.z > o.c + e && p.z < o.d - e;
 function segmentHits(o, p, q) {
@@ -416,6 +429,49 @@ new ResizeObserver(resize).observe(stage);
 window.addEventListener('orientationchange', resize);
 resize();
 
+const walkPad = document.querySelector('#walk-pad');
+const heldDirections = new Set();
+const keyDirections = new Map([['w', 'up'], ['ArrowUp', 'up'], ['s', 'down'], ['ArrowDown', 'down'], ['a', 'left'], ['ArrowLeft', 'left'], ['d', 'right'], ['ArrowRight', 'right']]);
+function setDirection(direction, held) {
+  if (held) heldDirections.add(direction); else heldDirections.delete(direction);
+  const button = walkPad.querySelector(`[data-dir="${direction}"]`);
+  button?.setAttribute('aria-pressed', String(heldDirections.has(direction)));
+}
+walkPad.querySelectorAll('button').forEach(button => {
+  const direction = button.dataset.dir;
+  button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); setDirection(direction, true); });
+  const release = event => { if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId); setDirection(direction, false); };
+  button.addEventListener('pointerup', release);
+  button.addEventListener('pointercancel', release);
+  button.addEventListener('lostpointercapture', () => setDirection(direction, false));
+});
+window.addEventListener('keydown', event => {
+  const direction = keyDirections.get(event.key);
+  if (!direction || event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|BUTTON)$/.test(event.target.tagName)) return;
+  event.preventDefault(); setDirection(direction, true);
+});
+window.addEventListener('keyup', event => { const direction = keyDirections.get(event.key); if (direction) setDirection(direction, false); });
+window.addEventListener('blur', () => { for (const direction of [...heldDirections]) setDirection(direction, false); });
+function moveCamera(dt) {
+  if (!heldDirections.size || busy) return;
+  const forward = Number(heldDirections.has('up')) - Number(heldDirections.has('down'));
+  const sideways = Number(heldDirections.has('right')) - Number(heldDirections.has('left'));
+  if (!forward && !sideways) return;
+  const length = Math.hypot(forward, sideways), speed = 1.8 * dt / length;
+  const dx = (-Math.sin(yaw) * forward + Math.cos(yaw) * sideways) * speed;
+  const dz = (-Math.cos(yaw) * forward - Math.sin(yaw) * sideways) * speed;
+  const current = { x: pos.x, z: pos.z };
+  const blocked = (x, z) => obstacles.some(o => segmentHits(o, current, { x, z }));
+  let x = THREE.MathUtils.clamp(pos.x + dx, -2.68, 2.68), z = THREE.MathUtils.clamp(pos.z + dz, -2.68, 2.68);
+  if (!blocked(x, z)) pos.set(x, 1.6, z);
+  else {
+    x = THREE.MathUtils.clamp(pos.x + dx, -2.68, 2.68);
+    if (!blocked(x, pos.z)) pos.x = x;
+    z = THREE.MathUtils.clamp(pos.z + dz, -2.68, 2.68);
+    if (!blocked(pos.x, z)) pos.z = z;
+    pos.y = 1.6;
+  }
+}
 let previous = performance.now();
 let blinkAt = previous + 3000 + Math.random() * 3000;
 let blinkUntil = 0;
@@ -503,6 +559,7 @@ function animate(now) {
   }
   if (slowFrames > 100 && quality < 2) { quality++; slowFrames = 0; resize(); }
   updateTask(dt, now);
+  moveCamera(dt);
   const walking = !!busy && (busy.phase === 'walkOut' || busy.phase === 'walkBack' || busy.kind === 'walk');
   const leanTarget = walking ? .08 : 0;
   airis.rotation.x += (leanTarget - airis.rotation.x) * Math.min(1, dt * 4);
