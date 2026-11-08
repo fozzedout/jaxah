@@ -16,7 +16,7 @@ body { background: #100e13; }
 #grain { opacity: .075; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
 #hud { position: absolute; inset: 0; pointer-events: none; }
 /* HUD text sits above the form on a phone and left of it on wider screens: separate regions at every width. */
-#status { position: absolute; left: 14px; right: 14px; bottom: calc(72px + env(safe-area-inset-bottom)); max-width: 420px; font: 11px/1.45 ui-monospace, monospace; color: #c8b8a5; text-shadow: 0 2px 6px #000; }
+#status { position: absolute; left: 14px; right: 14px; bottom: calc(204px + env(safe-area-inset-bottom)); max-width: 420px; font: 11px/1.45 ui-monospace, monospace; pointer-events: auto; color: #c8b8a5; text-shadow: 0 2px 6px #000; }
 #result, #click-result, #ask-result { min-height: 1.45em; }
 #say { color: #f0d0a4; }
 #form { position: absolute; left: 14px; right: 14px; bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 7px; pointer-events: auto; }
@@ -31,7 +31,7 @@ body { background: #100e13; }
 #walk-hint.is-gone { opacity:0; }
 #camera-debug { position:absolute; z-index:3; top:calc(14px + env(safe-area-inset-top)); right:14px; padding:6px 8px; border-radius:6px; background:#100e13dd; color:#d9cbb8; font:11px/1.4 ui-monospace,monospace; pointer-events:none; }
 @media (max-width:699px) { #status { right:132px; } #form { left:138px; } }
-@media (min-width:700px) { #status { bottom:calc(18px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc(100vw - 476px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
+@media (min-width:700px) { #status { bottom:calc(204px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc(100vw - 476px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
 </style>
 </head>
 <body>
