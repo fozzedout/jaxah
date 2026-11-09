@@ -93,6 +93,239 @@
       'Sandboxed storage is blocked in this frame — keeping the list in memory for this session.';
   }
 
+  // --- the picture the house hangs on its wall -------------------------------
+  // The 3D layer is generic: it only puts a data: URL on a wall. This page draws
+  // that picture itself, from the list right here, so the wall is never a stale
+  // screenshot. Everything is local: no request, no images, just canvas pixels.
+  var PICTURE_W = 390, PICTURE_H = 620;      // matches PICTURE_ASPECT in house.html
+  var sheet = document.createElement('canvas');
+  sheet.width = PICTURE_W; sheet.height = PICTURE_H;
+  var pen = sheet.getContext('2d');
+  var ITEM_LINE = 19;
+
+  function pictureFont(weight, size) {
+    return weight + ' ' + size + 'px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  }
+
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+
+  // Wrap on spaces, break a single over-long word by characters, and cap the line
+  // count with an ellipsis: the card has a fixed height to fill.
+  function wrapLines(g, text, maxWidth, maxLines) {
+    var source = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    if (!source) return [''];
+    var words = source.split(' '), lines = [], line = '', i;
+    for (i = 0; i < words.length; i++) {
+      var trial = line ? line + ' ' + words[i] : words[i];
+      if (g.measureText(trial).width <= maxWidth) { line = trial; continue; }
+      if (line) { lines.push(line); line = ''; }
+      var rest = words[i];
+      while (g.measureText(rest).width > maxWidth && rest.length > 1) {
+        var cut = rest.length - 1;
+        while (cut > 1 && g.measureText(rest.slice(0, cut)).width > maxWidth) cut--;
+        lines.push(rest.slice(0, cut));
+        rest = rest.slice(cut);
+      }
+      line = rest;
+    }
+    if (line) lines.push(line);
+    if (lines.length > maxLines) {
+      lines = lines.slice(0, maxLines);
+      var last = lines[maxLines - 1];
+      while (last.length > 1 && g.measureText(last + '\u2026').width > maxWidth) last = last.slice(0, -1);
+      lines[maxLines - 1] = last.replace(/\s+$/, '') + '\u2026';
+    }
+    return lines;
+  }
+
+  function drawPicture() {
+    var g = pen, W = PICTURE_W, H = PICTURE_H;
+    var margin = 20, pad = 22, gap = 8, radius = 18, boxSize = 22;
+    var itemPadX = 12, itemPadY = 10, textGap = 10;
+    var cardX = margin, cardW = W - margin * 2;
+    var innerX = cardX + pad, innerW = cardW - pad * 2;
+    var cardTop = margin, limitBottom = H - margin;
+    var FOOT_H = 16, FOOT_GAP = 12, MORE_H = 22;
+
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, W, H);
+
+    // The page's own radial teal background: 120% 100% at 50% 0%.
+    g.save();
+    g.translate(W / 2, 0);
+    g.scale(1, H / (W * 1.2));
+    var bg = g.createRadialGradient(0, 0, 0, 0, 0, W * 1.2);
+    bg.addColorStop(0, '#153b33');
+    bg.addColorStop(.55, '#0b1e24');
+    bg.addColorStop(1, '#070d12');
+    g.fillStyle = bg;
+    g.fillRect(-W / 2, 0, W, W * 1.2);
+    g.restore();
+
+    g.textBaseline = 'top';
+    g.textAlign = 'left';
+
+    var titleTop = cardTop + pad;
+    var subTop = titleTop + 26;
+    var inputTop = subTop + 16 + 14;
+    var rowH = 48;
+    var itemsTop = inputTop + rowH + 14;
+    var textX = innerX + itemPadX + boxSize + textGap;
+    var textW = innerX + innerW - itemPadX - textX;
+
+    // Measure the list before drawing the card it sits on, then take as many rows
+    // as fit — leaving room for a "+N more" line when the list overflows.
+    g.font = pictureFont(400, 15);
+    var rows = items.map(function (item) {
+      var lines = wrapLines(g, item.text, textW, 2);
+      return { item: item, lines: lines, height: itemPadY * 2 + Math.max(boxSize, lines.length * ITEM_LINE) };
+    });
+    var budget = (limitBottom - pad) - (FOOT_GAP + FOOT_H) - itemsTop;
+    var used = 0, shown = 0, i;
+    for (i = 0; i < rows.length; i++) {
+      var need = (i ? gap : 0) + rows[i].height;
+      var reserve = rows.length - (i + 1) > 0 ? gap + MORE_H : 0;
+      if (used + need + reserve > budget) break;
+      used += need;
+      shown++;
+    }
+    var moreCount = rows.length - shown;
+    var contentBottom = itemsTop + used + (moreCount > 0 ? gap + MORE_H : 0);
+    var footerTop = contentBottom + FOOT_GAP;
+    var cardBottom = Math.min(limitBottom, footerTop + FOOT_H + pad);
+
+    // the card
+    g.save();
+    g.shadowColor = 'rgba(0,0,0,.45)';
+    g.shadowBlur = 32;
+    g.shadowOffsetY = 18;
+    roundRect(g, cardX, cardTop, cardW, cardBottom - cardTop, radius);
+    g.fillStyle = 'rgba(255,255,255,.06)';
+    g.fill();
+    g.restore();
+    roundRect(g, cardX, cardTop, cardW, cardBottom - cardTop, radius);
+    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(255,255,255,.12)';
+    g.stroke();
+
+    // title and subtitle
+    g.fillStyle = '#e8f1f0';
+    g.font = pictureFont(700, 22);
+    g.fillText('\u2705 To Do', innerX, titleTop);
+    g.fillStyle = '#9fb8b4';
+    g.font = pictureFont(400, 13);
+    g.fillText('Minimal list. This device only.', innerX, subTop + 1);
+
+    // the placeholder input row and its Add button
+    var addW = 72, addX = innerX + innerW - addW;
+    roundRect(g, innerX, inputTop, innerW - addW - gap, rowH, 12);
+    g.fillStyle = 'rgba(0,0,0,.35)';
+    g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.16)';
+    g.lineWidth = 1;
+    g.stroke();
+    g.fillStyle = '#778d89';
+    g.font = pictureFont(400, 15);
+    g.fillText('New task\u2026', innerX + 14, inputTop + (rowH - 15) / 2);
+
+    roundRect(g, addX, inputTop, addW, rowH, 12);
+    g.fillStyle = '#134e4a';
+    g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.16)';
+    g.stroke();
+    g.fillStyle = '#ecfdf5';
+    g.textAlign = 'center';
+    g.fillText('Add', addX + addW / 2, inputTop + (rowH - 15) / 2);
+    g.textAlign = 'left';
+
+    // the items
+    var y = itemsTop;
+    for (i = 0; i < shown; i++) {
+      var row = rows[i];
+      if (i) y += gap;
+      roundRect(g, innerX, y, innerW, row.height, 12);
+      g.fillStyle = 'rgba(0,0,0,.3)';
+      g.fill();
+      g.strokeStyle = 'rgba(255,255,255,.08)';
+      g.lineWidth = 1;
+      g.stroke();
+
+      var boxX = innerX + itemPadX, boxY = y + (row.height - boxSize) / 2;
+      roundRect(g, boxX, boxY, boxSize, boxSize, 6);
+      if (row.item.done) {
+        g.fillStyle = '#5eead4';
+        g.fill();
+        g.strokeStyle = '#06231f';
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.moveTo(boxX + 5.5, boxY + 11.5);
+        g.lineTo(boxX + 9.5, boxY + 15.5);
+        g.lineTo(boxX + 16.5, boxY + 7);
+        g.stroke();
+        g.lineWidth = 1;
+      } else {
+        g.strokeStyle = 'rgba(255,255,255,.4)';
+        g.stroke();
+      }
+
+      // Done items are struck through and dimmed at .55, exactly like li.done.
+      g.font = pictureFont(400, 15);
+      g.fillStyle = row.item.done ? 'rgba(232,241,240,.55)' : '#e8f1f0';
+      var lineTop = y + (row.height - row.lines.length * ITEM_LINE) / 2;
+      for (var n = 0; n < row.lines.length; n++) {
+        var ly = lineTop + n * ITEM_LINE;
+        g.fillText(row.lines[n], textX, ly);
+        if (row.item.done) {
+          g.strokeStyle = 'rgba(232,241,240,.55)';
+          g.lineWidth = 1;
+          g.beginPath();
+          g.moveTo(textX, ly + 10.5);
+          g.lineTo(textX + g.measureText(row.lines[n]).width, ly + 10.5);
+          g.stroke();
+        }
+      }
+      y += row.height;
+    }
+
+    if (moreCount > 0) {
+      y += gap;
+      g.fillStyle = '#7d9490';
+      g.font = pictureFont(400, 13);
+      g.fillText('+' + moreCount + ' more', innerX + itemPadX, y + 4);
+    }
+
+    // the count footer
+    g.fillStyle = '#7d9490';
+    g.font = pictureFont(400, 12);
+    var open = items.filter(function (item) { return !item.done; }).length;
+    g.fillText(items.length === 0 ? 'Nothing here yet.' : open + ' open \u00b7 ' + items.length + ' total', innerX, footerTop + 1);
+    if (items.length) {
+      g.textAlign = 'right';
+      g.fillText('Clear done', innerX + innerW, footerTop + 1);
+      g.textAlign = 'left';
+    }
+
+    return sheet.toDataURL('image/png');
+  }
+
+  // Hand the picture to the house (the parent frame) whenever the list changes. In
+  // a normal tab this is a no-op: there is no wall to picture.
+  function postPicture() {
+    if (window.parent === window) return;
+    var url;
+    try { url = drawPicture(); } catch (e) { return; }
+    try { window.parent.postMessage({ type: 'house:picture', url: url }, '*'); }
+    catch (e) { /* nothing to post to */ }
+  }
+
   function persist() { store.save(items); render(); }
 
   function render() {
@@ -116,6 +349,7 @@
     var open = items.filter(function (t) { return !t.done; }).length;
     count.textContent = items.length === 0 ? 'Nothing here yet.'
       : open + ' open · ' + items.length + ' total';
+    postPicture();
   }
 
   function add() {
@@ -140,6 +374,12 @@
   if (window.parent !== window) {
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') window.parent.postMessage({ type: 'house:escape' }, '*');
+    });
+    // The wall may ask again — on open, on close, on (re)load — and gets a fresh
+    // picture drawn from the list as it stands right now.
+    window.addEventListener('message', function (event) {
+      if (event.source !== window.parent) return;
+      if (event.data && event.data.type === 'house:picture-request') postPicture();
     });
   }
 })();
