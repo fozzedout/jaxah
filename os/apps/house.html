@@ -33,6 +33,16 @@ body { background: #100e13; }
 #wall-note { position:absolute; z-index:1; left:0; top:0; width:420px; height:252px; padding:16px 20px; transform-origin:0 0; display:none; overflow:hidden; }
 #wall-note .hdr { font:600 12px/1 ui-monospace,monospace; letter-spacing:.16em; text-transform:uppercase; color:#c79a6d; padding:0 0 7px; }
 #wall-note textarea { display:block; width:100%; height:calc(100% - 19px); margin:0; padding:0; resize:none; border:0; outline:0; background:transparent; color:#f7e8d0; font:26px/1.4 ui-monospace,monospace; caret-color:#ffb066; overflow-y:auto; }
+/* Portrait frames the pane on the note, so the pane runs wider than the phone: at
+   home it spans 121.7% of a 390x844 screen and 124.9% of a 412x915 one, which puts
+   the outer 9-10% of the overlay at each end off screen and takes the first and
+   last character of every line with it. So portrait insets the words into the part
+   of the pane the phone can show — 42px a side is what the widest phone in the
+   range needs, 50 leaves a margin — and drops the face a little so the narrower
+   column still holds every line the old one did. Landscape sits well inside the
+   screen and keeps its own layout, untouched. */
+#wall-note.is-portrait { padding:16px 50px; }
+#wall-note.is-portrait textarea { font:23px/1.35 ui-monospace,monospace; }
 #camera-debug { position:absolute; z-index:3; top:calc(14px + env(safe-area-inset-top)); right:14px; padding:6px 8px; border-radius:6px; background:#100e13dd; color:#d9cbb8; font:11px/1.4 ui-monospace,monospace; pointer-events:none; }
 @media (max-width:699px) { #status { right:132px; } #form { left:138px; } }
 @media (min-width:700px) { #status { bottom:calc(204px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc((100vw - 60vh) / 2 - 28px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
@@ -283,12 +293,83 @@ airis.add(carriedGlow);
 
 // --- the stool is the viewpoint ---------------------------------------------
 // Sitting is the point: the view is square to one face, and the stool can be
-// nudged a step at a time, or pushed further back to take more of the room in.
-// Which face you are squared to, and where the stool sits, are saved values.
+// nudged a step at a time toward the wall. Which face you are squared to, and
+// where the stool sits, are saved values.
 const SEAT_HEIGHT = .72, EYE_HEIGHT = SEAT_HEIGHT + .44;
 const HOME_DEPTH = 3, HOME_LATERAL = 0;    // metres out from the face, metres along it
 const NUDGE_SIDE = .1, NUDGE_DEPTH = .14;
-const SIDE_LIMIT = .95, DEPTH_MIN = 1.5, DEPTH_MAX = 3.9, PAN_LIMIT = 1.15;
+const SIDE_LIMIT = .95, PAN_LIMIT = 1.15;
+
+// --- framing, pinned to the note ---------------------------------------------
+// Each face owns the depth from its own wall to the middle of the octagon, 3.26 m
+// of it, and the wall is 2.7 m wide: from three metres the wall spans 48.5
+// degrees, so filling the width of a 390x844 phone with it takes a vertical fov
+// of 88.5 and the old rule paid 111 for the attempt. So portrait is framed on the
+// note — the 2.4 m pane you actually work on — and the side walls are allowed to
+// crop past it. Close and intimate is the right read for this room.
+const NOTE_WIDTH_SHARE = .88;    // portrait aim: note spans 88% of the screen width
+const NOTE_NEAR_SHARE = 1.15;    // portrait near clamp: note 15% wider than the screen
+const PORTRAIT_FOV = [62, 80];   // degrees; the band a portrait vertical fov lives in
+const LANDSCAPE_FOV = 68;        // unchanged landscape/desktop vertical fov
+const NOTE_OUT = .05;            // the pane's stand-off from its face, metres
+const CENTRE_MARGIN = .25;       // metres kept between the seat and the room's centre
+const NEAR_STANDOFF = 1.5;       // metres a stool can get from the face it faces
+// Portrait's fov pins the note at the far clamp, so a home seat there would have
+// no room left to step back into. These reserves sit the portrait home that far
+// inside the clamp and keep the near clamp off it, so the stool walks both ways.
+const PORTRAIT_HOME_BACK = 2 * NUDGE_DEPTH;   // metres of back range behind home
+const PORTRAIT_HOME_FWD = 2 * NUDGE_DEPTH;    // metres of forward range ahead of home
+// APOTHEM is centre to face, and each face owns the depth from its own wall to
+// the middle of the room: the eight per-face seats meet there. Past the apothem a
+// face-0 seat has crossed the middle and is really face 4's seat, looking back
+// across the room at its own wall (the walls themselves are 2 * APOTHEM apart, so
+// the old 3.9 m clamp was not through a wall — it was 0.64 m past the centre,
+// where the note is 28% of a portrait screen). Stop short of the centre instead.
+const DEPTH_MAX = APOTHEM - CENTRE_MARGIN;
+const tanHalfAngle = degrees => Math.tan(THREE.MathUtils.degToRad(degrees) / 2);
+const horizontalFovOf = (fov, aspect) => THREE.MathUtils.radToDeg(2 * Math.atan(tanHalfAngle(fov) * aspect));
+// Distance from a pane that makes a `2 * halfWidth` pane span `share` of the width.
+const distanceForShare = (halfWidth, share, hfov) => halfWidth / (share * tanHalfAngle(hfov));
+// Everything the camera and the two seat clamps need for one screen shape.
+function framingFor(aspect) {
+  if (aspect >= 1) {
+    const hfov = horizontalFovOf(LANDSCAPE_FOV, aspect);
+    return {
+      fov: LANDSCAPE_FOV, hfov, far: DEPTH_MAX, home: Math.min(HOME_DEPTH, DEPTH_MAX),
+      near: Math.min(DEPTH_MAX, Math.max(NEAR_STANDOFF,
+        NOTE_OUT + distanceForShare(NOTE_W / 2, NOTE_NEAR_SHARE, hfov))),
+    };
+  }
+  // The note pin asks for this vertical fov to land the note on its share with
+  // the seat at the deepest depth this face owns — the least distorted seat there
+  // is. Widen to reach it, but no further than the band allows: on screens
+  // narrower than about 9:16 even 80 degrees cannot honour the share, and the
+  // note then runs a little wider than the phone rather than the view going
+  // fisheye. The far clamp is the widest view the band can give, so the share is
+  // measured there and not at home: at 390x844 the 88% pin would need 89.8
+  // degrees, and 80 already leaves the note at 104.6% of the width square-on.
+  const wantedFov = THREE.MathUtils.radToDeg(2 * Math.atan(
+    (NOTE_W / 2) / (NOTE_WIDTH_SHARE * (DEPTH_MAX - NOTE_OUT) * aspect)));
+  const fov = THREE.MathUtils.clamp(wantedFov, PORTRAIT_FOV[0], PORTRAIT_FOV[1]);
+  const hfov = horizontalFovOf(fov, aspect);
+  // Because that fov fills the range, a home seat at the far clamp would have no
+  // back range at all: the back nudge and "step further back" would do nothing.
+  // Home sits PORTRAIT_HOME_BACK inside the clamp instead, and the near clamp is
+  // pulled off home by a forward reserve so the stool still moves both ways. The
+  // near clamp is still where the note first spills off both edges, unless that
+  // would eat the reserve.
+  const far = DEPTH_MAX;
+  const home = far - PORTRAIT_HOME_BACK;
+  const shareNear = Math.min(far, Math.max(NEAR_STANDOFF,
+    NOTE_OUT + distanceForShare(NOTE_W / 2, NOTE_NEAR_SHARE, hfov)));
+  const near = Math.max(NEAR_STANDOFF, Math.min(shareNear, home - PORTRAIT_HOME_FWD));
+  return { fov, hfov, near, home, far };
+}
+let framing = framingFor((window.innerWidth || 1) / (window.innerHeight || 1));
+// How much of the screen width the note spans, square-on from a given seat depth.
+function noteWidthShare(depth) {
+  return (NOTE_W / 2) / (Math.max(.2, depth - NOTE_OUT) * tanHalfAngle(framing.hfov));
+}
 const STORE_KEY = 'airis-os.house.v1';
 const store = {
   load() { try { return JSON.parse(window.localStorage.getItem(STORE_KEY)) || {}; } catch (error) { return {}; } },
@@ -306,7 +387,7 @@ const state = {
   pan: Number.isFinite(saved.pan) ? THREE.MathUtils.clamp(saved.pan, -PAN_LIMIT, PAN_LIMIT) : 0,
   seats: Array.from({ length: FACE_COUNT }, (_, k) => ({
     lateral: savedSeat(k, 'lateral', HOME_LATERAL, -SIDE_LIMIT, SIDE_LIMIT),
-    depth: savedSeat(k, 'depth', HOME_DEPTH, DEPTH_MIN, DEPTH_MAX),
+    depth: savedSeat(k, 'depth', framing.home, framing.near, framing.far),
   })),
 };
 let saveTimer = 0;
@@ -331,7 +412,7 @@ function applySeat(save = true) {
 function nudgeSeat(side, back) {
   const seat = state.seats[state.face];
   if (side) seat.lateral = THREE.MathUtils.clamp(seat.lateral + side * NUDGE_SIDE, -SIDE_LIMIT, SIDE_LIMIT);
-  if (back) seat.depth = THREE.MathUtils.clamp(seat.depth + back * NUDGE_DEPTH, DEPTH_MIN, DEPTH_MAX);
+  if (back) seat.depth = THREE.MathUtils.clamp(seat.depth + back * NUDGE_DEPTH, framing.near, framing.far);
   applySeat();
   hideWalkHint();
 }
@@ -603,7 +684,7 @@ function resetRoom() {
   busy = null;
   state.face = 0;
   state.pan = 0;
-  state.seats = Array.from({ length: FACE_COUNT }, () => ({ lateral: HOME_LATERAL, depth: HOME_DEPTH }));
+  state.seats = Array.from({ length: FACE_COUNT }, () => ({ lateral: HOME_LATERAL, depth: framing.home }));
   applySeat();
   clickResult.textContent = '';
   askResult.textContent = '';
@@ -619,11 +700,22 @@ function resize() {
   renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1) * (quality === 1 ? .85 : quality >= 2 ? .65 : 1));
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
-  // Portrait needs a wider horizontal field to keep the two side faces in view,
-  // so on a tall screen the desired horizontal angle drives the vertical one.
-  const minHorizontal = THREE.MathUtils.degToRad(camera.aspect < 1 ? 68 : 60);
-  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(minHorizontal / 2) / camera.aspect)), 68, 113);
+  // The note's own layout follows the same portrait branch as the framing, so the
+  // words are inset exactly when the pane is framed wider than the screen.
+  noteEl.classList.toggle('is-portrait', camera.aspect < 1);
+  const before = framing;
+  framing = framingFor(camera.aspect);
+  camera.fov = framing.fov;
   camera.updateProjectionMatrix();
+  // A seat sitting at home follows the framing (phone turned, window resized);
+  // one the user nudged keeps its distance, clamped into the new range.
+  let moved = false;
+  for (const seat of state.seats) {
+    const atHome = Math.abs(seat.depth - before.home) < .005;
+    const depth = THREE.MathUtils.clamp(atHome ? framing.home : seat.depth, framing.near, framing.far);
+    if (depth !== seat.depth) { seat.depth = depth; moved = true; }
+  }
+  if (moved) applySeat(false);
   // First frame only: a tall screen tilts down a little so the floor reads too.
   if (!framed) { pitch = camera.aspect < 1 ? -.12 : -.02; framed = true; }
 }
@@ -756,6 +848,7 @@ function updateTask(dt, now) {
 // projection is a homography, so the words stay glued to the panel at any angle.
 const noteCorners = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 const noteView = new THREE.Vector3();
+const NOTE_QUAD_LIMIT = 4;   // screens: past this the pane is edge-on and the mapping is junk
 let noteShown = false;
 function showNote(show) {
   if (show === noteShown) return;
@@ -784,6 +877,16 @@ function updateNoteOverlay() {
     screen.push({ x: (projected.x + 1) * width / 2, y: (1 - projected.y) * height / 2 });
   }
   const [p0, p1, p2, p3] = screen;
+  // A pane seen nearly edge-on throws its near end past the horizon: the quad
+  // blows up and the homography smears the words over the whole screen. Only lay
+  // words on a quad that is convex and no larger than a few screens.
+  const span = Math.max(
+    Math.max(p0.x, p1.x, p2.x, p3.x) - Math.min(p0.x, p1.x, p2.x, p3.x),
+    Math.max(p0.y, p1.y, p2.y, p3.y) - Math.min(p0.y, p1.y, p2.y, p3.y));
+  const turn = (a, b, c) => (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+  const turns = [turn(p0, p1, p2), turn(p1, p2, p3), turn(p2, p3, p0), turn(p3, p0, p1)];
+  if (!(span < NOTE_QUAD_LIMIT * Math.max(width, height))
+    || !(turns.every(t => t > 0) || turns.every(t => t < 0))) { showNote(false); return; }
   const dx1 = p1.x - p2.x, dx2 = p3.x - p2.x, dx3 = p0.x - p1.x + p2.x - p3.x;
   const dy1 = p1.y - p2.y, dy2 = p3.y - p2.y, dy3 = p0.y - p1.y + p2.y - p3.y;
   const det = dx1 * dy2 - dx2 * dy1;
@@ -836,7 +939,13 @@ function animate(now) {
   camera.rotation.set(pitch, yaw, 0);
   camera.updateMatrixWorld();
   updateNoteOverlay();
-  if (debugEnabled) cameraDebug.textContent = `face ${state.face + 1} · x ${pos.x.toFixed(2)} · z ${pos.z.toFixed(2)} · side ${state.seats[state.face].lateral.toFixed(2)} · back ${(state.seats[state.face].depth - HOME_DEPTH).toFixed(2)} · fov ${camera.fov.toFixed(0)}`;
+  if (debugEnabled) {
+    const seat = state.seats[state.face];
+    cameraDebug.textContent = `face ${state.face + 1} · x ${pos.x.toFixed(2)} · z ${pos.z.toFixed(2)} · side ${seat.lateral.toFixed(2)}`
+      + ` · seat ${seat.depth.toFixed(2)} (home ${framing.home.toFixed(2)}, ${framing.near.toFixed(2)}–${framing.far.toFixed(2)})`
+      + ` · note ${(noteWidthShare(seat.depth) * 100).toFixed(0)}% of the width square-on (aim ${(NOTE_WIDTH_SHARE * 100).toFixed(0)}%)`
+      + ` · fov ${camera.fov.toFixed(0)} · hfov ${framing.hfov.toFixed(0)}`;
+  }
   renderer.render(scene, camera);
 }
 window.__house = {
@@ -852,16 +961,25 @@ window.__house = {
   airis: { get x() { return airis.position.x; }, get z() { return airis.position.z; } },
   seat: () => ({
     face: state.face, lateral: state.seats[state.face].lateral, depth: state.seats[state.face].depth,
-    pan: state.pan, homeDepth: HOME_DEPTH, eye: EYE_HEIGHT,
+    pan: state.pan, homeDepth: framing.home, eye: EYE_HEIGHT,
+    depthMin: framing.near, depthMax: framing.far,
   }),
   cameraState: () => ({
     x: pos.x, y: pos.y, z: pos.z, yaw, pitch, fov: camera.fov, aspect: camera.aspect,
-    horizontalFov: 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect) * 180 / Math.PI,
+    horizontalFov: framing.hfov,
+    framing: {
+      portrait: camera.aspect < 1,
+      noteWidthShare: NOTE_WIDTH_SHARE,
+      noteNearShare: NOTE_NEAR_SHARE,
+      noteWidthOfScreen: noteWidthShare(state.seats[state.face].depth),
+      homeDepth: framing.home, depthMin: framing.near, depthMax: framing.far,
+      apothem: APOTHEM,
+    },
   }),
   nudge: nudgeSeat,
   setFace,
   note: { get text() { return state.note; }, get shown() { return noteShown; } },
-  room: { faces: FACE_COUNT, faceWidth: FACE_WIDTH, apothem: APOTHEM, wallHeight: WALL_HEIGHT },
+  room: { faces: FACE_COUNT, faceWidth: FACE_WIDTH, apothem: APOTHEM, wallHeight: WALL_HEIGHT, note: { face: NOTE_FACE, width: NOTE_W, height: NOTE_H, y: NOTE_Y, out: NOTE_OUT } },
   project(name) {
     const object = items[name];
     if (!object) return null;
