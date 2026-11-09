@@ -10,62 +10,86 @@
 html, body, #stage { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 body { background: #100e13; }
 #stage { position: relative; }
-#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#gl.is-pointing { cursor: pointer; }
+body.is-seated #gl { cursor: default; }
 #veil, #grain { position: absolute; inset: 0; pointer-events: none; }
 #veil { background: radial-gradient(ellipse at center, transparent 48%, rgba(7,6,10,.5)); }
 #grain { opacity: .075; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
 #hud { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
-/* HUD text sits above the form on a phone and left of it on wider screens: separate regions at every width. */
-#status { position: absolute; left: 14px; right: 14px; bottom: calc(204px + env(safe-area-inset-bottom)); max-width: 420px; font: 11px/1.45 ui-monospace, monospace; pointer-events: auto; color: #c8b8a5; text-shadow: 0 2px 6px #000; }
+
+/* One top row: the hint on the left, the two affordances on the right. They are
+   flex siblings, so they cannot overlap at any width. */
+#top { position: absolute; left: 12px; right: 12px; top: calc(10px + env(safe-area-inset-top)); display: flex; align-items: flex-start; gap: 8px; }
+#hint { flex: 1 1 auto; min-width: 0; margin: 0; padding: 9px 12px; border: 1px solid #c49b7788; border-radius: 12px; background: #191419e8; color: #f2dfca; font: 12px/1.35 ui-sans-serif, system-ui, sans-serif; text-shadow: 0 1px 3px #000; pointer-events: none; transition: opacity .5s ease; }
+#hint.is-gone { opacity: 0; }
+#controls { flex: none; display: flex; gap: 6px; pointer-events: auto; }
+#controls button { min-height: 40px; padding: 0 12px; border: 1px solid #c49b7788; border-radius: 12px; background: #241c1ddd; color: #f2dfca; font: 12px/1 ui-sans-serif, system-ui, sans-serif; touch-action: manipulation; }
+#controls button:active, #controls button[aria-pressed="true"] { background: #76513b; }
+
+/* Walk pad: held, not tapped — the eye moves for as long as a direction is down. */
+#pad { position: absolute; left: 12px; bottom: calc(70px + env(safe-area-inset-bottom)); width: 112px; height: 112px; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 3px; pointer-events: auto; touch-action: none; }
+body.is-seated #pad { display: none; }
+#pad button { border: 1px solid #c49b7788; border-radius: 12px; background: #241c1ddd; color: #f2dfca; font: 20px/1 ui-sans-serif, system-ui, sans-serif; touch-action: none; user-select: none; }
+#pad button:active, #pad button[aria-pressed="true"] { background: #76513b; }
+#pad [data-dir="up"] { grid-area: 1/2; } #pad [data-dir="left"] { grid-area: 2/1; } #pad [data-dir="down"] { grid-area: 2/2; } #pad [data-dir="right"] { grid-area: 2/3; }
+
+#status { position: absolute; left: 12px; right: 12px; bottom: calc(196px + env(safe-area-inset-bottom)); max-width: 420px; font: 11px/1.45 ui-monospace, monospace; pointer-events: none; color: #c8b8a5; text-shadow: 0 2px 6px #000; }
+body.is-seated #status { bottom: calc(84px + env(safe-area-inset-bottom)); }
 #result, #click-result, #ask-result { min-height: 1.45em; }
 #say { color: #f0d0a4; }
-#form { position: absolute; left: 14px; right: 14px; bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 7px; pointer-events: auto; }
+#form { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 7px; pointer-events: auto; }
 #command { min-width: 0; flex: 1; height: 48px; padding: 0 14px; border: 1px solid #9d765b88; border-radius: 12px; background: #191419e8; color: #fff1dc; font-size: 16px; }
 #send, #reset { border: 1px solid #9d765b88; border-radius: 12px; background: #392a27; color: #f2dfca; }
 #send, #reset { font: 13px inherit; padding: 0 15px; min-height: 48px; }
-#walk-pad { position:absolute; z-index:2; left:14px; bottom:calc(82px + env(safe-area-inset-bottom)); width:112px; height:112px; display:grid; grid-template:repeat(3, 1fr)/repeat(3, 1fr); gap:3px; pointer-events:auto; touch-action:none; }
-#walk-pad button { border:1px solid #c49b7788; border-radius:12px; background:#241c1ddd; color:#f2dfca; font:20px/1 ui-sans-serif,system-ui,sans-serif; touch-action:none; user-select:none; }
-#walk-pad button:active, #walk-pad button[aria-pressed="true"] { background:#76513b; }
-#walk-pad [data-dir="up"] { grid-area:1/2; } #walk-pad [data-dir="left"] { grid-area:2/1; } #walk-pad [data-dir="down"] { grid-area:2/2; } #walk-pad [data-dir="right"] { grid-area:2/3; }
-#walk-hint { position:absolute; z-index:1; top:calc(14px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); padding:9px 13px; border:1px solid #c49b7788; border-radius:999px; background:#191419e8; color:#f2dfca; font:12px/1.3 ui-sans-serif,system-ui,sans-serif; text-align:center; white-space:nowrap; pointer-events:none; transition:opacity .6s ease; }
-#walk-hint.is-gone { opacity:0; }
-/* The wall note is the app on face 0: a real textarea, laid onto the 3D pane. */
-#wall-note { position:absolute; z-index:1; left:0; top:0; width:420px; height:252px; padding:16px 20px; transform-origin:0 0; display:none; overflow:hidden; }
-#wall-note .hdr { font:600 12px/1 ui-monospace,monospace; letter-spacing:.16em; text-transform:uppercase; color:#c79a6d; padding:0 0 7px; }
-#wall-note textarea { display:block; width:100%; height:calc(100% - 19px); margin:0; padding:0; resize:none; border:0; outline:0; background:transparent; color:#f7e8d0; font:26px/1.4 ui-monospace,monospace; caret-color:#ffb066; overflow-y:auto; }
-/* Portrait frames the pane on the note, so the pane runs wider than the phone: at
-   home it spans 121.7% of a 390x844 screen and 124.9% of a 412x915 one, which puts
-   the outer 9-10% of the overlay at each end off screen and takes the first and
-   last character of every line with it. So portrait insets the words into the part
-   of the pane the phone can show — 42px a side is what the widest phone in the
-   range needs, 50 leaves a margin — and drops the face a little so the narrower
-   column still holds every line the old one did. Landscape sits well inside the
-   screen and keeps its own layout, untouched. */
-#wall-note.is-portrait { padding:16px 50px; }
-#wall-note.is-portrait textarea { font:23px/1.35 ui-monospace,monospace; }
-#camera-debug { position:absolute; z-index:3; top:calc(14px + env(safe-area-inset-top)); right:14px; padding:6px 8px; border-radius:6px; background:#100e13dd; color:#d9cbb8; font:11px/1.4 ui-monospace,monospace; pointer-events:none; }
-@media (max-width:699px) { #status { right:132px; } #form { left:138px; } }
-@media (min-width:700px) { #status { bottom:calc(204px + env(safe-area-inset-bottom)); right:auto; width:min(420px, calc((100vw - 60vh) / 2 - 28px)); } #form { left:auto; width:420px; bottom:calc(14px + env(safe-area-inset-bottom)); } }
+#camera-debug { position: absolute; z-index: 3; top: calc(96px + env(safe-area-inset-top)); right: 14px; padding: 6px 8px; border-radius: 6px; background: #100e13dd; color: #d9cbb8; font: 11px/1.4 ui-monospace, monospace; pointer-events: none; }
+@media (min-width: 700px) {
+  #status { left: auto; right: 14px; width: min(420px, 46vw); bottom: calc(76px + env(safe-area-inset-bottom)); }
+  #form { left: auto; right: 14px; width: min(420px, 46vw); bottom: calc(14px + env(safe-area-inset-bottom)); }
+  /* Seated on a wide screen the wall page owns the middle: the report moves to the
+     left column so it cannot sit over the picture. */
+  body.is-seated #status { left: 14px; right: auto; width: min(300px, 34vw); }
+}
+
+/* The live page, brought into focus as the real thing: a full-bleed frame of the
+   actual URL. No part of it is redrawn by the 3D layer. */
+#page-focus { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; background: #0b0a0e; }
+#page-focus[hidden] { display: none; }
+#page-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; background: #141118; border-bottom: 1px solid #2a232c; }
+#page-bar .title { font: 600 11px/1 ui-monospace, monospace; letter-spacing: .16em; text-transform: uppercase; color: #c79a6d; }
+#page-close { min-height: 40px; padding: 0 14px; border: 1px solid #9d765b88; border-radius: 10px; background: #392a27; color: #f2dfca; font: 13px/1 ui-sans-serif, system-ui, sans-serif; }
+#page-frame { flex: 1 1 auto; display: block; width: 100%; min-height: 0; border: 0; background: #0b0a0e; }
 </style>
 </head>
 <body>
 <div id="stage">
-  <canvas id="gl" aria-label="An octagonal room with Airis. Sit on the stool, nudge it to square up to a face, type on the wall note."></canvas>
+  <canvas id="gl" tabindex="0" aria-label="An octagonal room you can wander around. Airis is in it, a stool faces the wall page, and the page itself opens when you tap its picture."></canvas>
   <div id="veil"></div><div id="grain"></div>
-  <div id="wall-note"><div class="hdr">wall note</div><textarea id="note-text" spellcheck="false" aria-label="Wall note — saved on this device"></textarea></div>
-  <div id="walk-hint">Hold to nudge the stool · drag to look</div>
+  <div id="hud">
+    <div id="top">
+      <p id="hint" role="status">drag to look · pad to walk · tap the book, the wall page or the stool</p>
+      <div id="controls">
+        <button id="sit" type="button" aria-pressed="false">Sit</button>
+        <button id="page" type="button">Wall page</button>
+      </div>
+    </div>
+    <div id="pad" role="group" aria-label="Walk">
+      <button type="button" data-dir="up" aria-label="Walk forward" aria-pressed="false">▲</button>
+      <button type="button" data-dir="left" aria-label="Strafe left" aria-pressed="false">◀</button>
+      <button type="button" data-dir="down" aria-label="Walk back" aria-pressed="false">▼</button>
+      <button type="button" data-dir="right" aria-label="Strafe right" aria-pressed="false">▶</button>
+    </div>
+    <div id="status">
+      <div id="result">a click costs your attention for the whole trip; an ask costs a sentence.</div>
+      <div id="click-result"></div><div id="ask-result"></div><div id="say" aria-live="polite"></div>
+    </div>
+    <form id="form"><input id="command" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ask Airis · bring the book · open the page" aria-label="Ask Airis"><button id="send" type="submit">Ask</button><button id="reset" type="button">Reset</button></form>
+  </div>
   <output id="camera-debug" hidden aria-live="off"></output>
-  <div id="walk-pad" role="group" aria-label="Nudge the stool controls">
-    <button type="button" data-dir="up" aria-label="Nudge toward the wall" aria-pressed="false">▲</button>
-    <button type="button" data-dir="left" aria-label="Nudge left" aria-pressed="false">◀</button>
-    <button type="button" data-dir="down" aria-label="Nudge back from the wall" aria-pressed="false">▼</button>
-    <button type="button" data-dir="right" aria-label="Nudge right" aria-pressed="false">▶</button>
-  </div>
-  <div id="hud"><div id="status">
-    <div id="result">a click costs your attention for the whole trip; an ask costs a sentence.</div>
-    <div id="click-result"></div><div id="ask-result"></div><div id="say" aria-live="polite"></div>
-  </div>
-  <form id="form"><input id="command" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="nudge back · face 2 · note milk" aria-label="Ask Airis"><button id="send" type="submit">Ask</button><button id="reset" type="button">Reset</button></form></div>
+  <section id="page-focus" hidden role="dialog" aria-modal="true" aria-label="Wall page — To Do">
+    <div id="page-bar"><span class="title">wall page · to do</span><button id="page-close" type="button">Back to the room</button></div>
+    <iframe id="page-frame" title="To Do — the live page"></iframe>
+  </section>
 </div>
 <script>
 window.addEventListener('error', event => {
@@ -89,6 +113,17 @@ const clickResult = document.querySelector('#click-result');
 const askResult = document.querySelector('#ask-result');
 const form = document.querySelector('#form');
 const input = document.querySelector('#command');
+const hint = document.querySelector('#hint');
+const pad = document.querySelector('#pad');
+const sitButton = document.querySelector('#sit');
+const pageButton = document.querySelector('#page');
+const pageFocus = document.querySelector('#page-focus');
+const pageClose = document.querySelector('#page-close');
+const pageFrame = document.querySelector('#page-frame');
+const cameraDebug = document.querySelector('#camera-debug');
+const debugEnabled = new URLSearchParams(location.search).has('debug');
+cameraDebug.hidden = !debugEnabled;
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x17141a);
 scene.fog = new THREE.Fog(0x17141a, 10, 22);
@@ -134,7 +169,7 @@ function group(parent = scene, x = 0, y = 0, z = 0) {
 // Eight flat faces. Squared up to one face, the two beside it stay in view at the
 // edges: a wall to work on, plus a bit to the left and a bit to the right.
 const FACE_COUNT = 8;
-const FACE_WIDTH = 2.7;                                                 // each face, wide enough for the wall note
+const FACE_WIDTH = 2.7;                                                 // each face, wide enough for the wall page
 const ROOM_RADIUS = .5 * FACE_WIDTH / Math.sin(Math.PI / FACE_COUNT);   // centre to corner
 const APOTHEM = .5 * FACE_WIDTH / Math.tan(Math.PI / FACE_COUNT);       // centre to face
 const WALL_HEIGHT = 2.8, WALL_THICK = .16;
@@ -191,16 +226,71 @@ onFace(4, new THREE.Mesh(new THREE.BoxGeometry(1.16, 2.6, .1), woodTop), 0, 1.3,
 onFace(4, new THREE.Mesh(new THREE.BoxGeometry(1.02, 2.48, .06), wood), 0, 1.24, .05);
 onFace(4, new THREE.Mesh(new THREE.BoxGeometry(.07, .07, .1), metal), .38, 1.06, .1);
 
-// --- the wall note: a real pane on face 0 ----------------------------------
-// The dark panel is the screen; the HTML overlay below draws the words on it.
-const NOTE_FACE = 0, NOTE_W = 2.4, NOTE_H = 1.44, NOTE_Y = 1.42;
-const NOTE_BOX_W = 420, NOTE_BOX_H = 252;   // the overlay's own CSS pixels
-onFace(NOTE_FACE, new THREE.Mesh(new THREE.BoxGeometry(NOTE_W + .16, NOTE_H + .16, .05), woodTop), 0, NOTE_Y, .015);
-onFace(NOTE_FACE, new THREE.Mesh(new THREE.PlaneGeometry(NOTE_W, NOTE_H),
-  material(0x151119, .95, { emissive: 0x0d0a12, emissiveIntensity: .45 })), 0, NOTE_Y, .045);
+// --- the wall page: a picture on face 0 -------------------------------------
+// A page of ours, pictured once and laid flat on one wall face. It costs nothing
+// per frame: the same texture is drawn until someone taps it. The 3D layer only
+// ever shows the picture; the page's own controls live in the live frame below.
+const PICTURE_FACE = 0;
+const PAGE_URL = './todo.html';                       // the live page, opened on a tap
+// The picture is a screenshot of PAGE_URL, taken at a 390x620 viewport and encoded
+// here as a WebP data: URL. It is carried inside this file rather than loaded as a
+// sibling image because the OS shell runs every app in sandbox="allow-scripts", an
+// opaque origin, where a sibling <img> is cross-origin: asking for it with the
+// CORS mode three's loader uses fails (net::ERR_FAILED; a static host sends no
+// Access-Control-Allow-Origin), and taking it without CORS leaves the image tainted
+// so the WebGL upload throws SecurityError. A data: URL is origin-clean in that
+// frame, costs no request, and still never re-renders: it is one static texture.
+const PAGE_PICTURE = 'data:image/webp;base64,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';
+const PICTURE_ASPECT = 390 / 620;                     // the picture's shape, width / height
+const PICTURE_W = .98;                                // metres wide on the wall
+const PICTURE_H = PICTURE_W / PICTURE_ASPECT;         // 1.558 m: the page's own proportion
+const PICTURE_Y = 1.42, PICTURE_OUT = .05;            // centre height, stand-off from the wall
+const pictureFrame = onFace(PICTURE_FACE,
+  new THREE.Mesh(new THREE.BoxGeometry(PICTURE_W + .1, PICTURE_H + .1, .05), woodTop), 0, PICTURE_Y, .015);
+const picture = onFace(PICTURE_FACE,
+  new THREE.Mesh(new THREE.PlaneGeometry(PICTURE_W, PICTURE_H),
+    new THREE.MeshBasicMaterial({ color: 0x141117 })), 0, PICTURE_Y, PICTURE_OUT);
+
+function missingPicture() {
+  const sheet = document.createElement('canvas');
+  sheet.width = 390; sheet.height = 620;
+  const g = sheet.getContext('2d');
+  g.fillStyle = '#0b1e24';
+  g.fillRect(0, 0, sheet.width, sheet.height);
+  g.fillStyle = '#9fb8b4';
+  g.font = '600 24px ui-sans-serif, system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.fillText('the page is not pictured', 195, 292);
+  g.fillText('tap to open it anyway', 195, 332);
+  const texture = new THREE.CanvasTexture(sheet);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+let pictureReady = false, pictureFailed = false;
+const pictureImage = new Image();
+pictureImage.addEventListener('load', () => {
+  const texture = new THREE.Texture(pictureImage);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  texture.needsUpdate = true;          // one upload, then the same texture every frame
+  picture.material.map = texture;
+  picture.material.color.set(0xffffff);
+  picture.material.needsUpdate = true;
+  pictureReady = true;
+});
+pictureImage.addEventListener('error', () => {
+  picture.material.map = missingPicture();
+  picture.material.color.set(0xffffff);
+  picture.material.needsUpdate = true;
+  pictureFailed = true;
+});
+pictureImage.src = PAGE_PICTURE;
 
 // --- the two movable things ------------------------------------------------
-// The book sits on the floor in front of the home face; the wall object hangs on
+// The book sits on the floor in front of the wall page; the wall object hangs on
 // the left-front face. Both are clickable and both can be asked for.
 const itemRestY = { book: .16, wall: .34 };
 const wallItem = group(scene);
@@ -219,8 +309,19 @@ book.rotation.y = .35;
 const items = { book, wall: wallItem };
 const itemHomes = { book: bookHome.clone(), wall: wallItem.position.clone() };
 
-// The stool the view sits on. It is moved by the walk controls, not by a free camera.
-const stool = group(scene);
+// --- the stool: the one authored seat ---------------------------------------
+// A seat, chosen once from the room's own numbers instead of nudged into place:
+// 2.15 m out from the picture wall, on its centre line, eye at seated height,
+// aimed at the middle of the picture. Sitting snaps the eye here and it stays
+// here — no fine adjustment, because this is already the view.
+const SEAT_FACE = PICTURE_FACE;
+const SEAT_DEPTH = 2.15;                                   // metres out from the face it faces
+const EYE_STAND = 1.62, EYE_SIT = 1.16;                    // metres above the floor
+const SEAT = facePoint(SEAT_FACE, SEAT_DEPTH);             // (0, 0, -1.36): on the wall's centre line
+const SEAT_YAW = faceYaw(SEAT_FACE);                       // square to the wall
+const SEAT_PITCH = Math.atan2(PICTURE_Y - EYE_SIT, SEAT_DEPTH - PICTURE_OUT);   // aimed at the picture's centre
+const stool = group(scene, SEAT.x, 0, SEAT.z);
+stool.rotation.y = SEAT_YAW;
 const stoolTop = new THREE.Mesh(new THREE.CylinderGeometry(.23, .23, .07, 16), woodTop);
 stoolTop.position.y = .69;
 stoolTop.castShadow = true;
@@ -238,6 +339,12 @@ const footRing = new THREE.Mesh(new THREE.TorusGeometry(.19, .012, 6, 16), wood)
 footRing.rotation.x = Math.PI / 2;
 footRing.position.y = .22;
 stool.add(footRing);
+// The marker on the floor is part of the stool: tapping it sits you down too.
+const seatMarker = new THREE.Mesh(new THREE.RingGeometry(.36, .44, 48),
+  new THREE.MeshBasicMaterial({ color: 0xffc98a, transparent: true, opacity: .14, side: THREE.DoubleSide }));
+seatMarker.rotation.x = -Math.PI / 2;
+seatMarker.position.y = .004;
+stool.add(seatMarker);
 
 const lamp = group(scene, 2.45, 0, .55);
 box(lamp, 0, .04, 0, .38, .08, .38, metal);
@@ -291,240 +398,298 @@ const carriedGlow = new THREE.Mesh(new THREE.SphereGeometry(.055, 10, 8), new TH
 carriedGlow.visible = false;
 airis.add(carriedGlow);
 
-// --- the stool is the viewpoint ---------------------------------------------
-// Sitting is the point: the view is square to one face, and the stool can be
-// nudged a step at a time toward the wall. Which face you are squared to, and
-// where the stool sits, are saved values.
-const SEAT_HEIGHT = .72, EYE_HEIGHT = SEAT_HEIGHT + .44;
-const HOME_DEPTH = 3, HOME_LATERAL = 0;    // metres out from the face, metres along it
-const NUDGE_SIDE = .1, NUDGE_DEPTH = .14;
-const SIDE_LIMIT = .95, PAN_LIMIT = 1.15;
+// --- free wander ------------------------------------------------------------
+// An ordinary walkable room. The eye is a standing person's eye; drag turns it,
+// and the pad or WASD walks it, coarsely and continuously — no steps, no clamps
+// that exist to leave a nudge somewhere to go.
+const WALK_SPEED = 1.55;      // m/s: a 2.7 m room face crosses in about 1.75 s
+const DRAG_YAW = .0062;       // radians per pixel of drag
+const DRAG_PITCH = .0044;
+const PITCH_LIMIT = .85;      // radians: a neck, not a tumble
+const BODY = .34;             // metres the eye keeps off every wall
+const STOOL_R = .62, LAMP_R = .42;   // metres kept off the two things on the floor
+const SPAWN = { x: 1.4, z: 2.2, yaw: .42, pitch: -.01 };  // a fresh room: stood back, Airis left, the stool and its wall ahead
+const pos = new THREE.Vector3(SPAWN.x, EYE_STAND, SPAWN.z);
+const velocity = new THREE.Vector2();
+let yaw = SPAWN.yaw, pitch = SPAWN.pitch;
+let mode = 'wander';          // 'wander' | 'seated'
+let stride = 0;
+let stoolPass = false;        // stood up from the stool: let the eye out of its footprint
 
-// --- framing, pinned to the note ---------------------------------------------
-// Each face owns the depth from its own wall to the middle of the octagon, 3.26 m
-// of it, and the wall is 2.7 m wide: from three metres the wall spans 48.5
-// degrees, so filling the width of a 390x844 phone with it takes a vertical fov
-// of 88.5 and the old rule paid 111 for the attempt. So portrait is framed on the
-// note — the 2.4 m pane you actually work on — and the side walls are allowed to
-// crop past it. Close and intimate is the right read for this room.
-const NOTE_WIDTH_SHARE = .88;    // portrait aim: note spans 88% of the screen width
-const PORTRAIT_FOV = [62, 80];   // degrees; the band a portrait vertical fov lives in
-const LANDSCAPE_FOV = 68;        // unchanged landscape/desktop vertical fov
-const NOTE_OUT = .05;            // the pane's stand-off from its face, metres
-const CENTRE_MARGIN = .25;       // metres kept between the seat and the room's centre
-const NEAR_STANDOFF = 1.5;       // metres a stool can get from the face it faces
-// The overlay's own layout, mirrored from #wall-note in the stylesheet: the words
-// are inset by the side and top padding and start under the header, and
-// updateNoteOverlay maps the NOTE_BOX_W x NOTE_BOX_H box onto the pane. The near
-// clamp is measured from these numbers, so they have to stay in step with the CSS.
-const NOTE_PAD_SIDE = [20, 50];  // px; landscape, portrait (#wall-note.is-portrait)
-const NOTE_PAD_TOP = 16, NOTE_HEADER_H = 19;   // px
-// The first frame tilts down by this much — the pitch resize() sets. The tilt
-// brings the words' upper edge nearer the eye than the pane's centre line, and
-// that edge is the widest thing on screen, so the near clamp is derived at it.
-const PORTRAIT_PITCH = -.12, LANDSCAPE_PITCH = -.02;   // radians
-// Portrait's fov pins the note at the far clamp, so a home seat there would have
-// no room left to step back into: home sits PORTRAIT_HOME_BACK inside the clamp.
-const PORTRAIT_HOME_BACK = 2 * NUDGE_DEPTH;   // metres of back range behind home
-// The old near clamp also reserved two steps of forward travel ahead of home. That
-// reserve cannot hold on 19.5:9 phones (the words need the stool further back, see
-// nearForWords), so one step is kept: the clamp never comes within NUDGE_DEPTH of
-// home, which is enough for a forward nudge to always move on every screen shape.
-const PORTRAIT_FORWARD_FLOOR = NUDGE_DEPTH;
-// APOTHEM is centre to face, and each face owns the depth from its own wall to
-// the middle of the room: the eight per-face seats meet there. Past the apothem a
-// face-0 seat has crossed the middle and is really face 4's seat, looking back
-// across the room at its own wall (the walls themselves are 2 * APOTHEM apart, so
-// the old 3.9 m clamp was not through a wall — it was 0.64 m past the centre,
-// where the note is 28% of a portrait screen). Stop short of the centre instead.
-const DEPTH_MAX = APOTHEM - CENTRE_MARGIN;
-const tanHalfAngle = degrees => Math.tan(THREE.MathUtils.degToRad(degrees) / 2);
-const horizontalFovOf = (fov, aspect) => THREE.MathUtils.radToDeg(2 * Math.atan(tanHalfAngle(fov) * aspect));
-// Height of the words' upper edge above the eye, metres: the overlay's content
-// starts NOTE_PAD_TOP + NOTE_HEADER_H pixels below the pane's top.
-const NOTE_WORDS_TOP = NOTE_Y + NOTE_H / 2 - EYE_HEIGHT
-  - (NOTE_PAD_TOP + NOTE_HEADER_H) / NOTE_BOX_H * NOTE_H;
-// The near clamp, derived rather than tuned: the closest seat at which the WORDS —
-// the textarea's content box, inset by the overlay's padding, not the pane that
-// holds that padding — still fill the screen width exactly. The words are
-// (NOTE_BOX_W - 2 * padSide) / NOTE_BOX_W of the pane, so that share of NOTE_W wide,
-// and sit NOTE_OUT in front of the wall. The camera is pitched down by |pitch|, so
-// at seat depth d the upper edge's forward distance is
-//   cos(tilt) * (d - NOTE_OUT) - sin(tilt) * NOTE_WORDS_TOP
-// and it spans half the screen when that distance is halfWords / tanHalf(hfov).
-// Solve for d. Measured on the real page at the resulting seats: 390x844 -> 2.519,
-// 412x915 -> 2.582, 360x800 -> 2.583, each with the words at 99.8-99.9% of the
-// width and no clip; the old pane-share clamp put the stool at 2.449 on all three,
-// where the top line ran 5.5-11.3 px off each edge. A screen taller than 19.5:9
-// asks for a seat more than one step ahead of home; the cap below wins there
-// instead of moving home. Where the words already fitted before the cap (360x640,
-// 768x1024) the clamp moves the seat 0.17 m closer than the old pane share.
-function nearForWords(hfov, padSide, pitch) {
-  const halfWords = NOTE_W * (NOTE_BOX_W - 2 * padSide) / NOTE_BOX_W / 2;
-  const tilt = Math.abs(pitch);
-  return NOTE_OUT
-    + (halfWords / tanHalfAngle(hfov) + Math.sin(tilt) * NOTE_WORDS_TOP) / Math.cos(tilt);
+const WANDER_HINT = 'drag to look · pad to walk · tap the book, the wall page or the stool';
+const SEATED_HINT = 'tap the picture to open the page · tap anywhere else to stand';
+let hintTimer = 0;
+function setHint(text, hold = 7000) {
+  hint.textContent = text;
+  hint.classList.remove('is-gone');
+  clearTimeout(hintTimer);
+  if (hold) hintTimer = setTimeout(hideHint, hold);
 }
-// Everything the camera and the two seat clamps need for one screen shape.
-function framingFor(aspect) {
-  if (aspect >= 1) {
-    const hfov = horizontalFovOf(LANDSCAPE_FOV, aspect);
-    const home = Math.min(HOME_DEPTH, DEPTH_MAX);
-    // Landscape is far inside the screen: the words-just-fill seat is ~0.8 m, so
-    // NEAR_STANDOFF still decides here and the landscape near stays 1.5 m.
-    const nearWords = nearForWords(hfov, NOTE_PAD_SIDE[0], LANDSCAPE_PITCH);
-    return {
-      fov: LANDSCAPE_FOV, hfov, far: DEPTH_MAX, home, nearWords,
-      near: Math.min(DEPTH_MAX, Math.max(NEAR_STANDOFF, nearWords)),
-    };
+function hideHint() {
+  hint.classList.add('is-gone');
+  clearTimeout(hintTimer);
+}
+
+const held = new Set();
+function clearHeld() {
+  for (const direction of [...held]) setHeld(direction, false);
+}
+function setHeld(direction, down) {
+  if (down) {
+    if (mode === 'seated' || pageOpen) return;
+    held.add(direction);
+  } else held.delete(direction);
+  pad.querySelector(`[data-dir="${direction}"]`)?.setAttribute('aria-pressed', String(held.has(direction)));
+}
+
+function clampInsideOctagon(p, margin = .5) {
+  for (let k = 0; k < FACE_COUNT; k++) {
+    const out = faceOut(k);
+    const over = p.x * out.x + p.z * out.z - (APOTHEM - margin);
+    if (over > 0) { p.x -= over * out.x; p.z -= over * out.z; }
   }
-  // The note pin asks for this vertical fov to land the note on its share with
-  // the seat at the deepest depth this face owns — the least distorted seat there
-  // is. Widen to reach it, but no further than the band allows: on screens
-  // narrower than about 9:16 even 80 degrees cannot honour the share, and the
-  // note then runs a little wider than the phone rather than the view going
-  // fisheye. The far clamp is the widest view the band can give, so the share is
-  // measured there and not at home: at 390x844 the 88% pin would need 89.8
-  // degrees, and 80 already leaves the note at 104.6% of the width square-on.
-  const wantedFov = THREE.MathUtils.radToDeg(2 * Math.atan(
-    (NOTE_W / 2) / (NOTE_WIDTH_SHARE * (DEPTH_MAX - NOTE_OUT) * aspect)));
-  const fov = THREE.MathUtils.clamp(wantedFov, PORTRAIT_FOV[0], PORTRAIT_FOV[1]);
-  const hfov = horizontalFovOf(fov, aspect);
-  // Because that fov fills the range, a home seat at the far clamp would have no
-  // back range at all: the back nudge and "step further back" would do nothing.
-  // Home sits PORTRAIT_HOME_BACK inside the clamp instead. The near clamp is now
-  // the words-just-fill seat derived above, kept one step ahead of home: on the
-  // 19.5:9 phones that seat is 0.07-0.13 m deeper than the old two-step reserve
-  // (home - 0.28 = 2.449 m), so honouring two steps would put the words back off
-  // both edges. Forward walk range there is 1.0-1.5 steps instead of 2.0.
-  const far = DEPTH_MAX;
-  const home = far - PORTRAIT_HOME_BACK;
-  const nearWords = nearForWords(hfov, NOTE_PAD_SIDE[1], PORTRAIT_PITCH);
-  const near = Math.max(NEAR_STANDOFF, Math.min(nearWords, home - PORTRAIT_FORWARD_FLOOR));
-  return { fov, hfov, near, home, far, nearWords };
+  return p;
 }
-let framing = framingFor((window.innerWidth || 1) / (window.innerHeight || 1));
-// How much of the screen width the note spans, square-on from a given seat depth.
-function noteWidthShare(depth) {
-  return (NOTE_W / 2) / (Math.max(.2, depth - NOTE_OUT) * tanHalfAngle(framing.hfov));
+function insideOctagon(p, margin = .45) {
+  for (let k = 0; k < FACE_COUNT; k++) {
+    const out = faceOut(k);
+    if (p.x * out.x + p.z * out.z > APOTHEM - margin) return false;
+  }
+  return true;
 }
-const STORE_KEY = 'airis-os.house.v1';
-const store = {
-  load() { try { return JSON.parse(window.localStorage.getItem(STORE_KEY)) || {}; } catch (error) { return {}; } },
-  save(value) { try { window.localStorage.setItem(STORE_KEY, JSON.stringify(value)); } catch (error) { /* sandboxed: this session only */ } },
-};
-const saved = store.load();
-const savedSeat = (k, key, fallback, lo, hi) => {
-  const raw = Array.isArray(saved.seats) ? saved.seats[k] : null;
-  const value = raw && Number.isFinite(raw[key]) ? raw[key] : fallback;
-  return THREE.MathUtils.clamp(value, lo, hi);
-};
-const state = {
-  note: typeof saved.note === 'string' ? saved.note : '',
-  face: Number.isInteger(saved.face) ? THREE.MathUtils.clamp(saved.face, 0, FACE_COUNT - 1) : 0,
-  pan: Number.isFinite(saved.pan) ? THREE.MathUtils.clamp(saved.pan, -PAN_LIMIT, PAN_LIMIT) : 0,
-  seats: Array.from({ length: FACE_COUNT }, (_, k) => ({
-    lateral: savedSeat(k, 'lateral', HOME_LATERAL, -SIDE_LIMIT, SIDE_LIMIT),
-    depth: savedSeat(k, 'depth', framing.home, framing.near, framing.far),
-  })),
-};
-let saveTimer = 0;
-function persist() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => store.save(state), 250);
+// Push the eye out of one round footprint; returns whether it was already clear.
+function pushOutOf(p, x, z, r) {
+  const dx = p.x - x, dz = p.z - z, distance = Math.hypot(dx, dz);
+  if (distance >= r) return true;
+  if (distance < 1e-4) { p.x = x + r; return false; }
+  p.x = x + dx / distance * r;
+  p.z = z + dz / distance * r;
+  return false;
 }
-const pos = new THREE.Vector3();
-let yaw = 0, pitch = 0;
-function seatPoint(k, lateral, depth) {
-  return facePoint(k, depth).addScaledVector(faceRight(k), lateral).setY(EYE_HEIGHT);
+function settleEye(p) {
+  clampInsideOctagon(p, BODY);
+  if (stoolPass && Math.hypot(p.x - SEAT.x, p.z - SEAT.z) >= STOOL_R) stoolPass = false;
+  if (!stoolPass) pushOutOf(p, SEAT.x, SEAT.z, STOOL_R);
+  pushOutOf(p, lamp.position.x, lamp.position.z, LAMP_R);
+  clampInsideOctagon(p, BODY);
 }
-function applySeat(save = true) {
-  const seat = state.seats[state.face];
-  pos.copy(seatPoint(state.face, seat.lateral, seat.depth));
-  yaw = faceYaw(state.face) + state.pan;
-  stool.position.copy(pos).setY(0);
-  stool.rotation.y = faceYaw(state.face);
-  syncStoolObstacle(pos);
-  if (save) persist();
-}
-function nudgeSeat(side, back) {
-  const seat = state.seats[state.face];
-  if (side) seat.lateral = THREE.MathUtils.clamp(seat.lateral + side * NUDGE_SIDE, -SIDE_LIMIT, SIDE_LIMIT);
-  if (back) seat.depth = THREE.MathUtils.clamp(seat.depth + back * NUDGE_DEPTH, framing.near, framing.far);
-  applySeat();
-  hideWalkHint();
-}
-function setFace(k) {
-  state.face = ((k % FACE_COUNT) + FACE_COUNT) % FACE_COUNT;
-  state.pan = 0;
-  applySeat();
+function moveView(dt) {
+  if (mode === 'seated' || pageOpen) { velocity.set(0, 0); return; }
+  const forward = (held.has('up') ? 1 : 0) - (held.has('down') ? 1 : 0);
+  const sideways = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0);
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+  let tx = fx * forward + -fz * sideways;
+  let tz = fz * forward + fx * sideways;
+  const length = Math.hypot(tx, tz);
+  if (length > 0) { tx = tx / length * WALK_SPEED; tz = tz / length * WALK_SPEED; }
+  const ease = Math.min(1, dt * 14);
+  velocity.x += (tx - velocity.x) * ease;
+  velocity.y += (tz - velocity.y) * ease;
+  pos.x += velocity.x * dt;
+  pos.z += velocity.y * dt;
+  settleEye(pos);
+  const speed = Math.hypot(velocity.x, velocity.y);
+  stride += speed * dt * 6;
+  pos.y = EYE_STAND + (speed > .05 ? Math.sin(stride) * .012 * Math.min(1, speed / WALK_SPEED) : 0);
 }
 
-// The wall note is a real textarea, laid onto the pane with a homography, so
-// the 3D pane and the words you type cannot drift apart.
-const noteEl = document.querySelector('#wall-note');
-const noteText = document.querySelector('#note-text');
-noteText.value = state.note;
-noteText.addEventListener('input', () => { state.note = noteText.value; persist(); });
-const ray = new THREE.Raycaster();
+function sit() {
+  if (pageOpen) return;
+  mode = 'seated';
+  pos.set(SEAT.x, EYE_SIT, SEAT.z);
+  yaw = SEAT_YAW;
+  pitch = SEAT_PITCH;
+  velocity.set(0, 0);
+  clearHeld();
+  stoolPass = false;
+  document.body.classList.add('is-seated');
+  sitButton.textContent = 'Stand';
+  sitButton.setAttribute('aria-pressed', 'true');
+  setHint(SEATED_HINT, 0);
+}
+function stand() {
+  if (mode !== 'seated') return;
+  mode = 'wander';
+  pos.y = EYE_STAND;
+  stoolPass = true;             // the seat's footprint is where the eye already is
+  document.body.classList.remove('is-seated');
+  sitButton.textContent = 'Sit';
+  sitButton.setAttribute('aria-pressed', 'false');
+  setHint(WANDER_HINT);
+}
+
+// --- the live page ----------------------------------------------------------
+// Tapping the picture opens the real page, as a real frame, over the room. The 3D
+// layer has no say in what happens inside it. Back closes it: the button, a tap
+// on the bar, Escape, or (where the app is not sandboxed) the browser's own back.
+let pageOpen = false, pageLoaded = false, pushedPageState = false;
+// history.back() lands asynchronously. Until its popstate arrives a close is still
+// "pending": a reopen in that gap must not be closed by it, so the reopen waits to
+// push its own entry until the stale back has landed (or a fallback timer fires).
+let pendingBack = false, pendingBackTimer = 0;
+function pushPageState() {
+  try { history.pushState({ housePage: 1 }, ''); pushedPageState = true; } catch (error) { pushedPageState = false; }
+}
+function settleBack() {
+  pendingBack = false;
+  clearTimeout(pendingBackTimer);
+  if (pageOpen && !pushedPageState) pushPageState();
+}
+function openPage() {
+  if (pageOpen) return;
+  pageOpen = true;
+  clearHeld();
+  velocity.set(0, 0);
+  hideHint();
+  if (!pageLoaded) { pageFrame.src = PAGE_URL; pageLoaded = true; }
+  pageFocus.hidden = false;
+  pageClose.focus({ preventScroll: true });
+  if (!pendingBack) pushPageState();      // else settleBack() pushes once the stale back lands
+}
+function closePage(fromHistory = false) {
+  if (!pageOpen) return;
+  pageOpen = false;
+  pageFocus.hidden = true;
+  canvas.focus({ preventScroll: true });
+  if (!fromHistory && pushedPageState) {
+    pushedPageState = false;
+    pendingBack = true;
+    clearTimeout(pendingBackTimer);
+    pendingBackTimer = setTimeout(settleBack, 1500);   // a back that never lands
+    try { history.back(); } catch (error) { settleBack(); }
+  } else pushedPageState = false;
+  setHint(mode === 'seated' ? SEATED_HINT : WANDER_HINT, mode === 'seated' ? 0 : 7000);
+  startLoop();                 // the room was a still picture while the page was up
+}
+window.addEventListener('popstate', () => {
+  if (pendingBack) { settleBack(); return; }   // our own close's back, not the user's
+  if (pageOpen) closePage(true);
+});
+// Escape from inside the page: key events in the frame never reach this window.
+// Same-origin, listen on the frame directly (re-attached on every navigation);
+// in the OS shell's opaque-origin sandbox that throws, so the page itself posts
+// 'house:escape' to its parent instead.
+function onFrameKey(event) {
+  if (event.key === 'Escape' && pageOpen) { event.preventDefault(); closePage(); }
+}
+pageFrame.addEventListener('load', () => {
+  try { pageFrame.contentWindow.addEventListener('keydown', onFrameKey); } catch (error) { /* cross-origin */ }
+});
+window.addEventListener('message', event => {
+  if (event.source === pageFrame.contentWindow && event.data && event.data.type === 'house:escape' && pageOpen) closePage();
+});
+pageClose.addEventListener('click', () => closePage());
+pageFocus.addEventListener('click', event => { if (event.target === pageFocus) closePage(); });
+sitButton.addEventListener('click', () => { hideHint(); if (mode === 'seated') stand(); else sit(); });
+pageButton.addEventListener('click', () => { hideHint(); openPage(); });
+
+// --- pointing ---------------------------------------------------------------
+const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
-let pointerId = null, pointerStart = null, dragged = false, touchWalking = false, touchStartedAt = 0;
-const walkHint = document.querySelector('#walk-hint');
-const cameraDebug = document.querySelector('#camera-debug');
-const debugEnabled = new URLSearchParams(location.search).has('debug');
-cameraDebug.hidden = !debugEnabled;
-function hideWalkHint() { walkHint.classList.add('is-gone'); }
+const hitTargets = [picture, pictureFrame, stool, book, wallItem];
+function hitAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  ndc.set((clientX - rect.left) / rect.width * 2 - 1, -((clientY - rect.top) / rect.height * 2 - 1));
+  raycaster.setFromCamera(ndc, camera);
+  for (const hit of raycaster.intersectObjects(hitTargets, true)) {
+    if (!hit.object.visible) continue;
+    for (let node = hit.object; node; node = node.parent) {
+      if (node.userData.item) { if (node.visible) return node; break; }   // book or wall object
+      if (node === stool) return 'stool';
+      if (node === picture || node === pictureFrame) return 'page';
+    }
+  }
+  return null;
+}
+let dragId = null, dragFrom = null, dragged = false;
 canvas.addEventListener('pointerdown', event => {
-  if (pointerId !== null) return;
-  pointerId = event.pointerId;
-  pointerStart = { x: event.clientX, y: event.clientY };
+  if (pageOpen || dragId !== null) return;
+  dragId = event.pointerId;
+  dragFrom = { x: event.clientX, y: event.clientY };
   dragged = false;
-  touchWalking = event.pointerType === 'touch';
-  touchStartedAt = performance.now();
-  if (touchWalking) setDirection('up', true);
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', event => {
-  if (event.pointerId !== pointerId || !pointerStart) return;
-  const dx = event.clientX - pointerStart.x, dy = event.clientY - pointerStart.y;
-  if (Math.hypot(dx, dy) > 6) dragged = true;
-  if (touchWalking) {
-    state.pan = THREE.MathUtils.clamp(state.pan - dx * .012, -PAN_LIMIT, PAN_LIMIT);
-    pointerStart = { x: event.clientX, y: event.clientY };
-  } else if (dragged) {
-    state.pan = THREE.MathUtils.clamp(state.pan - dx * .004, -PAN_LIMIT, PAN_LIMIT);
-    pitch = THREE.MathUtils.clamp(pitch - dy * .003, -.62, .5);
-    pointerStart = { x: event.clientX, y: event.clientY };
+  if (event.pointerId !== dragId || !dragFrom) {
+    // Mouse only: show that the picture and the stool are things you can tap.
+    if (event.pointerType === 'mouse' && dragId === null) canvas.classList.toggle('is-pointing', hitAt(event.clientX, event.clientY) !== null);
+    return;
   }
+  const dx = event.clientX - dragFrom.x, dy = event.clientY - dragFrom.y;
+  if (Math.hypot(dx, dy) > 4) dragged = true;
+  if (!dragged) return;
+  dragFrom = { x: event.clientX, y: event.clientY };
+  if (mode === 'seated') return;           // the seat is already the view
+  yaw -= dx * DRAG_YAW;
+  pitch = THREE.MathUtils.clamp(pitch - dy * DRAG_PITCH, -PITCH_LIMIT, PITCH_LIMIT);
+  hideHint();
 });
-canvas.addEventListener('pointerup', event => {
-  if (event.pointerId !== pointerId) return;
-  const wasTouchWalk = touchWalking;
-  if (wasTouchWalk) setDirection('up', false);
-  if (!dragged && (!wasTouchWalk || performance.now() - touchStartedAt < 250)) {
-    ndc.set(event.offsetX / canvas.clientWidth * 2 - 1, -event.offsetY / canvas.clientHeight * 2 + 1);
-    ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects([book, wallItem], true).find(result => result.object.visible);
-    if (hit) {
-      let root = hit.object;
-      while (root && !root.userData.item) root = root.parent;
-      if (root?.userData.item) clickFetch(root);
-    }
-  }
-  pointerId = null;
-  pointerStart = null;
-  touchWalking = false;
-  persist();
-});
-canvas.addEventListener('pointercancel', event => {
-  if (event.pointerId === pointerId) {
-    if (touchWalking) setDirection('up', false);
-    pointerId = null; pointerStart = null; touchWalking = false;
-  }
-});
+function endDrag(event, cancelled) {
+  if (event.pointerId !== dragId) return;
+  const tapped = !dragged && !cancelled;
+  dragId = null;
+  dragFrom = null;
+  dragged = false;
+  if (!tapped) return;
+  const target = hitAt(event.clientX, event.clientY);
+  if (target === 'page') { openPage(); return; }
+  if (target === 'stool') { hideHint(); sit(); return; }
+  if (target && target.userData) { hideHint(); clickFetch(target); return; }
+  if (mode === 'seated') stand();           // a tap away from the picture is standing up
+}
+canvas.addEventListener('pointerup', event => endDrag(event, false));
+canvas.addEventListener('pointercancel', event => endDrag(event, true));
 
-// Where things are, now that the desk is gone: the book rests on the floor in
-// front of the home face, the wall object hangs on the left-front face.
+// --- walking by hand --------------------------------------------------------
+function pressPad(button, direction) {
+  const release = event => {
+    if (button.hasPointerCapture?.(event.pointerId)) button.releasePointerCapture(event.pointerId);
+    setHeld(direction, false);
+  };
+  button.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    hideHint();
+    if (mode === 'seated') stand();
+    button.setPointerCapture(event.pointerId);
+    setHeld(direction, true);
+  });
+  button.addEventListener('pointerup', release);
+  button.addEventListener('pointercancel', release);
+  button.addEventListener('lostpointercapture', () => setHeld(direction, false));
+}
+pad.querySelectorAll('button').forEach(button => pressPad(button, button.dataset.dir));
+
+const KEY_TO_DIR = {
+  w: 'up', W: 'up', ArrowUp: 'up',
+  s: 'down', S: 'down', ArrowDown: 'down',
+  a: 'left', A: 'left', ArrowLeft: 'left',
+  d: 'right', D: 'right', ArrowRight: 'right',
+};
+window.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    if (pageOpen) { closePage(); return; }
+    if (mode === 'seated') { stand(); return; }
+  }
+  if (pageOpen) return;
+  const direction = KEY_TO_DIR[event.key];
+  if (!direction) return;
+  // Typing belongs to the field; everything else is walking input, even after a
+  // button was tapped, so the room never stops listening for WASD.
+  if (event.target instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable)) return;
+  event.preventDefault();
+  if (mode === 'seated') stand();
+  hideHint();
+  setHeld(direction, true);
+});
+window.addEventListener('keyup', event => {
+  const direction = KEY_TO_DIR[event.key];
+  if (direction) setHeld(direction, false);
+});
+window.addEventListener('blur', () => clearHeld());
+
+// --- Airis, and the things she can be asked for ------------------------------
+// Where things are: the book rests on the floor in front of the wall page, the
+// wall object hangs on the left-front face, the lamp stands to one side.
 const waypoints = {
   book: facePoint(0, .98).addScaledVector(faceRight(0), .85),
   wall: facePoint(1, 1.15).addScaledVector(faceRight(1), .35),
@@ -534,39 +699,15 @@ const waypoints = {
 };
 // The stool itself, the lamp and the door leaf are the only footprints in the room.
 const obstacles = [
-  { name: 'stool', x1: -.22, x2: .22, z1: -.22, z2: .22, pad: .45 },
+  { name: 'stool', x1: SEAT.x - .24, x2: SEAT.x + .24, z1: SEAT.z - .24, z2: SEAT.z + .24, pad: .45 },
   { name: 'lamp', x1: 2.26, x2: 2.64, z1: .36, z2: .74, pad: .4 },
   { name: 'door', x1: -.62, x2: .62, z1: 3.16, z2: 3.26, pad: .1 },
 ].map(o => ({ ...o, a: o.x1 - o.pad, b: o.x2 + o.pad, c: o.z1 - o.pad, d: o.z2 + o.pad }));
-const stoolObstacle = obstacles.find(o => o.name === 'stool');
-function syncStoolObstacle(p) {
-  stoolObstacle.x1 = p.x - .22; stoolObstacle.x2 = p.x + .22;
-  stoolObstacle.z1 = p.z - .22; stoolObstacle.z2 = p.z + .22;
-  stoolObstacle.a = stoolObstacle.x1 - stoolObstacle.pad;
-  stoolObstacle.b = stoolObstacle.x2 + stoolObstacle.pad;
-  stoolObstacle.c = stoolObstacle.z1 - stoolObstacle.pad;
-  stoolObstacle.d = stoolObstacle.z2 + stoolObstacle.pad;
-}
-function insideOctagon(p, margin = .45) {
-  for (let k = 0; k < FACE_COUNT; k++) {
-    const out = faceOut(k);
-    if (p.x * out.x + p.z * out.z > APOTHEM - margin) return false;
-  }
-  return true;
-}
-function clampInsideOctagon(p, margin = .5) {
-  for (let k = 0; k < FACE_COUNT; k++) {
-    const out = faceOut(k);
-    const over = p.x * out.x + p.z * out.z - (APOTHEM - margin);
-    if (over > 0) { p.x -= over * out.x; p.z -= over * out.z; }
-  }
-  return p;
-}
-// The spot beside the stool where Airis hands things over.
+// The spot beside the eye where Airis hands things over.
 function handoffPoint() {
-  return clampInsideOctagon(pos.clone().setY(0).addScaledVector(faceRight(state.face), .95), .55);
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  return clampInsideOctagon(pos.clone().setY(0).addScaledVector(right, .95), .55);
 }
-applySeat(false);
 const inside = (o, p, e = 0) => p.x > o.a + e && p.x < o.b - e && p.z > o.c + e && p.z < o.d - e;
 function segmentHits(o, p, q) {
   // Slab test against the inflated box shrunk a hair, so walking along its edge is allowed.
@@ -620,7 +761,7 @@ function traceEvent(event, item) {
   console.log(`[house] ${row.event} ${row.item} item=${fmt(row.at)} airis=${fmt(row.airis)}`);
 }
 let clickStart = 0;
-// Both items come to rest on the floor beside the stool.
+// Both items come to rest on the floor beside the eye.
 function setDownSpot(item) {
   const spot = handoffPoint();
   spot.y = itemRestY[item.userData.item];
@@ -665,154 +806,62 @@ function startTask(text) {
   say.textContent = '';
   if (!query) return;
   if (/^(reset|put it back)$/.test(query)) { resetRoom(); return; }
+  if (/^(sit|sit down|take a seat)$/.test(query)) { sit(); say.textContent = 'seated at the stool'; return; }
+  if (/^(stand|stand up|get up)$/.test(query)) { stand(); say.textContent = 'stood up'; return; }
+  if (/^(open|show)\b/.test(query)) { openPage(); say.textContent = 'the page is open'; return; }
   if (/\b(bring|fetch|get|grab|give me)\b/.test(query)) {
     const item = /book|notebook|journal|diary/.test(query) ? 'book' : /wall thing|frame|picture|clock/.test(query) ? 'wall' : null;
     if (!item) { say.textContent = "I don't know what that is."; return; }
     taskBring(item);
     return;
   }
-  if (/\b(go|walk|stand|move)\b/.test(query)) {
+  if (/\b(go|walk|move)\b/.test(query)) {
     const dest = /window/.test(query) ? 'window' : /door/.test(query) ? 'door' : /lamp/.test(query) ? 'lamp' : /\b(here|me)\b/.test(query) ? 'here' : null;
     if (!dest) { say.textContent = "I don't know where you mean."; return; }
     replaceTask({ kind: 'walk', path: route(airis.position, destinations[dest]()), face: true });
     return;
   }
-  // Seating commands: square up to a face, nudge the stool, centre the view.
-  if (/^(face|turn to)\s+\d+$/.test(query)) {
-    const n = Number(query.split(/\s+/).pop());
-    if (n < 1 || n > FACE_COUNT) { say.textContent = `Faces are numbered 1 to ${FACE_COUNT}.`; return; }
-    setFace(n - 1);
-    say.textContent = `squared up to face ${n}`;
-    return;
-  }
-  if (/^(turn|look)\s+(left|right)$/.test(query)) {
-    setFace(state.face + (query.endsWith('left') ? 1 : -1));
-    say.textContent = `squared up to face ${state.face + 1}`;
-    return;
-  }
-  if (/^(square|square up|straight ahead)$/.test(query)) {
-    state.pan = 0;
-    applySeat();
-    say.textContent = 'squared up';
-    return;
-  }
-  if (/^(nudge|step|shift)\s+(left|right|back|forward|in)$/.test(query)) {
-    const way = query.split(/\s+/).pop();
-    nudgeSeat(way === 'left' ? -1 : way === 'right' ? 1 : 0, way === 'back' ? 1 : way === 'forward' || way === 'in' ? -1 : 0);
-    say.textContent = `stool moved ${way}`;
-    return;
-  }
-  if (/^note\b/.test(query)) {
-    const body = text.trim().slice(4).trim();
-    if (!body) { say.textContent = 'nothing written'; return; }
-    state.note = state.note ? `${state.note}\n${body}` : body;
-    noteText.value = state.note;
-    persist();
-    say.textContent = 'note: written on the wall';
-    return;
-  }
   say.textContent = "I don't know what you mean.";
 }
 function resetRoom() {
+  if (pageOpen) closePage();
   items.book.position.copy(itemHomes.book);
   items.wall.position.copy(itemHomes.wall);
   for (const item of Object.values(items)) item.visible = true;
   carried = null;
   carriedGlow.visible = false;
   busy = null;
-  state.face = 0;
-  state.pan = 0;
-  state.seats = Array.from({ length: FACE_COUNT }, () => ({ lateral: HOME_LATERAL, depth: framing.home }));
-  applySeat();
+  stand();
+  pos.set(SPAWN.x, EYE_STAND, SPAWN.z);
+  yaw = SPAWN.yaw;
+  pitch = SPAWN.pitch;
+  velocity.set(0, 0);
+  clearHeld();
   clickResult.textContent = '';
   askResult.textContent = '';
   say.textContent = '';
+  setHint(WANDER_HINT);
 }
 form.addEventListener('submit', event => { event.preventDefault(); startTask(input.value); input.value = ''; });
 document.querySelector('#reset').addEventListener('click', resetRoom);
 
-let quality = 0, avgMs = 0, slowFrames = 0, recoverySince = 0, framed = false;
+// --- the frame loop ---------------------------------------------------------
+let quality = 0, avgMs = 0, slowFrames = 0, recoverySince = 0;
+let previous = performance.now(), frameHandle = 0, frames = 0;
 function resize() {
   const width = stage.clientWidth, height = stage.clientHeight;
   if (!width || !height) return;
   renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1) * (quality === 1 ? .85 : quality >= 2 ? .65 : 1));
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
-  // The note's own layout follows the same portrait branch as the framing, so the
-  // words are inset exactly when the pane is framed wider than the screen.
-  noteEl.classList.toggle('is-portrait', camera.aspect < 1);
-  const before = framing;
-  framing = framingFor(camera.aspect);
-  camera.fov = framing.fov;
   camera.updateProjectionMatrix();
-  // A seat sitting at home follows the framing (phone turned, window resized);
-  // one the user nudged keeps its distance, clamped into the new range.
-  let moved = false;
-  for (const seat of state.seats) {
-    const atHome = Math.abs(seat.depth - before.home) < .005;
-    const depth = THREE.MathUtils.clamp(atHome ? framing.home : seat.depth, framing.near, framing.far);
-    if (depth !== seat.depth) { seat.depth = depth; moved = true; }
-  }
-  if (moved) applySeat(false);
-  // First frame only: a tall screen tilts down a little so the floor reads too.
-  if (!framed) { pitch = camera.aspect < 1 ? PORTRAIT_PITCH : LANDSCAPE_PITCH; framed = true; }
 }
 new ResizeObserver(resize).observe(stage);
 window.addEventListener('orientationchange', resize);
 resize();
 
-const walkPad = document.querySelector('#walk-pad');
-const heldDirections = new Set();
-const keyDirections = new Map([['w', 'up'], ['ArrowUp', 'up'], ['s', 'down'], ['ArrowDown', 'down'], ['a', 'left'], ['ArrowLeft', 'left'], ['d', 'right'], ['ArrowRight', 'right']]);
-function setDirection(direction, held) {
-  if (held) {
-    if (!heldDirections.has(direction)) {
-      heldDirections.add(direction);
-      // One step immediately on press, then one every STEP_INTERVAL while held.
-      stepClock = 0;
-      stepOnce(direction);
-    }
-  } else heldDirections.delete(direction);
-  const button = walkPad.querySelector(`[data-dir="${direction}"]`);
-  button?.setAttribute('aria-pressed', String(heldDirections.has(direction)));
-}
-const stepVectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-function stepOnce(direction) {
-  const vector = stepVectors[direction];
-  if (vector) nudgeSeat(vector[0], vector[1]);
-}
-walkPad.querySelectorAll('button').forEach(button => {
-  const direction = button.dataset.dir;
-  button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); setDirection(direction, true); });
-  const release = event => { if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId); setDirection(direction, false); };
-  button.addEventListener('pointerup', release);
-  button.addEventListener('pointercancel', release);
-  button.addEventListener('lostpointercapture', () => setDirection(direction, false));
-});
-window.addEventListener('keydown', event => {
-  const direction = keyDirections.get(event.key);
-  if (!direction || event.target instanceof HTMLElement && /^(INPUT|TEXTAREA|BUTTON)$/.test(event.target.tagName)) return;
-  event.preventDefault(); setDirection(direction, true);
-});
-window.addEventListener('keyup', event => { const direction = keyDirections.get(event.key); if (direction) setDirection(direction, false); });
-window.addEventListener('blur', () => { for (const direction of [...heldDirections]) setDirection(direction, false); });
-// Holding a direction nudges the stool, a small step at a time. Nothing here
-// moves a free camera: the seat is the seat.
-const STEP_INTERVAL = .13;
-let stepClock = 0;
-function moveCamera(dt) {
-  const forward = Number(heldDirections.has('up')) - Number(heldDirections.has('down'));
-  const sideways = Number(heldDirections.has('right')) - Number(heldDirections.has('left'));
-  if (!forward && !sideways) { stepClock = 0; return; }
-  stepClock += dt;
-  if (stepClock < STEP_INTERVAL) return;
-  stepClock = 0;
-  nudgeSeat(sideways, -forward);
-}
-let previous = performance.now();
 let blinkAt = previous + 3000 + Math.random() * 3000;
 let blinkUntil = 0;
-let stride = 0;
 function walkToward(point, dt) {
   const dx = point.x - airis.position.x, dz = point.z - airis.position.z;
   const distance = Math.hypot(dx, dz);
@@ -882,65 +931,11 @@ function updateTask(dt, now) {
   }
   if (busy.phase === 'done') busy = null;
 }
-// Project the pane's four corners and lay the textarea onto that quad. A plane's
-// projection is a homography, so the words stay glued to the panel at any angle.
-const noteCorners = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
-const noteView = new THREE.Vector3();
-const NOTE_QUAD_LIMIT = 4;   // screens: past this the pane is edge-on and the mapping is junk
-let noteShown = false;
-function showNote(show) {
-  if (show === noteShown) return;
-  noteShown = show;
-  noteEl.style.display = show ? 'block' : 'none';
-  if (!show && document.activeElement === noteText) noteText.blur();
-}
-function updateNoteOverlay() {
-  const forwardX = -Math.sin(yaw), forwardZ = -Math.cos(yaw);
-  const inward = faceOut(NOTE_FACE);   // faceOut is the outward normal
-  // Square-on to the pane, the view runs against its inward normal: dot ~ -1.
-  if (forwardX * -inward.x + forwardZ * -inward.z > -.34) { showNote(false); return; }
-  const centre = facePoint(NOTE_FACE, .05).setY(NOTE_Y);
-  const right = faceRight(NOTE_FACE);
-  const hw = NOTE_W / 2, hh = NOTE_H / 2;
-  noteCorners[0].copy(centre).addScaledVector(right, -hw); noteCorners[0].y += hh;   // top left
-  noteCorners[1].copy(centre).addScaledVector(right, hw); noteCorners[1].y += hh;    // top right
-  noteCorners[2].copy(centre).addScaledVector(right, hw); noteCorners[2].y -= hh;    // bottom right
-  noteCorners[3].copy(centre).addScaledVector(right, -hw); noteCorners[3].y -= hh;   // bottom left
-  const width = canvas.clientWidth, height = canvas.clientHeight;
-  const screen = [];
-  for (const corner of noteCorners) {
-    noteView.copy(corner).applyMatrix4(camera.matrixWorldInverse);
-    if (noteView.z > -.08) { showNote(false); return; }    // corner is behind the eye
-    const projected = corner.clone().project(camera);
-    screen.push({ x: (projected.x + 1) * width / 2, y: (1 - projected.y) * height / 2 });
-  }
-  const [p0, p1, p2, p3] = screen;
-  // A pane seen nearly edge-on throws its near end past the horizon: the quad
-  // blows up and the homography smears the words over the whole screen. Only lay
-  // words on a quad that is convex and no larger than a few screens.
-  const span = Math.max(
-    Math.max(p0.x, p1.x, p2.x, p3.x) - Math.min(p0.x, p1.x, p2.x, p3.x),
-    Math.max(p0.y, p1.y, p2.y, p3.y) - Math.min(p0.y, p1.y, p2.y, p3.y));
-  const turn = (a, b, c) => (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
-  const turns = [turn(p0, p1, p2), turn(p1, p2, p3), turn(p2, p3, p0), turn(p3, p0, p1)];
-  if (!(span < NOTE_QUAD_LIMIT * Math.max(width, height))
-    || !(turns.every(t => t > 0) || turns.every(t => t < 0))) { showNote(false); return; }
-  const dx1 = p1.x - p2.x, dx2 = p3.x - p2.x, dx3 = p0.x - p1.x + p2.x - p3.x;
-  const dy1 = p1.y - p2.y, dy2 = p3.y - p2.y, dy3 = p0.y - p1.y + p2.y - p3.y;
-  const det = dx1 * dy2 - dx2 * dy1;
-  if (Math.abs(det) < 1e-6) { showNote(false); return; }
-  const g = (dx3 * dy2 - dx2 * dy3) / det, h = (dx1 * dy3 - dx3 * dy1) / det;
-  const a = p1.x - p0.x + g * p1.x, b = p3.x - p0.x + h * p3.x;
-  const d = p1.y - p0.y + g * p1.y, e = p3.y - p0.y + h * p3.y;
-  showNote(true);
-  noteEl.style.transform = `matrix3d(${a / NOTE_BOX_W},${d / NOTE_BOX_W},0,${g / NOTE_BOX_W},` +
-    `${b / NOTE_BOX_H},${e / NOTE_BOX_H},0,${h / NOTE_BOX_H},0,0,1,0,${p0.x},${p0.y},0,1)`;
-}
 function animate(now) {
-  requestAnimationFrame(animate);
-  const dt = Math.min(.05, (now - previous) / 1000);
+  frameHandle = 0;
+  frames++;
+  const dt = Math.min(.05, Math.max(0, (now - previous) / 1000));
   previous = now;
-  yaw = faceYaw(state.face) + state.pan;
   avgMs = avgMs * .94 + dt * 1000 * .06;
   if (avgMs > 22) { slowFrames++; recoverySince = 0; }
   else {
@@ -952,7 +947,7 @@ function animate(now) {
   }
   if (slowFrames > 100 && quality < 2) { quality++; slowFrames = 0; resize(); }
   updateTask(dt, now);
-  moveCamera(dt);
+  moveView(dt);
   const walking = !!busy && (busy.phase === 'walkOut' || busy.phase === 'walkBack' || busy.kind === 'walk');
   const leanTarget = walking ? .08 : 0;
   airis.rotation.x += (leanTarget - airis.rotation.x) * Math.min(1, dt * 4);
@@ -976,48 +971,100 @@ function animate(now) {
   camera.rotation.order = 'YXZ';
   camera.rotation.set(pitch, yaw, 0);
   camera.updateMatrixWorld();
-  updateNoteOverlay();
   if (debugEnabled) {
-    const seat = state.seats[state.face];
-    cameraDebug.textContent = `face ${state.face + 1} · x ${pos.x.toFixed(2)} · z ${pos.z.toFixed(2)} · side ${seat.lateral.toFixed(2)}`
-      + ` · seat ${seat.depth.toFixed(2)} (home ${framing.home.toFixed(2)}, ${framing.near.toFixed(2)}–${framing.far.toFixed(2)})`
-      + ` · note ${(noteWidthShare(seat.depth) * 100).toFixed(0)}% of the width square-on (aim ${(NOTE_WIDTH_SHARE * 100).toFixed(0)}%)`
-      + ` · fov ${camera.fov.toFixed(0)} · hfov ${framing.hfov.toFixed(0)}`;
+    cameraDebug.textContent = `${mode} · x ${pos.x.toFixed(2)} · z ${pos.z.toFixed(2)} · yaw ${yaw.toFixed(2)} · pitch ${pitch.toFixed(2)}`
+      + ` · page ${pictureReady ? 'pictured' : pictureFailed ? 'missing' : 'loading'} · ${frames} frames`;
   }
   renderer.render(scene, camera);
+  // While the live page is open the room is a still picture: nothing here runs.
+  if (!pageOpen) frameHandle = requestAnimationFrame(animate);
 }
+function startLoop() {
+  if (frameHandle) return;
+  previous = performance.now();
+  frameHandle = requestAnimationFrame(animate);
+}
+
+// --- what the picture covers on screen --------------------------------------
+function pictureQuad() {
+  const centre = facePoint(PICTURE_FACE, PICTURE_OUT).setY(PICTURE_Y);
+  const right = faceRight(PICTURE_FACE);
+  const hw = PICTURE_W / 2, hh = PICTURE_H / 2;
+  return [[-hw, hh], [hw, hh], [hw, -hh], [-hw, -hh]]
+    .map(([u, v]) => centre.clone().addScaledVector(right, u).setY(PICTURE_Y + v));
+}
+function pictureOnScreen() {
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  const points = pictureQuad().map(corner => {
+    const p = corner.clone().project(camera);
+    return { x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2 };
+  });
+  const xs = points.map(p => p.x), ys = points.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  return {
+    points, minX, maxX, minY, maxY, width, height,
+    widthShare: (maxX - minX) / width,
+    heightShare: (maxY - minY) / height,
+    inside: minX >= 0 && maxX <= width && minY >= 0 && maxY <= height,
+  };
+}
+function hudBoxes() {
+  return ['hint', 'controls', 'pad', 'status', 'form'].map(id => {
+    const el = document.getElementById(id);
+    const rect = el.getBoundingClientRect();
+    return {
+      id, display: getComputedStyle(el).display,
+      x: +rect.x.toFixed(1), y: +rect.y.toFixed(1), width: +rect.width.toFixed(1), height: +rect.height.toFixed(1),
+    };
+  });
+}
+
 window.__house = {
+  get frames() { return frames; },
+  get mode() { return mode; },
+  get pageOpen() { return pageOpen; },
+  get pictureReady() { return pictureReady; },
+  get pictureFailed() { return pictureFailed; },
   get avgMs() { return avgMs; },
   get dpr() { return renderer.getPixelRatio(); },
-  get shadows() { return renderer.shadowMap.enabled; },
-  get quality() { return quality; },
   cmd: startTask,
   trace,
-  obstacles: obstacles.map(({ name, x1, x2, z1, z2 }) => ({ name, x1, x2, z1, z2 })),
-  item(name) { const o = items[name]; if (!o) return null; o.updateWorldMatrix(true, true); const b = new THREE.Box3().setFromObject(o); return { minY: b.min.y, maxY: b.max.y, minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z, visible: o.visible }; },
-  task: () => busy?.phase || (busy?.kind === 'walk' ? 'walk' : null),
-  airis: { get x() { return airis.position.x; }, get z() { return airis.position.z; } },
+  sit,
+  stand,
+  openPage,
+  closePage,
   seat: () => ({
-    face: state.face, lateral: state.seats[state.face].lateral, depth: state.seats[state.face].depth,
-    pan: state.pan, homeDepth: framing.home, eye: EYE_HEIGHT,
-    depthMin: framing.near, depthMax: framing.far,
+    face: SEAT_FACE, x: SEAT.x, y: EYE_SIT, z: SEAT.z,
+    yaw: SEAT_YAW, pitch: SEAT_PITCH, depth: SEAT_DEPTH,
   }),
+  seatScreen: () => {
+    const point = new THREE.Vector3(SEAT.x, .72, SEAT.z).project(camera);
+    return { x: (point.x + 1) * stage.clientWidth / 2, y: (1 - point.y) * stage.clientHeight / 2 };
+  },
   cameraState: () => ({
-    x: pos.x, y: pos.y, z: pos.z, yaw, pitch, fov: camera.fov, aspect: camera.aspect,
-    horizontalFov: framing.hfov,
-    framing: {
-      portrait: camera.aspect < 1,
-      noteWidthShare: NOTE_WIDTH_SHARE,
-      nearWords: framing.nearWords,
-      noteWidthOfScreen: noteWidthShare(state.seats[state.face].depth),
-      homeDepth: framing.home, depthMin: framing.near, depthMax: framing.far,
-      apothem: APOTHEM,
-    },
+    mode, x: pos.x, y: pos.y, z: pos.z, yaw, pitch,
+    fov: camera.fov, aspect: camera.aspect,
+    eyeStand: EYE_STAND, walkSpeed: WALK_SPEED,
   }),
-  nudge: nudgeSeat,
-  setFace,
-  note: { get text() { return state.note; }, get shown() { return noteShown; } },
-  room: { faces: FACE_COUNT, faceWidth: FACE_WIDTH, apothem: APOTHEM, wallHeight: WALL_HEIGHT, note: { face: NOTE_FACE, width: NOTE_W, height: NOTE_H, y: NOTE_Y, out: NOTE_OUT } },
+  picture: () => ({
+    face: PICTURE_FACE, width: PICTURE_W, height: PICTURE_H, y: PICTURE_Y,
+    out: PICTURE_OUT, url: PAGE_URL, asset: 'data:image/webp (inlined screenshot)',
+    ready: pictureReady, failed: pictureFailed,
+    screen: pictureOnScreen(),
+  }),
+  room: () => ({ faces: FACE_COUNT, faceWidth: FACE_WIDTH, apothem: APOTHEM, wallHeight: WALL_HEIGHT }),
+  hud: hudBoxes,
+  items: () => Object.keys(items),
+  item(name) {
+    const object = items[name];
+    if (!object) return null;
+    object.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(object);
+    return { minY: box.min.y, maxY: box.max.y, minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, visible: object.visible };
+  },
+  task: () => busy?.phase || (busy?.kind === 'walk' ? 'walk' : null),
+  obstacles: obstacles.map(({ name, x1, x2, z1, z2 }) => ({ name, x1, x2, z1, z2 })),
+  airis: { get x() { return airis.position.x; }, get z() { return airis.position.z; } },
   project(name) {
     const object = items[name];
     if (!object) return null;
@@ -1025,7 +1072,8 @@ window.__house = {
     return { x: (point.x + 1) * stage.clientWidth / 2, y: (1 - point.y) * stage.clientHeight / 2 };
   },
 };
-requestAnimationFrame(animate);
+
+startLoop();
 </script>
 </body>
 </html>

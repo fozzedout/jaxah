@@ -135,6 +135,13 @@
   });
 
   render();
+  // Opened inside the house's overlay, Escape here should close it; the house cannot
+  // hear keys in this frame, so tell it. Harmless anywhere else.
+  if (window.parent !== window) {
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') window.parent.postMessage({ type: 'house:escape' }, '*');
+    });
+  }
 })();
 </script>
 </body>
