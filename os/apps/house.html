@@ -308,17 +308,29 @@ const SIDE_LIMIT = .95, PAN_LIMIT = 1.15;
 // note — the 2.4 m pane you actually work on — and the side walls are allowed to
 // crop past it. Close and intimate is the right read for this room.
 const NOTE_WIDTH_SHARE = .88;    // portrait aim: note spans 88% of the screen width
-const NOTE_NEAR_SHARE = 1.15;    // portrait near clamp: note 15% wider than the screen
 const PORTRAIT_FOV = [62, 80];   // degrees; the band a portrait vertical fov lives in
 const LANDSCAPE_FOV = 68;        // unchanged landscape/desktop vertical fov
 const NOTE_OUT = .05;            // the pane's stand-off from its face, metres
 const CENTRE_MARGIN = .25;       // metres kept between the seat and the room's centre
 const NEAR_STANDOFF = 1.5;       // metres a stool can get from the face it faces
+// The overlay's own layout, mirrored from #wall-note in the stylesheet: the words
+// are inset by the side and top padding and start under the header, and
+// updateNoteOverlay maps the NOTE_BOX_W x NOTE_BOX_H box onto the pane. The near
+// clamp is measured from these numbers, so they have to stay in step with the CSS.
+const NOTE_PAD_SIDE = [20, 50];  // px; landscape, portrait (#wall-note.is-portrait)
+const NOTE_PAD_TOP = 16, NOTE_HEADER_H = 19;   // px
+// The first frame tilts down by this much — the pitch resize() sets. The tilt
+// brings the words' upper edge nearer the eye than the pane's centre line, and
+// that edge is the widest thing on screen, so the near clamp is derived at it.
+const PORTRAIT_PITCH = -.12, LANDSCAPE_PITCH = -.02;   // radians
 // Portrait's fov pins the note at the far clamp, so a home seat there would have
-// no room left to step back into. These reserves sit the portrait home that far
-// inside the clamp and keep the near clamp off it, so the stool walks both ways.
+// no room left to step back into: home sits PORTRAIT_HOME_BACK inside the clamp.
 const PORTRAIT_HOME_BACK = 2 * NUDGE_DEPTH;   // metres of back range behind home
-const PORTRAIT_HOME_FWD = 2 * NUDGE_DEPTH;    // metres of forward range ahead of home
+// The old near clamp also reserved two steps of forward travel ahead of home. That
+// reserve cannot hold on 19.5:9 phones (the words need the stool further back, see
+// nearForWords), so one step is kept: the clamp never comes within NUDGE_DEPTH of
+// home, which is enough for a forward nudge to always move on every screen shape.
+const PORTRAIT_FORWARD_FLOOR = NUDGE_DEPTH;
 // APOTHEM is centre to face, and each face owns the depth from its own wall to
 // the middle of the room: the eight per-face seats meet there. Past the apothem a
 // face-0 seat has crossed the middle and is really face 4's seat, looking back
@@ -328,16 +340,42 @@ const PORTRAIT_HOME_FWD = 2 * NUDGE_DEPTH;    // metres of forward range ahead o
 const DEPTH_MAX = APOTHEM - CENTRE_MARGIN;
 const tanHalfAngle = degrees => Math.tan(THREE.MathUtils.degToRad(degrees) / 2);
 const horizontalFovOf = (fov, aspect) => THREE.MathUtils.radToDeg(2 * Math.atan(tanHalfAngle(fov) * aspect));
-// Distance from a pane that makes a `2 * halfWidth` pane span `share` of the width.
-const distanceForShare = (halfWidth, share, hfov) => halfWidth / (share * tanHalfAngle(hfov));
+// Height of the words' upper edge above the eye, metres: the overlay's content
+// starts NOTE_PAD_TOP + NOTE_HEADER_H pixels below the pane's top.
+const NOTE_WORDS_TOP = NOTE_Y + NOTE_H / 2 - EYE_HEIGHT
+  - (NOTE_PAD_TOP + NOTE_HEADER_H) / NOTE_BOX_H * NOTE_H;
+// The near clamp, derived rather than tuned: the closest seat at which the WORDS —
+// the textarea's content box, inset by the overlay's padding, not the pane that
+// holds that padding — still fill the screen width exactly. The words are
+// (NOTE_BOX_W - 2 * padSide) / NOTE_BOX_W of the pane, so that share of NOTE_W wide,
+// and sit NOTE_OUT in front of the wall. The camera is pitched down by |pitch|, so
+// at seat depth d the upper edge's forward distance is
+//   cos(tilt) * (d - NOTE_OUT) - sin(tilt) * NOTE_WORDS_TOP
+// and it spans half the screen when that distance is halfWords / tanHalf(hfov).
+// Solve for d. Measured on the real page at the resulting seats: 390x844 -> 2.519,
+// 412x915 -> 2.582, 360x800 -> 2.583, each with the words at 99.8-99.9% of the
+// width and no clip; the old pane-share clamp put the stool at 2.449 on all three,
+// where the top line ran 5.5-11.3 px off each edge. A screen taller than 19.5:9
+// asks for a seat more than one step ahead of home; the cap below wins there
+// instead of moving home. Where the words already fitted before the cap (360x640,
+// 768x1024) the clamp moves the seat 0.17 m closer than the old pane share.
+function nearForWords(hfov, padSide, pitch) {
+  const halfWords = NOTE_W * (NOTE_BOX_W - 2 * padSide) / NOTE_BOX_W / 2;
+  const tilt = Math.abs(pitch);
+  return NOTE_OUT
+    + (halfWords / tanHalfAngle(hfov) + Math.sin(tilt) * NOTE_WORDS_TOP) / Math.cos(tilt);
+}
 // Everything the camera and the two seat clamps need for one screen shape.
 function framingFor(aspect) {
   if (aspect >= 1) {
     const hfov = horizontalFovOf(LANDSCAPE_FOV, aspect);
+    const home = Math.min(HOME_DEPTH, DEPTH_MAX);
+    // Landscape is far inside the screen: the words-just-fill seat is ~0.8 m, so
+    // NEAR_STANDOFF still decides here and the landscape near stays 1.5 m.
+    const nearWords = nearForWords(hfov, NOTE_PAD_SIDE[0], LANDSCAPE_PITCH);
     return {
-      fov: LANDSCAPE_FOV, hfov, far: DEPTH_MAX, home: Math.min(HOME_DEPTH, DEPTH_MAX),
-      near: Math.min(DEPTH_MAX, Math.max(NEAR_STANDOFF,
-        NOTE_OUT + distanceForShare(NOTE_W / 2, NOTE_NEAR_SHARE, hfov))),
+      fov: LANDSCAPE_FOV, hfov, far: DEPTH_MAX, home, nearWords,
+      near: Math.min(DEPTH_MAX, Math.max(NEAR_STANDOFF, nearWords)),
     };
   }
   // The note pin asks for this vertical fov to land the note on its share with
@@ -354,16 +392,16 @@ function framingFor(aspect) {
   const hfov = horizontalFovOf(fov, aspect);
   // Because that fov fills the range, a home seat at the far clamp would have no
   // back range at all: the back nudge and "step further back" would do nothing.
-  // Home sits PORTRAIT_HOME_BACK inside the clamp instead, and the near clamp is
-  // pulled off home by a forward reserve so the stool still moves both ways. The
-  // near clamp is still where the note first spills off both edges, unless that
-  // would eat the reserve.
+  // Home sits PORTRAIT_HOME_BACK inside the clamp instead. The near clamp is now
+  // the words-just-fill seat derived above, kept one step ahead of home: on the
+  // 19.5:9 phones that seat is 0.07-0.13 m deeper than the old two-step reserve
+  // (home - 0.28 = 2.449 m), so honouring two steps would put the words back off
+  // both edges. Forward walk range there is 1.0-1.5 steps instead of 2.0.
   const far = DEPTH_MAX;
   const home = far - PORTRAIT_HOME_BACK;
-  const shareNear = Math.min(far, Math.max(NEAR_STANDOFF,
-    NOTE_OUT + distanceForShare(NOTE_W / 2, NOTE_NEAR_SHARE, hfov)));
-  const near = Math.max(NEAR_STANDOFF, Math.min(shareNear, home - PORTRAIT_HOME_FWD));
-  return { fov, hfov, near, home, far };
+  const nearWords = nearForWords(hfov, NOTE_PAD_SIDE[1], PORTRAIT_PITCH);
+  const near = Math.max(NEAR_STANDOFF, Math.min(nearWords, home - PORTRAIT_FORWARD_FLOOR));
+  return { fov, hfov, near, home, far, nearWords };
 }
 let framing = framingFor((window.innerWidth || 1) / (window.innerHeight || 1));
 // How much of the screen width the note spans, square-on from a given seat depth.
@@ -717,7 +755,7 @@ function resize() {
   }
   if (moved) applySeat(false);
   // First frame only: a tall screen tilts down a little so the floor reads too.
-  if (!framed) { pitch = camera.aspect < 1 ? -.12 : -.02; framed = true; }
+  if (!framed) { pitch = camera.aspect < 1 ? PORTRAIT_PITCH : LANDSCAPE_PITCH; framed = true; }
 }
 new ResizeObserver(resize).observe(stage);
 window.addEventListener('orientationchange', resize);
@@ -970,7 +1008,7 @@ window.__house = {
     framing: {
       portrait: camera.aspect < 1,
       noteWidthShare: NOTE_WIDTH_SHARE,
-      noteNearShare: NOTE_NEAR_SHARE,
+      nearWords: framing.nearWords,
       noteWidthOfScreen: noteWidthShare(state.seats[state.face].depth),
       homeDepth: framing.home, depthMin: framing.near, depthMax: framing.far,
       apothem: APOTHEM,
