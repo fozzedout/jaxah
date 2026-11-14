@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Rendered status-strip check; playwright-core is supplied externally.
+// Rendered edge-header and status-strip check; playwright-core is supplied externally.
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -21,23 +21,18 @@ const base = (process.argv[2] || 'http://localhost:8788').replace(/\/$/, '');
 
 async function topAt(page, x, y) {
   return page.evaluate(({ x, y }) => {
-    const style = document.createElement('style');
-    style.textContent = '*{pointer-events:auto !important}';
-    document.head.appendChild(style);
-    try {
-      const stack = document.elementsFromPoint(x, y).slice(0, 4).map((e) => {
-        const c = getComputedStyle(e), r = e.getBoundingClientRect();
-        return { id: e.id, tag: e.tagName, cls: e.getAttribute('class') || '', bg: c.backgroundColor,
-          vis: c.visibility, backdrop: c.backdropFilter || c.webkitBackdropFilter,
-          rect: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } };
-      });
-      const probe = document.createElement('div');
-      probe.style.cssText = 'position:fixed;height:env(safe-area-inset-top, 0px)';
-      document.body.appendChild(probe);
-      const inset = probe.getBoundingClientRect().height;
-      probe.remove();
-      return { stack, vw: window.innerWidth, inset };
-    } finally { style.remove(); }
+    const stack = document.elementsFromPoint(x, y).slice(0, 4).map((e) => {
+      const c = getComputedStyle(e), r = e.getBoundingClientRect();
+      return { id: e.id, tag: e.tagName, cls: e.getAttribute('class') || '', bg: c.backgroundColor,
+        vis: c.visibility, position: c.position, backdrop: c.backdropFilter || c.webkitBackdropFilter,
+        rect: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } };
+    });
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;height:env(safe-area-inset-top, 0px)';
+    document.body.appendChild(probe);
+    const inset = probe.getBoundingClientRect().height;
+    probe.remove();
+    return { stack, vw: window.innerWidth, inset };
   }, { x, y });
 }
 
@@ -62,14 +57,18 @@ async function assertOpaqueTop(label, page, x, y, expectHeightAtLeast) {
   return { ...top, stack: t.stack };
 }
 
-// Under the strip, the first painted (non-transparent) element must be the same opaque colour,
-// and nothing in the top-inset stack may carry a backdrop-filter.
-function assertSameUnder(label, top, expectCls) {
-  const under = top.stack.slice(1).find((e) => alpha(e.bg) > 0) || {};
-  const desc = under.id ? '#' + under.id : (under.tag || '(none)') + (under.cls ? '.' + under.cls.split(' ')[0] : '');
-  ok(expectCls.test(under.cls || under.id || ''), `${label}: first painted element under the strip is ${expectCls}, got ${desc}`);
-  ok(alpha(under.bg) === 1 && under.bg === top.bg, `${label}: element under the strip is the same opaque ${top.bg}, got ${under.bg}`);
-  ok(top.stack.every((e) => !e.backdrop || e.backdrop === 'none'), `${label}: no backdrop-filter in the top-inset stack, got ${top.stack.map((e) => e.backdrop).join(',')}`);
+async function assertPhoneHeader(label, page, y, selector, colour) {
+  const t = await topAt(page, 195, y), top = t.stack[0] || {};
+  const matches = selector === '#statusbar' ? top.id === 'statusbar' : top.cls?.split(/\s+/).includes('w-title');
+  ok(matches, `${label}: topmost element at (195,${y}) is ${selector}, got ${top.id || top.cls || top.tag}`);
+  ok(top.position === 'fixed', `${label}: header is fixed, got ${top.position}`);
+  ok(top.vis === 'visible' && alpha(top.bg) === 1 && top.bg === colour, `${label}: header is opaque ${colour}, got ${top.bg}`);
+  ok(!top.backdrop || top.backdrop === 'none', `${label}: header has no backdrop-filter`);
+  ok(top.rect && top.rect.top === 0 && top.rect.left === 0 && top.rect.right >= t.vw, `${label}: header spans the top edge`);
+  const styles = await page.evaluate(() => ({ tint: getComputedStyle(document.querySelector('#status-tint')).visibility, bg: getComputedStyle(document.documentElement).getPropertyValue('--bg0').trim() }));
+  ok(styles.tint === 'hidden', `${label}: phone tint is hidden, got ${styles.tint}`);
+  const rootColour = await page.evaluate((bg) => { const e = document.createElement('div'); e.style.color = bg; document.body.appendChild(e); const colour = getComputedStyle(e).color; e.remove(); return colour; }, styles.bg);
+  ok(top.bg === rootColour, `${label}: header matches --bg0 (${rootColour})`);
 }
 
 let browser;
@@ -94,25 +93,25 @@ try {
   }
   for (const [theme, colour] of [['dark', 'rgb(7, 13, 18)'], ['light', 'rgb(223, 233, 231)']]) {
     await scenario(theme, 47, {}, async (page) => {
-      if (theme === 'dark') {
-        const hit = await page.evaluate(() => document.elementFromPoint(195, 4)?.id || '');
-        ok(hit === 'status-tint', 'dark home: unmodified hit test at (195,4) returns #status-tint, got ' + (hit || '(none)'));
-      }
-      const top = await assertOpaqueTop(theme, page, 195, 10, 47);
-      ok(top.bg === colour, `${theme}: strip colour is ${colour}, got ${top.bg}`);
-      assertSameUnder(theme + ' home', top, /statusbar/);
+      const hit = await page.evaluate(() => document.elementFromPoint(195, 4)?.id || '');
+      ok(hit === 'statusbar', `${theme} home: unmodified hit at (195,4) is #statusbar, got ${hit || '(none)'}`);
+      for (const y of [4, 10, 40]) await assertPhoneHeader(theme + ' home', page, y, '#statusbar', colour);
+      const grid = await page.evaluate(() => ({ header: document.querySelector('#statusbar').getBoundingClientRect().bottom, icon: document.querySelector('.tile .t-icon').getBoundingClientRect().top }));
+      ok(grid.icon >= grid.header, `${theme}: first row icons start below header (${grid.icon} >= ${grid.header})`);
       await openTile(page, theme + ' sheet open');
-      const s10 = await assertOpaqueTop(theme + ' sheet open y=10', page, 195, 10, 47);
-      assertSameUnder(theme + ' sheet open y=10', s10, /w-title/);
-      const s40 = await assertOpaqueTop(theme + ' sheet open y=40', page, 195, 40, 47);
-      assertSameUnder(theme + ' sheet open y=40', s40, /w-title/);
+      const sheetHit = await page.evaluate(() => document.elementFromPoint(195, 4)?.classList.contains('w-title'));
+      ok(sheetHit, `${theme} sheet: unmodified hit at (195,4) is .w-title`);
+      for (const y of [4, 10, 40]) await assertPhoneHeader(theme + ' sheet', page, y, '.w-title', colour);
+      const sheet = await page.evaluate(() => { const w = document.querySelector('.window'), c = getComputedStyle(w); return { title: w.querySelector('.w-title').getBoundingClientRect().bottom, frame: w.querySelector('iframe').getBoundingClientRect().top, backdrop: c.backdropFilter || c.webkitBackdropFilter, transform: c.transform, filter: c.filter }; });
+      ok(Math.abs(sheet.title - sheet.frame) < 0.1, `${theme}: iframe starts at title bottom without gap or overlap (${sheet.frame} vs ${sheet.title})`);
+      ok([sheet.backdrop, sheet.transform, sheet.filter].every((v) => !v || v === 'none'), `${theme}: window has no fixed-child containing-block effects`);
     });
   }
   await scenario('dark', 0, {}, async (page, cdp) => {
     await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 47 } });
     await page.waitForTimeout(300);
     await openTile(page, 'stale inset sheet open');
-    await assertOpaqueTop('stale inset sheet open', page, 195, 40, 47);
+    await assertPhoneHeader('stale inset sheet open', page, 40, '.w-title', 'rgb(7, 13, 18)');
   });
   await scenario('dark', 0, { viewport: { width: 1280, height: 800 } }, async (page) => {
     const vis = await page.evaluate(() => getComputedStyle(document.getElementById('status-tint')).visibility);
@@ -120,6 +119,13 @@ try {
   });
   await scenario('dark', 0, { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
     await assertOpaqueTop('landscape touch', page, 195, 10, 20);
+  });
+  await scenario('dark', 0, { viewport: { width: 700, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
+    await assertPhoneHeader('phone landscape home', page, 10, '#statusbar', 'rgb(7, 13, 18)');
+    await openTile(page, 'phone landscape sheet');
+    await assertPhoneHeader('phone landscape sheet', page, 10, '.w-title', 'rgb(7, 13, 18)');
+    const sheet = await page.evaluate(() => ({ title: document.querySelector('.window .w-title').getBoundingClientRect().bottom, frame: document.querySelector('.window iframe').getBoundingClientRect().top }));
+    ok(Math.abs(sheet.title - sheet.frame) < 0.1, `phone landscape: iframe starts at title bottom (${sheet.frame} vs ${sheet.title})`);
   });
 } catch (error) {
   ok(false, 'browser check error: ' + (error.stack || error));
