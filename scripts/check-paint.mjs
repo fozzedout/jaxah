@@ -94,6 +94,10 @@ try {
   }
   for (const [theme, colour] of [['dark', 'rgb(7, 13, 18)'], ['light', 'rgb(223, 233, 231)']]) {
     await scenario(theme, 47, {}, async (page) => {
+      if (theme === 'dark') {
+        const hit = await page.evaluate(() => document.elementFromPoint(195, 4)?.id || '');
+        ok(hit === 'status-tint', 'dark home: unmodified hit test at (195,4) returns #status-tint, got ' + (hit || '(none)'));
+      }
       const top = await assertOpaqueTop(theme, page, 195, 10, 47);
       ok(top.bg === colour, `${theme}: strip colour is ${colour}, got ${top.bg}`);
       assertSameUnder(theme + ' home', top, /statusbar/);

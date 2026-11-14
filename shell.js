@@ -206,6 +206,7 @@ setInterval(tickClock, 10000); tickClock();
 /* ── theme (persisted, both layouts) ──────────────────────────────────── */
 function setTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
+  try { var tc = document.querySelector('meta[name="theme-color"]'); var bg = getComputedStyle(document.documentElement).getPropertyValue('--bg0').trim(); if (tc && bg) tc.setAttribute('content', bg); } catch (e) {}
   try { localStorage.setItem('airis-os.theme', t); } catch (e) {}
   if (typeof broadcast === 'function') broadcast({ event: 'theme', theme: t });
 }
