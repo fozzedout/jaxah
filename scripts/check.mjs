@@ -157,6 +157,19 @@ if (live !== -1) {
 
 // ── PWA shell and catalogue (offline)
 ok(/<meta\s+name="viewport"[^>]*content="[^"]*viewport-fit=cover/i.test(idx), 'viewport fits cover');
+const css = read('shell.css').replace(/\/\*[\s\S]*?\*\//g, '');
+const rootBg = css.match(/:root\s*\{[^}]*--bg0\s*:\s*([^;}]*)/i)?.[1].trim();
+const lightBg = css.match(/html\[data-theme="light"\]\s*\{[^}]*--bg0\s*:\s*([^;}]*)/i)?.[1].trim();
+const themeColor = idx.match(/<meta\s+name="theme-color"[^>]*content="([^"]*)"/i)?.[1];
+const tintRule = css.match(/(?:^|})\s*#status-tint\s*\{([^}]*)\}/)?.[1] || '';
+const tintHeight = tintRule.match(/(?:^|;)\s*height\s*:\s*(\d+(?:\.\d+)?)px\s*(?:;|$)/)?.[1];
+ok(/<div\s+id="status-tint"\s+aria-hidden="true"\s*>/i.test(idx), 'status tint strip exists');
+ok(themeColor === '#070d12' && themeColor === rootBg, 'theme-color matches dark root background');
+ok(['position: fixed', 'top: 0', 'left: 0', 'right: 0', 'pointer-events: none', 'background-color: var(--bg0)'].every((declaration) => tintRule.includes(declaration)) && Number(tintHeight) >= 11, 'status tint is fixed, full-width, non-interactive and at least 11px high');
+ok([rootBg, lightBg].every((value) => /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value || '')), 'dark and light root backgrounds are opaque hex colours');
+ok(/@media\s*\(max-width:\s*767\.98px\)\s*\{[\s\S]*?\.w-title\s*\{[^}]*height:\s*calc\(56px\s*\+/.test(css), 'phone window title includes 56px plus inset');
+const setThemeSrc = shell.slice(shell.indexOf('function setTheme(t)'), shell.indexOf('function toggleTheme()'));
+ok(/querySelector\(['"]meta\[name="theme-color"\]['"]\)/.test(setThemeSrc) && /tc\.setAttribute\('content',\s*bg\)/.test(setThemeSrc), 'setTheme updates theme-color meta');
 ok(/apple-mobile-web-app-capable/i.test(idx), 'Apple standalone meta exists');
 ok(/black-translucent/i.test(idx), 'Apple translucent status bar exists');
 ok(/<link\s+rel="manifest"[^>]*href="\/site\.webmanifest"/i.test(idx), 'PWA manifest linked');
@@ -173,7 +186,6 @@ ok(icons.some((i) => i.sizes === '192x192'), 'PWA has a 192px icon');
 ok(icons.some((i) => i.sizes === '512x512'), 'PWA has a 512px icon');
 ok(icons.some((i) => typeof i.purpose === 'string' && i.purpose.split(/\s+/).includes('maskable')), 'PWA has a maskable icon');
 for (const icon of icons) ok(typeof icon.src === 'string' && exists(icon.src.replace(/^\//, '')), `PWA icon ${icon.src} exists`);
-const css = read('shell.css').replace(/\/\*[\s\S]*?\*\//g, '');
 const combinedRoot = css.match(/html\s*,\s*body\s*\{[^}]*\}/g) || [];
 const singleRoot = [...css.matchAll(/(?:^|(?<=\}))\s*(?:html|body)\s*\{[^}]*\}/g)].map((m) => m[0]);
 ok(combinedRoot.some((rule) => /\bheight\s*:\s*100vh\s*[;}]/.test(rule)), 'html, body height is 100vh');
