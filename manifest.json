@@ -9,7 +9,7 @@
       "name": "Session",
       "icon": "◇",
       "url": "apps/session.html",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "install": "code",
       "preinstalled": true,
       "launch": "auto",
@@ -35,15 +35,26 @@
           {
             "id": "opencode-go",
             "label": "OpenCode Go",
+            "transport": "proxy",
             "baseUrl": "/api/go",
+            "upstream": "https://opencode.ai/zen/go/v1",
             "editable": false,
+            "note": "relayed by this site at /api/go: opencode.ai blocks browser cross-origin calls, so the endpoint is fixed",
             "headers": {
               "x-opencode-session": "{session}"
             }
           },
           {
+            "id": "openrouter",
+            "label": "OpenRouter",
+            "transport": "direct",
+            "baseUrl": "https://openrouter.ai/api/v1",
+            "editable": true
+          },
+          {
             "id": "openai-compatible",
             "label": "OpenAI-compatible endpoint",
+            "transport": "direct",
             "baseUrl": "http://localhost:1234/v1",
             "editable": true
           }

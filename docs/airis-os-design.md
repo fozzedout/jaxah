@@ -11,9 +11,17 @@
 > and an agent act on the same surface through one action registry, every
 > action lands in one visible trail with its actor, and the whole state is
 > plain JSON (`window.airis.state()`). Session (`apps/session.html`) is a
-> blank, bring-your-own-key live agent; the Worker's `/api/go` route is a
-> same-origin passthrough to OpenCode Go because that API sends no CORS
-> headers. Apps install as records in localStorage (code included), export
+> blank, bring-your-own-key live agent. Its provider presets are data
+> (`manifest.json` → session `settings.presets`) and each says how it is
+> reached: **proxy** or **direct** (`contract → sessionPreset`). OpenCode Go
+> is proxy: the Worker's `/api/go` route is a same-origin passthrough because
+> opencode.ai answers a CORS preflight with HTTP 404 and no
+> `access-control-*` headers (measured 2026-11-14, both
+> `/zen/go/v1` and `/inference/go/openai/v1`), so no browser can call it.
+> The strip shows `opencode.ai` read-only, never `/api/go` as if it were the
+> provider's URL. OpenRouter is direct: its preflight answers HTTP 204 with
+> `access-control-allow-origin: *`, so the browser calls
+> `https://openrouter.ai/api/v1` itself and the base URL is editable. Apps install as records in localStorage (code included), export
 > as one JSON bundle and import back — no accounts, no server storage.
 >
 > Sections 1–6 below describe the v1 shell; paths that said `/os/` now live

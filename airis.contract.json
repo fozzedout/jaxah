@@ -187,10 +187,18 @@
     "fields": {
       "id": "string",
       "label": "string shown in the strip",
-      "baseUrl": "OpenAI-compatible base, e.g. /api/go or https://openrouter.ai/api/v1 or http://localhost:1234/v1. The app calls <baseUrl>/chat/completions and <baseUrl>/models.",
+      "transport": "'proxy' | 'direct'. proxy: the provider refuses browser CORS, so the browser calls this site's same-origin relay. baseUrl must be exactly /api/<name> for a key <name> of worker.upstreams, editable must be false, and the strip shows no Base URL box, only the provider host (from upstream) and note, read-only. direct: the provider allows browser CORS; baseUrl is the provider's own absolute http(s) base, never under /api/, and editable is true. Adding a direct preset needs no Worker change; adding a proxy preset needs a worker.upstreams entry first.",
+      "baseUrl": "the URL the app actually calls: <baseUrl>/chat/completions and <baseUrl>/models. proxy: /api/go (our route, not the provider's API). direct: e.g. https://openrouter.ai/api/v1 or http://localhost:1234/v1.",
+      "upstream": "proxy only, required: the real provider base, shown to the user read-only. Must equal worker.upstreams[<name>].base so the label never lies about where the relay goes.",
+      "note": "optional short sentence shown beside a proxy preset saying why its endpoint is fixed",
       "model": "NOT a preset field: presets carry no model and there is no default. The user types the model id in the strip (the GET <baseUrl>/models list is only a suggestion datalist and never auto-fills it); it is stored per preset in this browser only, via storage.set key 'settings' (site-origin localStorage), and never stored by the Worker. Sending is refused until it is filled in.",
       "editable": "boolean: base URL may be edited in the strip",
-      "headers": "optional extra request headers; the literal {session} is replaced with the conversation id"
+      "headers": "optional extra request headers; the literal {session} is replaced with the conversation id. Never Authorization: the key goes only through net.stream auth (Bearer), which the shell attaches from the secret store."
+    },
+    "why": {
+      "doc": "Measured 2026-11-14 with Origin: https://jaxah.com. Re-measure before changing a preset's transport; check.mjs enforces the shape.",
+      "opencode-go": "proxy. OPTIONS /chat/completions on https://opencode.ai/zen/go/v1 and on https://opencode.ai/inference/go/openai/v1 -> HTTP 404 with no access-control-* headers, so every browser blocks a direct call. GET /models and POST /chat/completions themselves answer 200 server-side (the latter only with an x-opencode-session header; without it: 400 MissingSessionID). Pointing the app at opencode.ai directly breaks Session in every browser; /api/go is load-bearing.",
+      "openrouter": "direct. OPTIONS https://openrouter.ai/api/v1/chat/completions -> HTTP 204 with access-control-allow-origin: * and Authorization in access-control-allow-headers. No Worker route, no session header; the key travels only browser -> openrouter.ai."
     }
   },
 

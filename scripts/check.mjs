@@ -47,7 +47,25 @@ for (const e of M.apps) {
 }
 const session = M.apps.find((a) => a.id === 'session');
 ok(session && Array.isArray(session.settings?.presets) && session.settings.presets.length >= 2, 'session has data presets');
-for (const p of session?.settings?.presets || []) for (const k of ['id', 'label', 'baseUrl']) ok(typeof p[k] === 'string', `preset ${p.id}: ${k}`);
+for (const p of session?.settings?.presets || []) {
+  for (const k of ['id', 'label', 'baseUrl']) ok(typeof p[k] === 'string', `preset ${p.id}: ${k}`);
+  ok(!('model' in p), `preset ${p.id}: carries no model (there is no default model)`);
+  ok(!Object.keys(p.headers || {}).some((h) => /^authorization$/i.test(h)), `preset ${p.id}: no Authorization in headers`);
+  // contract.sessionPreset.transport (+ .why: opencode answers no CORS preflight, OpenRouter does)
+  if (!ok(p.transport === 'proxy' || p.transport === 'direct', `preset ${p.id}: transport is proxy|direct`)) continue;
+  if (p.transport === 'proxy') {
+    const name = (/^\/api\/([a-z0-9-]+)$/.exec(p.baseUrl) || [])[1];
+    const up = name && Object.prototype.hasOwnProperty.call(C.worker.upstreams, name) ? C.worker.upstreams[name] : null;
+    ok(up, `preset ${p.id}: proxy baseUrl ${p.baseUrl} is /api/<a worker.upstreams key>`);
+    ok(p.editable === false, `preset ${p.id}: proxy is not editable`);
+    ok(up && p.upstream === up.base, `preset ${p.id}: upstream ${p.upstream} equals worker.upstreams.${name}.base`);
+  } else {
+    ok(/^https?:\/\/[^/]/.test(p.baseUrl), `preset ${p.id}: direct baseUrl is an absolute http(s) URL`);
+    ok(p.editable === true, `preset ${p.id}: direct is editable`);
+    ok(!('upstream' in p), `preset ${p.id}: direct has no upstream field`);
+  }
+}
+for (const id of Object.keys(C.sessionPreset.why).filter((k) => k !== 'doc')) ok(session?.settings?.presets?.some((p) => p.id === id), `contract sessionPreset.why.${id} names a real preset`);
 
 // ── offline URL resolution (file or redirect -> file), as the Worker would
 function redirect(p) {
