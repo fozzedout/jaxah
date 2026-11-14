@@ -11,6 +11,9 @@
     // /api/* must reach the Worker even if a file of that name existed.
     "run_worker_first": ["/api/*"]
   },
+  "routes": [
+    { "pattern": "jaxah.com/*", "zone_name": "jaxah.com" }
+  ],
   "observability": { "enabled": false }
   // No KV / D1 / R2 / Durable Object bindings, on purpose: keys and app data
   // live only in the visitor's browser.
