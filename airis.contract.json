@@ -132,9 +132,9 @@
       "fs.workspaces": { "cap": "fs", "args": "{}", "doc": "List granted workspaces." },
       "fs.create": { "cap": "fs", "args": "{ ws, name }", "doc": "Create and grant caller access." },
       "fs.list": { "cap": "fs", "args": "{ ws, path?, depth? }", "doc": "List files." },
-      "fs.read": { "cap": "fs", "args": "{ ws, path, from?, to? }", "doc": "Read lines." },
+      "fs.read": { "cap": "fs", "args": "{ ws, path, from?, to? }", "doc": "Read lines; binary files return {path, ver, blob}." },
       "fs.stat": { "cap": "fs", "args": "{ ws, path }", "doc": "File metadata." },
-      "fs.write": { "cap": "fs", "args": "{ ws, path, content, base, actor?, runId?, callId? }", "doc": "Write with compare-and-swap. Conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
+      "fs.write": { "cap": "fs", "args": "{ ws, path, content, type?, base, actor?, runId?, callId? }", "doc": "Content is a string, Blob or bytes; type is optional. Write with compare-and-swap. Conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
       "fs.edit": { "cap": "fs", "args": "{ ws, path, old, new, base, actor?, runId?, callId? }", "doc": "Edit with compare-and-swap; conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
       "fs.delete": { "cap": "fs", "args": "{ ws, path, base, actor?, runId?, callId? }", "doc": "Delete with compare-and-swap; conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
       "fs.move": { "cap": "fs", "args": "{ ws, from, to, base, actor?, runId?, callId? }", "doc": "Move with compare-and-swap; conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
@@ -147,8 +147,8 @@
       "fs.watch": { "cap": "fs", "args": "{ ws, path? }", "doc": "Subscribe to workspace changes." },
       "fs.unwatch": { "cap": "fs", "args": "{ ws }", "doc": "Remove workspace subscriptions." },
       "fs.usage": { "cap": "fs", "args": "{}", "doc": "Browser storage estimate." },
-      "fs.export": { "cap": "fs", "args": "{ ws }", "doc": "Export airis.bundle/1 JSON text." },
-      "fs.import": { "cap": "fs", "args": "{ text, as? }", "doc": "Import workspace records without overwriting and grant caller access." }
+      "fs.export": { "cap": "fs", "args": "{ ws }", "doc": "Returns {ok, filename, type, exportedAt, blob}: a zip with manifest.json and blobs/<sha>." },
+      "fs.import": { "cap": "fs", "args": "{ text?, blob?, as? }", "doc": "Import workspace records without overwriting and grant caller access." }
     }
   },
 
@@ -212,7 +212,7 @@
   "bundle": {
     "schema": "airis.bundle/1",
     "shape": { "schema": "airis.bundle/1", "exportedAt": "ISO time", "records": "[installRecord or workspaceRecord]" },
-    "workspaceRecord": "{schema:'airis.workspace/1', ws, name, exportedAt, heads, versions, ops, blobs}; distinguished by schema and imported via fs, never overwriting an existing workspace.",
+    "workspaceRecord": "{schema:'airis.workspace/1', ws, name, exportedAt, heads, versions, ops, blobs}; distinguished by schema and imported via fs, never overwriting an existing workspace. Inline JSON with blobs: {sha: text} remains supported; zip manifests use blobs: {sha: {codec, size}}, with codec 0 raw / 1 deflate-raw.",
     "excludes": "secrets, app storage, trail, window layout",
     "import": "each record is validated against installRecord + appEntry. A record identical to the installed one (version, entry, code) is left untouched. Other valid ones are stored with source:'import' (replacing same id; an open window of that app restarts). Invalid ones are reported and skipped."
   },

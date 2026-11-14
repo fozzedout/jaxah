@@ -1269,6 +1269,11 @@ function fsChanges(event) {
   });
 }
 function fsImport(fs, id, a) {
+  if (a.blob !== undefined) return fs.importWorkspace(a.blob, { as: a.as }).then(function (res) {
+    if (res.ok) fsGrant(res.ws, id);
+    fsTrail(fsActor(id, a), 'fs.import', res.ws || a.as || '', '', res);
+    return [res];
+  });
   var bundle = JSON.parse(a.text), records;
   if (bundle && bundle.schema === 'airis.workspace/1') records = [bundle];
   else if (bundle && bundle.schema === 'airis.bundle/1' && Array.isArray(bundle.records)) {
@@ -1403,7 +1408,12 @@ var OPS = {
     return fsLib().then(function () { if (watches[id]) watches[id] = watches[id].filter(function (w) { return w.ws !== a.ws; }); return true; });
   },
   'fs.usage': function () { return fsLib().then(function (fs) { return fs.usage(); }); },
-  'fs.export': function (id, a) { fsRequire(a.ws, id); return fsLib().then(function (fs) { return fs.exportBundle(a); }).then(function (res) { return res.ok === false ? res : JSON.stringify(res, null, 2); }); },
+  'fs.export': function (id, a) { fsRequire(a.ws, id); return fsLib().then(function (fs) { return fs.exportBundle(a); }).then(function (res) {
+    if (res.ok === false) return res;
+    return new Response(res.stream).blob().then(function (blob) {
+      return { ok: true, filename: res.filename, type: res.type, exportedAt: res.exportedAt, blob: blob.slice(0, blob.size, 'application/zip') };
+    });
+  }); },
   'fs.import': function (id, a) { return fsRefusal(id, a, 'fs.import', function () { return fsLib().then(function (fs) { return fsImport(fs, id, a); }); }); }
 };
 function reply(win, msg) { msg.airis = 1; try { win.postMessage(msg, '*'); } catch (e) {} }

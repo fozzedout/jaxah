@@ -1,5 +1,7 @@
 # Airis OS: workspace storage policy, design study
 
+> Amended 2026-11-14: workspace budget set to 100–200 MB by Paul (§0.4, §4).
+
 *Status: study, 2026-11-14. Pressure-tests the unbounded-versioning store in `docs/bench-design.md` §3 against real browser storage limits. No implementation code was written. `lib/fs.js` is being built separately, so this document recommends and does not prescribe line-level changes.*
 
 ---
@@ -21,7 +23,7 @@ None of these cares how much history you keep. Paul's instinct that "browser sto
 1. **Keep every version** (no ring buffer).
 2. **Compress blobs** with `deflate-raw`.
 3. **Stop the agent journal duplicating file content** (store blob references instead).
-4. **Squash with run boundaries preserved:** old intra-run steps are thinned, but every run's before/after is kept. A **self-imposed 1 GiB budget** has a 60/80/95% ladder (§4).
+4. **Squash with run boundaries preserved:** old intra-run steps are thinned, but every run's before/after is kept. A **self-imposed 100–200 MB budget** (amended 2026-11-14, see §4) has a 60/80/95% ladder (§4).
 5. **Make durability the headline work:** `persist()`, the iOS Home Screen app as the supported iPhone home for workspaces, and export as a real backstop with a "last exported" clock.
 
 Deltas, offload to the Worker and per-file caps are all rejected for v1. The reasons and the trigger for revisiting each are in §3.
@@ -133,7 +135,7 @@ Two things the arithmetic shows that the design doc didn't anticipate:
 - **Pre-iOS-17 device (1 GiB, then a prompt):** 96 MB is 9%, and 25 MB is 2.3%.
 - **Real ceiling: free disk.** A full 64 GB phone often has a few GB free. I have no source for typical free space, so I'm not inventing a figure. When the OS reclaims space, a **best-effort** origin is deleted **whole**, regardless of how small it is.
 
-**Verdict:** a 150-file, 100-version workspace **fits with two to three orders of magnitude of headroom** against quota on every engine, including the smallest iPhone. Inside the 1 GiB self-budget in §4 it fits about **40 times** with the recommended layout, or about 11 times as currently designed. The thing that decides whether Paul keeps it is **persistence**, not size.
+**Verdict:** a 150-file, 100-version workspace **fits with two to three orders of magnitude of headroom** against quota on every engine, including the smallest iPhone. Inside the original 1 GiB self-budget in §4 it fits about **40 times** with the recommended layout, or about 11 times as currently designed; at the amended 200 MB ceiling, about **8 times** or about 2 times, respectively. The thing that decides whether Paul keeps it is **persistence**, not size.
 
 ---
 
@@ -156,7 +158,7 @@ Two things the arithmetic shows that the design doc didn't anticipate:
 
 **What would change my mind:**
 
-- **Bytes per step over ~20 KB all-in.** That happens if agents write large generated files or images. 1 GiB then holds only ~50k steps. Turn on E's cold delta packing for text, and keep binaries out of per-step versioning, for example by versioning large binaries only at run boundaries.
+- **Bytes per step over ~20 KB all-in.** That happens if agents write large generated files or images. 1 GiB then holds only ~50k steps; 200 MB holds only ~10k. Turn on E's cold delta packing for text, and keep binaries out of per-step versioning, for example by versioning large binaries only at run boundaries.
 - **U1 shows engines with a large fixed per-record overhead** (over 1 KB/row). Then batch small versions into per-run records.
 - **Paul decides the site gets accounts** (bench-design §10). F becomes a sync and backup feature rather than a capacity hack, and should be designed as that.
 
@@ -169,14 +171,13 @@ Two things the arithmetic shows that the design doc didn't anticipate:
 `usage / quota` alone is useless on phones. 25 MB of 38 GB will read 0% right up until a full disk evicts the whole origin. So the ladder runs against an **effective limit**:
 
 ```
-L = min(estimate().quota, 1 GiB)
+BUDGET = 200 MB
+L = min(estimate().quota, BUDGET)
 ```
 
-Reasons for **1 GiB**:
+**Amended 2026-11-14 (Paul's ruling):** budget 100–200 MB, not 1 GiB. The workspace holds JavaScript programs and small assets; the browser supplies rendering and the V8 runtime for free, so nothing heavy needs to live in the store.
 
-- It is the pre-17 Safari prompt boundary.
-- It keeps a full-history export small enough to build as a Blob in memory on a phone.
-- It is about 40 worked-example workspaces, more than v1 needs.
+The original 1 GiB reasoning (pre-17 Safari prompt boundary and in-memory export) is superseded; export is now a streamed zip, so export size no longer drives the budget.
 
 The percentage shown is `estimate().usage / L`, refreshed after each run and every 5 minutes while Bench is open. Chromium's `usage` is approximate (§1), so the thresholds carry slack.
 
@@ -230,8 +231,8 @@ Two modes:
 
 **All-in bytes stored per agent step** (versions + metadata + journal, after compression).
 
-- At the estimated **≈ 1.65 KB/step** (recommended layout), the 1 GiB budget holds about **650,000 steps**. Unbounded history is a non-issue, and retention exists only for tidiness.
-- At **≈ 6.4 KB/step** (as currently designed), it holds about 170,000. That is still fine, but journal hygiene (H) is the cheap fix.
-- **Above ~20 KB/step**, it holds under ~54,000. Run-aware squash plus cold delta packing (C + E) move from optional to required.
+- At the estimated **≈ 1.65 KB/step** (recommended layout), the original 1 GiB budget holds about **650,000 steps**; 200 MB holds about **121,000 steps**. Unbounded history is a non-issue, and retention exists only for tidiness.
+- At **≈ 6.4 KB/step** (as currently designed), it holds about 170,000 at 1 GiB, or about 31,000 at 200 MB. That is still fine, but journal hygiene (H) is the cheap fix.
+- **Above ~20 KB/step**, it holds under ~54,000 at 1 GiB, or under ~10,000 at 200 MB. Run-aware squash plus cold delta packing (C + E) move from optional to required.
 
 U5 measures it on the first real Bench runs.
