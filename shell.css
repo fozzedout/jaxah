@@ -230,7 +230,8 @@ button { font: inherit; color: inherit; }
     min-width: 0; min-height: 0;
   }
   .window.max { inset: 0 !important; }
-  .w-title { height: 56px; cursor: default; padding-top: var(--sat, env(safe-area-inset-top)); }
+  /* 56px of controls plus the top inset; border-box would otherwise squeeze controls under the status bar. */
+  .w-title { height: calc(56px + var(--sat, env(safe-area-inset-top))); cursor: default; padding-top: var(--sat, env(safe-area-inset-top)); }
   .w-btns button, .w-btns a.w-ext { min-width: 48px; min-height: 48px; }
   .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */
   .w-max { display: none; } /* no maximise on phone: sheets are already full */
@@ -285,7 +286,7 @@ button { font: inherit; color: inherit; }
   @media (max-width: 767.98px) {
     #statusbar { padding-top: calc(8px + max(20px, var(--sat, env(safe-area-inset-top)))); }
     #icon-grid { padding-top: calc(52px + max(20px, var(--sat, env(safe-area-inset-top)))); }
-    .w-title { padding-top: max(20px, var(--sat, env(safe-area-inset-top))); }
+    .w-title { height: calc(56px + max(20px, var(--sat, env(safe-area-inset-top)))); padding-top: max(20px, var(--sat, env(safe-area-inset-top))); }
     #whisper { top: calc(46px + max(20px, var(--sat, env(safe-area-inset-top)))); }
   }
 }
