@@ -243,8 +243,11 @@ function loadModels() {
     function (c) { text += c; })
     .then(function (meta) {
       if (meta.status !== 200) return;
+      // Measured, not assumed: all 30 catalogue models answered /chat/completions on 2026-11-14,
+      // including the 11 whose api block only declares 'responses', so we do not filter on api
+      // (it describes a vendor SDK, not what our relay serves). Keep every chat entry with an id.
       var list = (JSON.parse(text).data || []).filter(function (m) {
-        return !m.api || m.api['chat-completions'];   // keep chat-completions models when the list says which
+        return m && typeof m.id === 'string' && m.type === 'chat';
       });
       var dl = $('models'); dl.textContent = '';
       list.forEach(function (m) { var o = el('option'); o.value = m.id; if (m.name) o.label = m.name; dl.appendChild(o); });
@@ -318,6 +321,8 @@ function turn(round) {
     var ch = j.choices && j.choices[0]; if (!ch) return;
     var d = ch.delta || {};
     var was = atBottom();
+    // reasoning_details is deliberately ignored: measured 2026-11-14 it arrives as opaque
+    // 'reasoning.encrypted' base64 blobs, not readable text. These two are the readable spellings.
     var think = d.reasoning_content || d.reasoning;
     if (think) {
       msg.reasoning = (msg.reasoning || '') + think;
