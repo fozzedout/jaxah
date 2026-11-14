@@ -30,43 +30,51 @@
           <div class="flex-auto px-2">
             <div class="rounded-md bg-gray-200 p-4 shadow-md dark:bg-slate-800">
               <h2>LSB Text Encoding & Decoding</h2>
-              <div>
-              <button 
-                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
-                onclick="document.getElementById('text').value += generatePassword(16);"
-                >Generate Password</button>
-
-                <button 
-                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
-                onclick="scatterTest();"
-                >Scatter Test</button>
-
-                <button 
-                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
-                onclick="scatterTestFast();"
-                >Shuffle Test</button>
-                <span id="lblProgress">...</span>
-
-              </div>
+              <!-- Utilities -->
               <div>
                 <button
-                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
-                onclick="encodeText()"
-                >Encode Text (R1 LSB)</button>
-              <button 
-                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
-                onclick="decodeText()"
-                >Decode Text (R1 LSB)</button>
+                  class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700"
+                  onclick="document.getElementById('text').value += generatePassword(16);"
+                  >Generate Password</button>
+                <button
+                  class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700"
+                  onclick="scatterTest();"
+                  >Scatter Test</button>
+                <button
+                  class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700"
+                  onclick="scatterTestFast();"
+                  >Shuffle Test</button>
+                <span id="lblProgress">...</span>
               </div>
-              <div>
-              <button
-                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
-                onclick="encodeRandom()"
-                >Encode Text (Random LSB)</button>
-              <button 
-                class="my-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700" 
-                onclick="decodeRandom()"
-                >Decode Text (Random LSB)</button>
+
+              <!-- Migration: decode old sequential format, verify text, then re-encode -->
+              <div class="mt-3 border-t border-gray-300 dark:border-gray-600 pt-3">
+                <span class="text-xs text-gray-500 dark:text-gray-400 mr-2">Migration (sequential → random):</span>
+                <button
+                  class="my-1 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700"
+                  onclick="decodeText()"
+                  title="Step 1 — decode sequential encoding into the text area so you can verify it">① Decode Sequential</button>
+              </div>
+
+              <!-- Primary encode/decode path: random placement -->
+              <div class="mt-3 border-t border-gray-300 dark:border-gray-600 pt-3">
+                <span class="text-xs text-gray-500 dark:text-gray-400 mr-2">Random placement:</span>
+                <button
+                  class="my-1 px-4 py-2 rounded-lg border border-blue-400 bg-blue-600 text-white hover:bg-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:border-blue-500 dark:bg-blue-700 dark:hover:bg-blue-600"
+                  onclick="encodeAndScramble()"
+                  title="Step 2 — encode text with random placement and fill all remaining LSBs with crypto-random noise">② Encode + Scramble</button>
+                <button
+                  class="my-1 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700"
+                  onclick="encodeRandom()"
+                  title="Encode without scramble (leaves unused LSBs untouched — for testing/comparison)">Encode only</button>
+                <button
+                  class="my-1 px-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus:ring-gray-700"
+                  onclick="decodeRandom()"
+                  >Decode</button>
+                <button
+                  class="my-1 px-4 py-2 rounded-lg border border-green-400 bg-green-600 text-white hover:bg-green-700 focus:z-10 focus:outline-none focus:ring-4 focus:ring-green-300 dark:border-green-500 dark:bg-green-700 dark:hover:bg-green-600"
+                  onclick="downloadCurrent()"
+                  title="Download the encoded image as PNG">Download</button>
               </div>
     
               <h2 class="mb-4 text-lg font-semibold">Enter Text</h2> :: Selected: <span id="lblSelectedLength">0</span> :: Available space: <span id="lblSpace">0</span>
@@ -79,6 +87,7 @@
     
       </body>
       
+      <script src="lsb-png.js"></script>
       <script src="lsb-coding.js"></script>
       <script>
         document.getElementById("text").addEventListener('mouseup', function () {

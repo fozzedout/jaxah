@@ -1,0 +1,435 @@
+{
+  "version": 2,
+  "name": "Airis OS",
+  "contract": "airis.contract.json",
+  "note": "The catalogue. Schema and rules: airis.contract.json -> appEntry. An installed record (localStorage airis.installs.v1) is what runs.",
+  "apps": [
+    {
+      "id": "session",
+      "name": "Session",
+      "icon": "◇",
+      "url": "apps/session.html",
+      "version": "1.0.0",
+      "install": "code",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Agent",
+      "description": "A blank session with a live agent. Bring your own key; it stays in this browser.",
+      "size": "window",
+      "desktop": {
+        "width": 760,
+        "height": 680
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "pinned": true,
+      "capabilities": [
+        "storage",
+        "secrets",
+        "net",
+        "actions"
+      ],
+      "settings": {
+        "presets": [
+          {
+            "id": "opencode-go",
+            "label": "OpenCode Go",
+            "baseUrl": "/api/go",
+            "editable": false,
+            "headers": {
+              "x-opencode-session": "{session}"
+            }
+          },
+          {
+            "id": "openai-compatible",
+            "label": "OpenAI-compatible endpoint",
+            "baseUrl": "http://localhost:1234/v1",
+            "editable": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "store",
+      "name": "Store",
+      "icon": "⬡",
+      "url": "apps/store.html",
+      "version": "1.0.0",
+      "install": "code",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "System",
+      "description": "Install, remove, export and import apps. Everything lives in this browser.",
+      "size": "window",
+      "desktop": {
+        "width": 720,
+        "height": 600
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "pinned": true,
+      "capabilities": [
+        "store"
+      ]
+    },
+    {
+      "id": "lexfall",
+      "name": "Lexfall",
+      "icon": "🔤",
+      "url": "https://lexfall.com",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "Games",
+      "description": "Flagship word game. Opens standalone on its own site (it forbids framing).",
+      "size": "window",
+      "desktop": {
+        "width": 980,
+        "height": 660
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "pinned": true
+    },
+    {
+      "id": "lexfall-local",
+      "name": "Lexfall (local)",
+      "icon": "🔡",
+      "url": "lexfall.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "Games",
+      "description": "The copy of Lexfall on this site. Standalone: it keeps its own storage.",
+      "hidden": true,
+      "legacyUrls": [
+        "/lexfall.html"
+      ]
+    },
+    {
+      "id": "persona",
+      "name": "Persona",
+      "icon": "🌙",
+      "url": "apps/persona.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Airis",
+      "description": "Public persona experiment. Scripted, honest about it.",
+      "size": "small",
+      "desktop": {
+        "width": 520,
+        "height": 560
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/os/apps/persona.html"
+      ]
+    },
+    {
+      "id": "desk",
+      "name": "Desk",
+      "icon": "🗂️",
+      "url": "apps/desk.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Airis",
+      "description": "Physics desk experiment. Gestures are the verbs, space is the noun.",
+      "size": "large",
+      "desktop": {
+        "width": 900,
+        "height": 620
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/os/apps/desk.html"
+      ]
+    },
+    {
+      "id": "house",
+      "name": "House",
+      "icon": "🏠",
+      "url": "apps/house.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Airis",
+      "description": "The room. A place you can stand in, with her in it.",
+      "size": "large",
+      "desktop": {
+        "width": 1100,
+        "height": 720
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/os/apps/house.html"
+      ]
+    },
+    {
+      "id": "todo",
+      "name": "To Do",
+      "icon": "✅",
+      "url": "apps/todo.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Utilities",
+      "description": "Minimal to-do list. Saved in this browser's storage for jaxah.com — clearing site data or using another browser/device loses it.",
+      "capabilities": ["storage"],
+      "size": "small",
+      "desktop": {
+        "width": 480,
+        "height": 560
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/os/apps/todo.html"
+      ]
+    },
+    {
+      "id": "fuel-calc-uk",
+      "name": "Fuel Calc",
+      "icon": "⛽",
+      "url": "fuel-calc-uk.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "Utilities",
+      "description": "UK fuel cost calculator. Standalone: it remembers your inputs in its own storage.",
+      "size": "small",
+      "desktop": {
+        "width": 520,
+        "height": 600
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/fuel-calc-uk.html"
+      ]
+    },
+    {
+      "id": "lsb-coding",
+      "name": "LSB Lab",
+      "icon": "🧪",
+      "url": "lsb-coding.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Tools",
+      "description": "LSB steganography lab.",
+      "size": "window",
+      "desktop": {
+        "width": 900,
+        "height": 620
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/lsb-coding.html"
+      ]
+    },
+    {
+      "id": "lsb-pwman",
+      "name": "LSB Passwords",
+      "icon": "🔐",
+      "url": "lsb-pwman.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "Tools",
+      "description": "LSB password manager (work in progress). Standalone: it uses the clipboard.",
+      "size": "window",
+      "desktop": {
+        "width": 900,
+        "height": 620
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/lsb-pwman.html"
+      ]
+    },
+    {
+      "id": "jeb-gallery",
+      "name": "JEB Gallery",
+      "icon": "🖼️",
+      "url": "art/jeb/index.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Art",
+      "description": "Jonathon Earl Bowser gallery.",
+      "size": "window",
+      "desktop": {
+        "width": 900,
+        "height": 620
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/art/jeb/index.html"
+      ]
+    },
+    {
+      "id": "rusty",
+      "name": "Rusty",
+      "icon": "⌨️",
+      "url": "rustys-commands.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Fun",
+      "description": "Rusty's commands.",
+      "size": "small",
+      "desktop": {
+        "width": 560,
+        "height": 520
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/rustys-commands.html"
+      ]
+    },
+    {
+      "id": "reveal",
+      "name": "Reveal",
+      "icon": "👁️",
+      "url": "reveal.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Tools",
+      "description": "Secure reveal demo. Static-only limits apply.",
+      "size": "small",
+      "desktop": {
+        "width": 560,
+        "height": 520
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "legacyUrls": [
+        "/reveal.html"
+      ]
+    },
+    {
+      "id": "trie-test",
+      "name": "Trie Test",
+      "icon": "🧬",
+      "url": "trie-test.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "Dev",
+      "description": "Trie speed test over the word lists (add ?dataset=words for words.txt). Standalone: it fetches the word files.",
+      "hidden": true,
+      "legacyUrls": [
+        "/trie-test.html",
+        "/trie-test.html?dataset=words"
+      ]
+    },
+    {
+      "id": "idb-test",
+      "name": "IDB Test",
+      "icon": "🗄️",
+      "url": "idb-test.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "Dev",
+      "description": "IndexedDB speed test. Standalone: IndexedDB needs a real origin.",
+      "hidden": true,
+      "legacyUrls": [
+        "/idb-test.html"
+      ]
+    },
+    {
+      "id": "breaking-firefox",
+      "name": "Breaking Firefox",
+      "icon": "🦊",
+      "url": "breaking-firefox.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "auto",
+      "category": "Dev",
+      "description": "Joke/demo page. Hidden, not deleted.",
+      "size": "window",
+      "desktop": {
+        "width": 860,
+        "height": 600
+      },
+      "phone": {
+        "slot": "sheet"
+      },
+      "hidden": true,
+      "legacyUrls": [
+        "/breaking-firefox.html"
+      ]
+    },
+    {
+      "id": "lexfall-settings",
+      "name": "Lexfall Settings",
+      "icon": "⚙️",
+      "url": "settings.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "System",
+      "description": "Lexfall settings. Standalone: it shares Lexfall's storage.",
+      "hidden": true,
+      "legacyUrls": [
+        "/settings.html"
+      ]
+    },
+    {
+      "id": "repo",
+      "name": "Old Home",
+      "icon": "📁",
+      "url": "repo.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "Dev",
+      "description": "The pre-OS link page, kept as it was.",
+      "hidden": true,
+      "legacyUrls": [
+        "/repo.html"
+      ]
+    }
+  ]
+}

@@ -48,7 +48,7 @@
 <body>
   <main class="card">
     <h1>✅ To Do</h1>
-    <p class="sub">Minimal list. This device only.</p>
+    <p class="sub">Minimal list. Saved in this browser.</p>
     <div class="row">
       <input id="in" type="text" placeholder="New task…" autocomplete="off" maxlength="200" aria-label="New task">
       <button id="add" type="button">Add</button>
@@ -66,32 +66,68 @@
   "use strict";
   var KEY = 'airis-os.todo.v1';
 
-  // Storage that survives the sandboxed opaque-origin iframe when it can
-  // (localStorage), and falls back to memory when the sandbox blocks it.
-  var mem = [];
-  var persistent = true;
+  var framed = window.parent !== window;
+  var mode = null, seq = 0, pending = {};
+  var note = document.getElementById('store-note');
+  var warning = 'Not saved — this list will be lost when you close or reload this window.';
+  var bridgeNote = 'Saved in this browser (Airis OS storage). Clearing site data or switching browser/device loses it.';
+  var localNote = "Saved in this browser's local storage for this page. Clearing site data or switching browser/device loses it. (separate from the list inside Airis OS)";
+
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent || !event.data || event.data.airis !== 1) return;
+    var p = pending[event.data.re];
+    if (!p) return;
+    delete pending[event.data.re];
+    clearTimeout(p.timer);
+    if (event.data.ok) p.resolve(event.data.value);
+    else p.reject(new Error(event.data.error));
+  });
+  function call(op, args) {
+    return new Promise(function (resolve, reject) {
+      var id = ++seq;
+      var timer = setTimeout(function () {
+        delete pending[id];
+        reject(new Error('Bridge timed out'));
+      }, 3000);
+      pending[id] = { resolve: resolve, reject: reject, timer: timer };
+      try { window.parent.postMessage({ airis: 1, id: id, op: op, args: args || {} }, '*'); }
+      catch (e) { clearTimeout(timer); delete pending[id]; reject(e); }
+    });
+  }
   var store = {
-    load: function () {
+    load: async function () {
       try {
-        var raw = window.localStorage.getItem(KEY);
-        return raw ? JSON.parse(raw) : [];
-      } catch (e) { persistent = false; return mem; }
+        var value;
+        if (framed) {
+          value = await call('storage.get', { key: 'items' });
+          mode = 'bridge';
+          note.textContent = bridgeNote;
+        } else {
+          var raw = window.localStorage.getItem(KEY);
+          value = raw ? JSON.parse(raw) : [];
+          mode = 'local';
+          note.textContent = localNote;
+        }
+        return Array.isArray(value) ? value : [];
+      } catch (e) { mode = null; note.textContent = warning; return []; }
     },
-    save: function (items) {
-      try { window.localStorage.setItem(KEY, JSON.stringify(items)); }
-      catch (e) { persistent = false; mem = items; }
+    save: async function (value) {
+      try {
+        if (mode === 'bridge') await call('storage.set', { key: 'items', value: value });
+        else if (mode === 'local') window.localStorage.setItem(KEY, JSON.stringify(value));
+        else throw new Error('Storage unavailable');
+        note.textContent = mode === 'bridge' ? bridgeNote : localNote;
+      } catch (e) { note.textContent = warning; }
     }
   };
 
-  var items = store.load();
+  var items = [];
   var list = document.getElementById('list');
   var input = document.getElementById('in');
   var count = document.getElementById('count');
-
-  if (!persistent) {
-    document.getElementById('store-note').textContent =
-      'Sandboxed storage is blocked in this frame — keeping the list in memory for this session.';
-  }
+  var addButton = document.getElementById('add');
+  var clearButton = document.getElementById('clear');
+  input.disabled = addButton.disabled = clearButton.disabled = true;
 
   // --- the picture the house hangs on its wall -------------------------------
   // The 3D layer is generic: it only puts a data: URL on a wall. This page draws
@@ -222,7 +258,7 @@
     g.fillText('\u2705 To Do', innerX, titleTop);
     g.fillStyle = '#9fb8b4';
     g.font = pictureFont(400, 13);
-    g.fillText('Minimal list. This device only.', innerX, subTop + 1);
+    g.fillText('Minimal list. Saved in this browser.', innerX, subTop + 1);
 
     // the placeholder input row and its Add button
     var addW = 72, addX = innerX + innerW - addW;
@@ -326,7 +362,12 @@
     catch (e) { /* nothing to post to */ }
   }
 
-  function persist() { store.save(items); render(); }
+  var saveQueue = Promise.resolve();
+  function persist() {
+    var snapshot = JSON.parse(JSON.stringify(items));
+    saveQueue = saveQueue.then(function () { return store.save(snapshot); });
+    render();
+  }
 
   function render() {
     list.innerHTML = '';
@@ -361,14 +402,17 @@
     input.focus();
   }
 
-  document.getElementById('add').addEventListener('click', add);
-  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
-  document.getElementById('clear').addEventListener('click', function () {
-    items = items.filter(function (t) { return !t.done; });
-    persist();
+  store.load().then(function (loaded) {
+    items = loaded;
+    input.disabled = addButton.disabled = clearButton.disabled = false;
+    addButton.addEventListener('click', add);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
+    clearButton.addEventListener('click', function () {
+      items = items.filter(function (t) { return !t.done; });
+      persist();
+    });
+    render();
   });
-
-  render();
   // Opened inside the house's overlay, Escape here should close it; the house cannot
   // hear keys in this frame, so tell it. Harmless anywhere else.
   if (window.parent !== window) {
@@ -379,7 +423,7 @@
     // picture drawn from the list as it stands right now.
     window.addEventListener('message', function (event) {
       if (event.source !== window.parent) return;
-      if (event.data && event.data.type === 'house:picture-request') postPicture();
+      if (event.data && event.data.type === 'house:picture-request' && !input.disabled) postPicture();
     });
   }
 })();

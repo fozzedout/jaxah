@@ -1,3 +1,5 @@
 
 # wrangler local state (cache, account ids) — never commit
 .wrangler/
+.dev.vars
+.dev.vars.*

@@ -63,7 +63,7 @@ body.is-seated #status { bottom: calc(84px + env(safe-area-inset-bottom)); }
 </head>
 <body>
 <div id="stage">
-  <canvas id="gl" tabindex="0" aria-label="An octagonal room you can wander around. Airis is in it, a stool faces the wall page, and the page itself opens when you tap its picture."></canvas>
+  <canvas id="gl" tabindex="0" aria-label="A room of pages you can wander around. Airis is in it, a stool faces the wall page, and the page itself opens when you tap its picture."></canvas>
   <div id="veil"></div><div id="grain"></div>
   <div id="hud">
     <div id="top">
@@ -144,7 +144,6 @@ scene.add(new THREE.HemisphereLight(0xf6d8ad, 0x211b2b, 1.15));
 scene.add(new THREE.AmbientLight(0x82738a, .25));
 
 const material = (color, roughness = .9, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });
-const wallMat = material(0x9b7764);
 const floorMat = material(0x62432f);
 const wood = material(0x573923);
 const woodTop = material(0x795538);
@@ -165,66 +164,84 @@ function group(parent = scene, x = 0, y = 0, z = 0) {
   parent.add(result);
   return result;
 }
-// --- the room is an octagon -------------------------------------------------
-// Eight flat faces. Squared up to one face, the two beside it stay in view at the
-// edges: a wall to work on, plus a bit to the left and a bit to the right.
-const FACE_COUNT = 8;
-const FACE_WIDTH = 2.7;                                                 // each face, wide enough for the wall page
-const ROOM_RADIUS = .5 * FACE_WIDTH / Math.sin(Math.PI / FACE_COUNT);   // centre to corner
-const APOTHEM = .5 * FACE_WIDTH / Math.tan(Math.PI / FACE_COUNT);       // centre to face
-const WALL_HEIGHT = 2.8, WALL_THICK = .16;
-const faceYaw = k => k * Math.PI * 2 / FACE_COUNT;                                       // camera yaw squared up to face k
-const faceOut = k => new THREE.Vector3(-Math.sin(faceYaw(k)), 0, -Math.cos(faceYaw(k)));  // face's outward normal
-const faceRight = k => new THREE.Vector3(Math.cos(faceYaw(k)), 0, -Math.sin(faceYaw(k))); // along the face, to the right
-// A point on face k's inner surface, `depth` metres out into the room.
-function facePoint(k, depth = 0) {
-  const out = faceOut(k);
-  return new THREE.Vector3(out.x * (APOTHEM - depth), 0, out.z * (APOTHEM - depth));
-}
-// Set a mesh onto face k: u slides along the face, y is its height, depth is out from the wall.
-function onFace(k, mesh, u = 0, y = 0, depth = .04) {
-  mesh.position.copy(facePoint(k, depth)).addScaledVector(faceRight(k), u).setY(y);
-  mesh.rotation.y = faceYaw(k);
+// --- the pages are the walls ------------------------------------------------
+const PAGE_ASPECT = 390 / 620;
+const PAGE_W = .98;
+// Snap band, derived from the seat's framing: measured at 390x844 (12 Nov), the
+// portrait seat sees 1.3164 m of width on the picture plane along the row through
+// the picture's centre (2.1 m off, fov 68, aspect .4621, pitch .1232). The page is a
+// bare .98 m quad, so the spare is (1.3164 - .98) / 2 = .1682 m each side. A page
+// landing inside that spare has already snapped, so that spare is the band.
+const SNAP_BAND = .168;
+const pages = [];
+const normalOf = page => new THREE.Vector3(Math.sin(page.yaw), 0, Math.cos(page.yaw));
+const rightOf = page => new THREE.Vector3(Math.cos(page.yaw), 0, -Math.sin(page.yaw));
+function addPage(id, url, x, z, yaw) {
+  const width = PAGE_W, height = width / PAGE_ASPECT;
+  const centre = new THREE.Vector3(x, 1.42, z);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height),
+    new THREE.MeshBasicMaterial({ color: url ? 0x141117 : 0xffffff, map: url ? null : emptyPicture() }));
+  mesh.position.copy(centre);
+  mesh.rotation.y = yaw;
   scene.add(mesh);
-  return mesh;
+  const page = { id, url, aspect: PAGE_ASPECT, width, height, centre, yaw, mesh };
+  mesh.userData.page = page;
+  pages.push(page);
+  return page;
 }
-const octagon = new THREE.CylinderGeometry(ROOM_RADIUS, ROOM_RADIUS, .18, FACE_COUNT, 1, false, Math.PI / FACE_COUNT);
-const floor = new THREE.Mesh(octagon, floorMat);
-floor.position.y = -.09;
-floor.receiveShadow = true;
-scene.add(floor);
-const ceiling = new THREE.Mesh(octagon, material(0x3a3036, 1));
-ceiling.position.y = WALL_HEIGHT + .09;
-scene.add(ceiling);
-// A hair of tint between neighbouring faces, so the eight corners read.
-const wallMatB = material(0x86655a);
-const trimMat = material(0x3c2a22);
-for (let k = 0; k < FACE_COUNT; k++) {
-  const out = faceOut(k);
-  box(scene, out.x * (APOTHEM + WALL_THICK / 2), WALL_HEIGHT / 2, out.z * (APOTHEM + WALL_THICK / 2),
-    FACE_WIDTH, WALL_HEIGHT, WALL_THICK, k % 2 ? wallMatB : wallMat).rotation.y = faceYaw(k);
-  // Skirting and cornice: without them the eight faces read as one flat wall.
-  onFace(k, new THREE.Mesh(new THREE.BoxGeometry(FACE_WIDTH, .14, .05), trimMat), 0, .07, .025);
-  onFace(k, new THREE.Mesh(new THREE.BoxGeometry(FACE_WIDTH, .09, .05), trimMat), 0, WALL_HEIGHT - .045, .025);
+function emptyPicture() {
+  const sheet = document.createElement('canvas');
+  sheet.width = 390; sheet.height = 620;
+  const g = sheet.getContext('2d');
+  g.fillStyle = '#0b1e24'; g.fillRect(0, 0, 390, 620);
+  g.fillStyle = '#9fb8b4'; g.font = '600 24px ui-sans-serif, system-ui, sans-serif';
+  g.textAlign = 'center'; g.fillText('an empty page', 195, 310);
+  const texture = new THREE.CanvasTexture(sheet);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
-// A soft ceiling fill keeps all eight faces lit; the lamp still warms one side.
+// The HEAD picture hung at z = -( .5*2.7/tan(π/8) - .05 ).
+const front = addPage('todo', './todo.html', 0, -3.209188309203679, 0);
+// The outer pages sit at the deleted room's scale: 3.2592 m centre to face
+// (.5 * 2.7 / tan(π/8), the old octagon's 2.7 m faces), sides on their diagonals.
+const ROOM_RADIUS = .5 * 2.7 / Math.tan(Math.PI / 8);
+const DIAGONAL = ROOM_RADIUS * Math.SQRT1_2;
+// The right page starts flush with the front one: same plane and yaw, centres one
+// page width apart, edge on edge.
+addPage('right', null, front.centre.x + PAGE_W, front.centre.z, front.yaw);
+const leftSide = addPage('left-side', null, -DIAGONAL, -DIAGONAL, Math.PI / 4);
+addPage('right-side', null, DIAGONAL, -DIAGONAL, -Math.PI / 4);
+addPage('back', null, 0, ROOM_RADIUS, Math.PI);
+let hull = [], floor = null;
 const ceilingLight = new THREE.PointLight(0xffb277, 14, 10, 2);
-ceilingLight.position.set(0, WALL_HEIGHT - .35, 0);
 scene.add(ceilingLight);
-
-// Night window on the right-front face.
-const night = material(0x07132d, .7, { emissive: 0x07132d, emissiveIntensity: .7 });
-onFace(7, new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.45), night), 0, 1.55, .01);
-const starGeo = new THREE.SphereGeometry(.015, 6, 5);
-const starMat = new THREE.MeshBasicMaterial({ color: 0xa9c9ff });
-for (let i = 0; i < 36; i++) onFace(7, new THREE.Mesh(starGeo, starMat), (Math.random() - .5) * 1.4, 1.0 + Math.random() * 1.6, .03);
-for (const [u, y, w, h] of [[0, 2.32, 1.76, .1], [0, .78, 1.76, .1], [-.83, 1.55, .1, 1.54], [.83, 1.55, .1, 1.54]])
-  onFace(7, new THREE.Mesh(new THREE.BoxGeometry(w, h, .12), woodTop), u, y, .03);
-
-// Door on the back face.
-onFace(4, new THREE.Mesh(new THREE.BoxGeometry(1.16, 2.6, .1), woodTop), 0, 1.3, .02);
-onFace(4, new THREE.Mesh(new THREE.BoxGeometry(1.02, 2.48, .06), wood), 0, 1.24, .05);
-onFace(4, new THREE.Mesh(new THREE.BoxGeometry(.07, .07, .1), metal), .38, 1.06, .1);
+function rebuildFloor() {
+  const points = pages.flatMap(page => {
+    const half = rightOf(page).multiplyScalar(page.width / 2);
+    return [page.centre.clone().sub(half), page.centre.clone().add(half)];
+  }).sort((a, b) => a.x - b.x || a.z - b.z);
+  const cross = (a, b, c) => (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+  const lower = [], upper = [];
+  for (const p of points) { while (lower.length >= 2 && cross(lower.at(-2), lower.at(-1), p) <= 0) lower.pop(); lower.push(p); }
+  for (const p of points.slice().reverse()) { while (upper.length >= 2 && cross(upper.at(-2), upper.at(-1), p) <= 0) upper.pop(); upper.push(p); }
+  hull = lower.slice(0, -1).concat(upper.slice(0, -1));
+  // Shape's y becomes world -z after rotation; reverse to keep its face up.
+  const shape = new THREE.Shape();
+  hull.slice().reverse().forEach((p, i) => i ? shape.lineTo(p.x, -p.z) : shape.moveTo(p.x, -p.z));
+  shape.closePath();
+  if (floor) { scene.remove(floor); floor.geometry.dispose(); }
+  floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+  let area = 0, cx = 0, cz = 0;
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i], b = hull[(i + 1) % hull.length], c = a.x * b.z - b.x * a.z;
+    area += c; cx += (a.x + b.x) * c; cz += (a.z + b.z) * c;
+  }
+  if (Math.abs(area) > 1e-9) ceilingLight.position.set(cx / (3 * area), Math.max(...pages.map(p => p.centre.y + p.height / 2)) - .35, cz / (3 * area));
+}
+rebuildFloor();
 
 // --- the wall page: a picture on face 0 -------------------------------------
 // The picture on this wall is drawn by the page itself, from its own state, and
@@ -244,15 +261,9 @@ onFace(4, new THREE.Mesh(new THREE.BoxGeometry(.07, .07, .1), metal), .38, 1.06,
 // postMessage and is never fetched across an origin.
 const PICTURE_FACE = 0;
 const PAGE_URL = './todo.html';                       // the live page, opened on a tap
-const PICTURE_ASPECT = 390 / 620;                     // the picture's shape, width / height
-const PICTURE_W = .98;                                // metres wide on the wall
-const PICTURE_H = PICTURE_W / PICTURE_ASPECT;         // 1.558 m: the page's own proportion
-const PICTURE_Y = 1.42, PICTURE_OUT = .05;            // centre height, stand-off from the wall
-const pictureFrame = onFace(PICTURE_FACE,
-  new THREE.Mesh(new THREE.BoxGeometry(PICTURE_W + .1, PICTURE_H + .1, .05), woodTop), 0, PICTURE_Y, .015);
-const picture = onFace(PICTURE_FACE,
-  new THREE.Mesh(new THREE.PlaneGeometry(PICTURE_W, PICTURE_H),
-    new THREE.MeshBasicMaterial({ color: 0x141117 })), 0, PICTURE_Y, PICTURE_OUT);
+const PICTURE_W = PAGE_W, PICTURE_H = PAGE_W / PAGE_ASPECT;
+const PICTURE_Y = 1.42, PICTURE_OUT = .05;
+const picture = front.mesh;
 
 function missingPicture() {
   const sheet = document.createElement('canvas');
@@ -314,13 +325,13 @@ const wallItem = group(scene);
 wallItem.userData.item = 'wall';
 box(wallItem, 0, 0, 0, .07, .68, .55, woodTop);
 box(wallItem, .05, 0, 0, .035, .52, .39, material(0x30404b, .8, { emissive: 0x122334, emissiveIntensity: .3 }));
-wallItem.position.copy(facePoint(1, .04)).addScaledVector(faceRight(1), .35).setY(1.62);
-wallItem.rotation.y = faceYaw(1) - Math.PI / 2;   // its thin axis points back into the room
+wallItem.position.copy(leftSide.centre).addScaledVector(normalOf(leftSide), .04).addScaledVector(rightOf(leftSide), .35).setY(1.62);
+wallItem.rotation.y = leftSide.yaw - Math.PI / 2;   // its thin axis points back into the room
 const book = group(scene);
 book.userData.item = 'book';
 box(book, 0, 0, 0, .22, .32, .25, material(0x37243f, .9, { emissive: 0x120a17, emissiveIntensity: .25 }));
 box(book, 0, 0, .135, .18, .27, .018, material(0x8d7f6b));
-const bookHome = facePoint(0, .6).addScaledVector(faceRight(0), .85).setY(itemRestY.book);
+const bookHome = new THREE.Vector3(.85, itemRestY.book, -2.6591883092036785);
 book.position.copy(bookHome);
 book.rotation.y = .35;
 const items = { book, wall: wallItem };
@@ -334,8 +345,8 @@ const itemHomes = { book: bookHome.clone(), wall: wallItem.position.clone() };
 const SEAT_FACE = PICTURE_FACE;
 const SEAT_DEPTH = 2.15;                                   // metres out from the face it faces
 const EYE_STAND = 1.62, EYE_SIT = 1.16;                    // metres above the floor
-const SEAT = facePoint(SEAT_FACE, SEAT_DEPTH);             // (0, 0, -1.36): on the wall's centre line
-const SEAT_YAW = faceYaw(SEAT_FACE);                       // square to the wall
+const SEAT = front.centre.clone().addScaledVector(normalOf(front), SEAT_DEPTH - PICTURE_OUT).setY(0);
+const SEAT_YAW = front.yaw;                       // square to the wall
 const SEAT_PITCH = Math.atan2(PICTURE_Y - EYE_SIT, SEAT_DEPTH - PICTURE_OUT);   // aimed at the picture's centre
 const stool = group(scene, SEAT.x, 0, SEAT.z);
 stool.rotation.y = SEAT_YAW;
@@ -459,20 +470,39 @@ function setHeld(direction, down) {
   pad.querySelector(`[data-dir="${direction}"]`)?.setAttribute('aria-pressed', String(held.has(direction)));
 }
 
-function clampInsideOctagon(p, margin = .5) {
-  for (let k = 0; k < FACE_COUNT; k++) {
-    const out = faceOut(k);
-    const over = p.x * out.x + p.z * out.z - (APOTHEM - margin);
-    if (over > 0) { p.x -= over * out.x; p.z -= over * out.z; }
+function clampInsideFloor(p, margin = .5) {
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i], b = hull[(i + 1) % hull.length];
+    const dx = b.x - a.x, dz = b.z - a.z, length = Math.hypot(dx, dz);
+    if (!length) continue;
+    const nx = -dz / length, nz = dx / length;
+    const distance = (p.x - a.x) * nx + (p.z - a.z) * nz;
+    if (distance < margin) { p.x += (margin - distance) * nx; p.z += (margin - distance) * nz; }
   }
   return p;
 }
-function insideOctagon(p, margin = .45) {
-  for (let k = 0; k < FACE_COUNT; k++) {
-    const out = faceOut(k);
-    if (p.x * out.x + p.z * out.z > APOTHEM - margin) return false;
+function insideFloor(p, margin = .45) {
+  return hull.every((a, i) => {
+    const b = hull[(i + 1) % hull.length], dx = b.x - a.x, dz = b.z - a.z;
+    return (p.x - a.x) * -dz + (p.z - a.z) * dx >= margin * Math.hypot(dx, dz);
+  });
+}
+function pushOffPage(p, page, r) {
+  const right = rightOf(page), normal = normalOf(page);
+  const dx = p.x - page.centre.x, dz = p.z - page.centre.z;
+  const u = THREE.MathUtils.clamp(dx * right.x + dz * right.z, -page.width / 2, page.width / 2);
+  const x = page.centre.x + u * right.x, z = page.centre.z + u * right.z;
+  const ox = p.x - x, oz = p.z - z, d = Math.hypot(ox, oz);
+  if (d >= r) return;
+  if (d < 1e-9) { p.x = x + normal.x * r; p.z = z + normal.z * r; }
+  else { p.x = x + ox / d * r; p.z = z + oz / d * r; }
+}
+function settleAgainstPages(p, margin) {
+  for (let i = 0; i < 3; i++) {
+    for (const page of pages) pushOffPage(p, page, margin);
+    clampInsideFloor(p, margin);
   }
-  return true;
+  return p;
 }
 // Push the eye out of one round footprint; returns whether it was already clear.
 function pushOutOf(p, x, z, r) {
@@ -484,11 +514,13 @@ function pushOutOf(p, x, z, r) {
   return false;
 }
 function settleEye(p) {
-  clampInsideOctagon(p, BODY);
   if (stoolPass && Math.hypot(p.x - SEAT.x, p.z - SEAT.z) >= STOOL_R) stoolPass = false;
-  if (!stoolPass) pushOutOf(p, SEAT.x, SEAT.z, STOOL_R);
-  pushOutOf(p, lamp.position.x, lamp.position.z, LAMP_R);
-  clampInsideOctagon(p, BODY);
+  for (let i = 0; i < 3; i++) {
+    for (const page of pages) pushOffPage(p, page, BODY);
+    if (!stoolPass) pushOutOf(p, SEAT.x, SEAT.z, STOOL_R);
+    pushOutOf(p, lamp.position.x, lamp.position.z, LAMP_R);
+    clampInsideFloor(p, BODY);
+  }
 }
 function moveView(dt) {
   if (mode === 'seated' || pageOpen) { velocity.set(0, 0); return; }
@@ -620,7 +652,7 @@ pageButton.addEventListener('click', () => { hideHint(); openPage(); });
 // --- pointing ---------------------------------------------------------------
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
-const hitTargets = [picture, pictureFrame, stool, book, wallItem];
+const hitTargets = [...pages.map(page => page.mesh), stool, book, wallItem];
 function hitAt(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   ndc.set((clientX - rect.left) / rect.width * 2 - 1, -((clientY - rect.top) / rect.height * 2 - 1));
@@ -630,22 +662,74 @@ function hitAt(clientX, clientY) {
     for (let node = hit.object; node; node = node.parent) {
       if (node.userData.item) { if (node.visible) return node; break; }   // book or wall object
       if (node === stool) return 'stool';
-      if (node === picture || node === pictureFrame) return 'page';
+      if (node.userData.page) return node.userData.page;
     }
   }
   return null;
 }
-let dragId = null, dragFrom = null, dragged = false;
+// Joined pages share depth motion, while only the held page slides sideways.
+function pageRow(page) {
+  const row = new Set([page]);
+  for (const current of row) for (const other of pages) {
+    if (row.has(other) || Math.abs(current.yaw - other.yaw) > 1e-6) continue;
+    const delta = other.centre.clone().sub(current.centre);
+    if (Math.abs(delta.dot(normalOf(current))) < 1e-6 &&
+        Math.abs(Math.abs(delta.dot(rightOf(current))) - (current.width + other.width) / 2) < 1e-6) row.add(other);
+  }
+  return row;
+}
+function movePage(page, row, du, dn) {
+  const right = rightOf(page), normal = normalOf(page);
+  for (const member of row) member.centre.addScaledVector(normal, dn);
+  page.centre.addScaledVector(right, du);
+  let best = null;
+  for (const other of pages) {
+    if (other === page || row.has(other) || Math.abs(page.yaw - other.yaw) > 1e-6) continue;
+    const delta = other.centre.clone().sub(page.centre), u = delta.dot(right), n = delta.dot(normal);
+    const gap = Math.abs(u) - (page.width + other.width) / 2;
+    if (Math.abs(n) <= SNAP_BAND && Math.abs(gap) <= SNAP_BAND && (!best || Math.abs(n) + Math.abs(gap) < best.score))
+      best = { n, u, gap, score: Math.abs(n) + Math.abs(gap) };
+  }
+  if (best) page.centre.addScaledVector(normal, best.n).addScaledVector(right, Math.sign(best.u || 1) * best.gap);
+  // Resolve deep overlaps too, including neighbours in the original row.
+  for (let pass = 0; pass < pages.length; pass++) for (const other of pages) {
+    if (other === page || Math.abs(page.yaw - other.yaw) > 1e-6) continue;
+    const delta = other.centre.clone().sub(page.centre), u = delta.dot(right), n = delta.dot(normal);
+    const gap = Math.abs(u) - (page.width + other.width) / 2;
+    if (Math.abs(n) < 1e-6 && gap < -1e-9) page.centre.addScaledVector(right, Math.sign(u || 1) * gap);
+  }
+  for (const member of row) member.mesh.position.copy(member.centre);
+  page.mesh.position.copy(page.centre);
+  const wallHome = leftSide.centre.clone().addScaledVector(normalOf(leftSide), .04).addScaledVector(rightOf(leftSide), .35).setY(1.62);
+  if (wallItem.position.distanceToSquared(itemHomes.wall) < 1e-10) wallItem.position.copy(wallHome);
+  itemHomes.wall.copy(wallHome);
+  waypoints.wall.copy(leftSide.centre).addScaledVector(normalOf(leftSide), 1.11).addScaledVector(rightOf(leftSide), .35).setY(0);
+  rebuildFloor();
+}
+function finishPageDrag() {
+  rebuildFloor();
+  if (mode !== 'seated') settleEye(pos);
+}
+function pointerPlane(x, y, page) {
+  const rect = canvas.getBoundingClientRect();
+  ndc.set((x - rect.left) / rect.width * 2 - 1, -((y - rect.top) / rect.height * 2 - 1));
+  raycaster.setFromCamera(ndc, camera);
+  return raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -page.centre.y), new THREE.Vector3());
+}
+let dragId = null, dragFrom = null, dragged = false, heldPage = null, dragRow = null, dragHit = null;
 canvas.addEventListener('pointerdown', event => {
   if (pageOpen || dragId !== null) return;
   dragId = event.pointerId;
   dragFrom = { x: event.clientX, y: event.clientY };
   dragged = false;
+  const target = hitAt(event.clientX, event.clientY);
+  heldPage = mode === 'wander' && target?.mesh ? target : null;
+  dragRow = heldPage ? pageRow(heldPage) : null;
+  dragHit = heldPage ? pointerPlane(event.clientX, event.clientY, heldPage) : null;
   canvas.setPointerCapture(event.pointerId);
 });
 canvas.addEventListener('pointermove', event => {
   if (event.pointerId !== dragId || !dragFrom) {
-    // Mouse only: show that the picture and the stool are things you can tap.
     if (event.pointerType === 'mouse' && dragId === null) canvas.classList.toggle('is-pointing', hitAt(event.clientX, event.clientY) !== null);
     return;
   }
@@ -653,23 +737,31 @@ canvas.addEventListener('pointermove', event => {
   if (Math.hypot(dx, dy) > 4) dragged = true;
   if (!dragged) return;
   dragFrom = { x: event.clientX, y: event.clientY };
-  if (mode === 'seated') return;           // the seat is already the view
-  yaw -= dx * DRAG_YAW;
-  pitch = THREE.MathUtils.clamp(pitch - dy * DRAG_PITCH, -PITCH_LIMIT, PITCH_LIMIT);
+  if (mode === 'seated') return;
+  if (heldPage) {
+    const hit = pointerPlane(event.clientX, event.clientY, heldPage);
+    if (hit && dragHit) {
+      const delta = hit.clone().sub(dragHit);
+      movePage(heldPage, dragRow, delta.dot(rightOf(heldPage)), delta.dot(normalOf(heldPage)));
+    }
+    dragHit = hit;
+  } else {
+    yaw -= dx * DRAG_YAW;
+    pitch = THREE.MathUtils.clamp(pitch - dy * DRAG_PITCH, -PITCH_LIMIT, PITCH_LIMIT);
+  }
   hideHint();
 });
 function endDrag(event, cancelled) {
   if (event.pointerId !== dragId) return;
   const tapped = !dragged && !cancelled;
-  dragId = null;
-  dragFrom = null;
-  dragged = false;
+  if (heldPage && dragged) finishPageDrag();
+  dragId = null; dragFrom = null; dragged = false; heldPage = null; dragRow = null; dragHit = null;
   if (!tapped) return;
   const target = hitAt(event.clientX, event.clientY);
-  if (target === 'page') { openPage(); return; }
+  if (target?.mesh) { if (target.url) openPage(); else setHint('an empty page'); return; }
   if (target === 'stool') { hideHint(); sit(); return; }
   if (target && target.userData) { hideHint(); clickFetch(target); return; }
-  if (mode === 'seated') stand();           // a tap away from the picture is standing up
+  if (mode === 'seated') stand();
 }
 canvas.addEventListener('pointerup', event => endDrag(event, false));
 canvas.addEventListener('pointercancel', event => endDrag(event, true));
@@ -725,22 +817,19 @@ window.addEventListener('blur', () => clearHeld());
 // Where things are: the book rests on the floor in front of the wall page, the
 // wall object hangs on the left-front face, the lamp stands to one side.
 const waypoints = {
-  book: facePoint(0, .98).addScaledVector(faceRight(0), .85),
-  wall: facePoint(1, 1.15).addScaledVector(faceRight(1), .35),
-  door: facePoint(4, .9),
-  window: facePoint(7, 1.05),
+  book: new THREE.Vector3(.85, 0, -2.2791883092036786),
+  wall: leftSide.centre.clone().addScaledVector(normalOf(leftSide), 1.11).addScaledVector(rightOf(leftSide), .35).setY(0),
   lamp: new THREE.Vector3(1.6, 0, .55),
 };
-// The stool itself, the lamp and the door leaf are the only footprints in the room.
+// The stool and lamp are the furniture footprints.
 const obstacles = [
   { name: 'stool', x1: SEAT.x - .24, x2: SEAT.x + .24, z1: SEAT.z - .24, z2: SEAT.z + .24, pad: .45 },
   { name: 'lamp', x1: 2.26, x2: 2.64, z1: .36, z2: .74, pad: .4 },
-  { name: 'door', x1: -.62, x2: .62, z1: 3.16, z2: 3.26, pad: .1 },
 ].map(o => ({ ...o, a: o.x1 - o.pad, b: o.x2 + o.pad, c: o.z1 - o.pad, d: o.z2 + o.pad }));
 // The spot beside the eye where Airis hands things over.
 function handoffPoint() {
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-  return clampInsideOctagon(pos.clone().setY(0).addScaledVector(right, .95), .55);
+  return settleAgainstPages(pos.clone().setY(0).addScaledVector(right, .95), .55);
 }
 const inside = (o, p, e = 0) => p.x > o.a + e && p.x < o.b - e && p.z > o.c + e && p.z < o.d - e;
 function segmentHits(o, p, q) {
@@ -766,7 +855,7 @@ function route(start, destination) {
   const nodes = [from, destination.clone()];
   for (const o of active) for (const x of [o.a, o.b]) for (const z of [o.c, o.d]) {
     const p = new THREE.Vector3(x, 0, z);
-    if (insideOctagon(p, .5) && !active.some(other => inside(other, p, .001))) nodes.push(p);
+    if (insideFloor(p, .5) && !active.some(other => inside(other, p, .001))) nodes.push(p);
   }
   const dist = nodes.map(() => Infinity), prev = nodes.map(() => -1), done = nodes.map(() => false);
   dist[0] = 0;
@@ -830,8 +919,6 @@ function taskBring(name) {
   askResult.textContent = 'ask: in progress';
 }
 const destinations = {
-  window: () => waypoints.window,
-  door: () => waypoints.door,
   lamp: () => waypoints.lamp,
   here: handoffPoint,
 };
@@ -850,7 +937,7 @@ function startTask(text) {
     return;
   }
   if (/\b(go|walk|move)\b/.test(query)) {
-    const dest = /window/.test(query) ? 'window' : /door/.test(query) ? 'door' : /lamp/.test(query) ? 'lamp' : /\b(here|me)\b/.test(query) ? 'here' : null;
+    const dest = /lamp/.test(query) ? 'lamp' : /\b(here|me)\b/.test(query) ? 'here' : null;
     if (!dest) { say.textContent = "I don't know where you mean."; return; }
     replaceTask({ kind: 'walk', path: route(airis.position, destinations[dest]()), face: true });
     return;
@@ -903,7 +990,7 @@ function walkToward(point, dt) {
   const step = Math.min(distance, 1.05 * dt);
   airis.position.x += dx / distance * step;
   airis.position.z += dz / distance * step;
-  clampInsideOctagon(airis.position, .45);
+  settleAgainstPages(airis.position, .45);
   airis.rotation.y = Math.atan2(dx, dz);
   stride += step * 11;
   return false;
@@ -1021,11 +1108,11 @@ function startLoop() {
 
 // --- what the picture covers on screen --------------------------------------
 function pictureQuad() {
-  const centre = facePoint(PICTURE_FACE, PICTURE_OUT).setY(PICTURE_Y);
-  const right = faceRight(PICTURE_FACE);
+  const centre = front.centre;
+  const right = rightOf(front);
   const hw = PICTURE_W / 2, hh = PICTURE_H / 2;
   return [[-hw, hh], [hw, hh], [hw, -hh], [-hw, -hh]]
-    .map(([u, v]) => centre.clone().addScaledVector(right, u).setY(PICTURE_Y + v));
+    .map(([u, v]) => centre.clone().addScaledVector(right, u).setY(centre.y + v));
 }
 function pictureOnScreen() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -1053,6 +1140,13 @@ function hudBoxes() {
   });
 }
 
+function pageStates() {
+  return pages.map(page => {
+    const n = normalOf(page), r = rightOf(page), c = page.centre;
+    return { id: page.id, url: page.url, x: c.x, y: c.y, z: c.z, yaw: page.yaw,
+      width: page.width, height: page.height, normal: [n.x, n.z], right: [r.x, r.z] };
+  });
+}
 window.__house = {
   get frames() { return frames; },
   get mode() { return mode; },
@@ -1087,7 +1181,27 @@ window.__house = {
     screen: pictureOnScreen(),
   }),
   refreshPicture: requestPicture,
-  room: () => ({ faces: FACE_COUNT, faceWidth: FACE_WIDTH, apothem: APOTHEM, wallHeight: WALL_HEIGHT }),
+  room: () => ({ pages: pages.length, floor: hull.map(p => [p.x, p.z]), snapBand: SNAP_BAND, body: BODY }),
+  pages: pageStates,
+  pageScreen(id) {
+    const page = pages.find(p => p.id === id);
+    if (!page) return null;
+    const point = page.centre.clone().project(camera);
+    return { x: (point.x + 1) * stage.clientWidth / 2, y: (1 - point.y) * stage.clientHeight / 2 };
+  },
+  dragPage(id, du, dn) {
+    const page = pages.find(p => p.id === id);
+    if (!page) return null;
+    movePage(page, pageRow(page), du, dn);
+    finishPageDrag();
+    return pageStates();
+  },
+  place(x, z, angle) {
+    stand(); pos.set(x, EYE_STAND, z); yaw = angle; pitch = 0;
+    stoolPass = false; settleEye(pos);
+    camera.position.copy(pos); camera.rotation.set(pitch, yaw, 0, 'YXZ'); camera.updateMatrixWorld();
+    return this.cameraState();
+  },
   hud: hudBoxes,
   items: () => Object.keys(items),
   item(name) {

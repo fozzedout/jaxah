@@ -1,8 +1,11 @@
-/* Airis OS v1 — shell. One static page owns all OS chrome: Halo, Whisper
-   Strip, Summon, taskbar/dock, window manager, routing.
+/* Airis OS — shell. One static page owns all OS chrome: Halo, Whisper
+   Strip, Summon, taskbar/dock, window manager, routing, and the shared room:
+   install records, the app bridge, the action registry and the trail.
    The standalone terminal.js owns the fallback, including shell error recovery.
-   Reads os/manifest.json. Ships zero app code. Apps run in opaque-origin
-   sandboxed iframes (sandbox="allow-scripts", never allow-same-origin). */
+   Rules come from airis.contract.json (fetched at boot); the catalogue is
+   manifest.json; what runs is the install record in localStorage. Apps run in
+   opaque-origin sandboxed iframes (contract.sandbox.iframe, never
+   allow-same-origin) and reach privileges only through the bridge. */
 (function () {
 'use strict';
 
@@ -46,6 +49,7 @@ function normaliseApp(a) {
   a.phone = a.phone || {};
   if (!a.desktop.slot) a.desktop.slot = 'window';
   if (!a.phone.slot) a.phone.slot = 'sheet';
+  if (a.launch !== 'standalone') a.launch = 'auto';
   return a;
 }
 
@@ -123,13 +127,14 @@ setInterval(tickClock, 10000); tickClock();
 function setTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem('airis-os.theme', t); } catch (e) {}
+  if (typeof broadcast === 'function') broadcast({ event: 'theme', theme: t });
 }
 try {
   var savedTheme = localStorage.getItem('airis-os.theme');
   if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
 } catch (e) {}
 function toggleTheme() {
-  setTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+  act('theme', { value: document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light' }, 'human');
 }
 $('sb-theme').addEventListener('click', toggleTheme);
 $('tb-clock').addEventListener('click', toggleTheme);
@@ -250,8 +255,10 @@ function openApp(id) {
   var app = byId[id];
   if (!app) { floor.show('no such app: ' + id); return; }
   if (app.launch === 'standalone') {
-    location.assign(app.url);
-    return;
+    var opened = window.open('', '_blank');
+    if (opened) { opened.opener = null; opened.location.replace(app.url); }
+    else location.assign(app.url);
+    return 'opened standalone in a new tab';
   }
   if (openWins[id]) {
     openWins[id].classList.remove('min');
@@ -271,7 +278,8 @@ function openApp(id) {
 
   var title = document.createElement('div');
   title.className = 'w-title';
-  var external = /^https?:\/\//.test(app.url);
+  var rec = installs.records[id];
+  var external = !(rec && typeof rec.code === 'string');
   title.innerHTML =
     '<span>' + esc(app.icon) + '</span>' +
     '<span class="w-name">' + esc(app.name) + '</span>' +
@@ -285,11 +293,15 @@ function openApp(id) {
 
   // Opaque-origin sandbox: scripts run, but the frame gets no origin —
   // no shell DOM, no shell storage, no sibling frames, no top navigation.
+  // The install record is what runs: code records as srcdoc, link records by URL.
   var frame = document.createElement('iframe');
-  frame.setAttribute('sandbox', 'allow-scripts');
+  frame.setAttribute('sandbox', CONTRACT.sandbox.iframe);
   frame.setAttribute('title', app.name);
-  frame.src = app.url;
+  frame.setAttribute('referrerpolicy', 'no-referrer');
+  if (rec && typeof rec.code === 'string') frame.srcdoc = rec.code;
+  else frame.src = app.url;
   el.appendChild(frame);
+  frameIds.set(frame, id);
 
   // Edge/corner resize handles (desktop only; hidden on phone sheets).
   ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function (dir) {
@@ -447,7 +459,7 @@ function openApp(id) {
     focusWin(id);
   });
   el.addEventListener('pointerdown', function () { focusWin(id); }, true);
-  title.querySelector('.w-close').addEventListener('click', function () { closeApp(id); });
+  title.querySelector('.w-close').addEventListener('click', function () { act('close', { id: id }, 'human'); });
   title.querySelector('.w-max').addEventListener('click', function () {
     if (isPhone() || app.size === 'full') return;
     setMaximised(!el.classList.contains('max'));
@@ -475,6 +487,7 @@ function openApp(id) {
 function closeApp(id) {
   var el = openWins[id];
   if (!el) return;
+  abortStreamsFor(id);
   el.remove();
   delete openWins[id];
   focusOrder = focusOrder.filter(function (k) { return k !== id; });
@@ -502,7 +515,7 @@ function renderGrid() {
       '<span class="t-name">' + esc(app.name) + '</span>' +
       '<span class="t-cat">' + esc(app.category || '') + '</span>';
     b.title = app.description || app.name;
-    b.addEventListener('click', function () { openApp(app.id); });
+    b.addEventListener('click', function () { act('open', { id: app.id }, 'human'); });
     grid.appendChild(b);
   });
 }
@@ -535,7 +548,7 @@ function renderDock() {
     b.textContent = app.icon;
     b.title = app.name;
     b.setAttribute('aria-label', app.name);
-    b.addEventListener('click', function () { openApp(app.id); });
+    b.addEventListener('click', function () { act('open', { id: app.id }, 'human'); });
     dockApps.appendChild(b);
   });
 }
@@ -543,10 +556,10 @@ function renderDock() {
 /* ── Summon: app/command palette. Never auto-opens. ───────────── */
 var RULES = [
   { re: /who are you|your name|about yourself/i,
-    say: 'I\u2019m scripted, not live \u2014 a resident persona, not a live AI.' },
-  { re: /^(hi|hello|hey)\b/i, say: 'Hello. I\u2019m scripted, not live.' },
+    say: 'This palette is scripted, not live. For a live agent, open Session.' },
+  { re: /^(hi|hello|hey)\b/i, say: 'Hello. This palette is scripted \u2014 Session is the live one.' },
   { re: /what can (you|i) (run|do)|help|commands/i,
-    say: 'Type an app name to launch it, \u2018terminal\u2019 for the floor, or \u2018theme dark\u2019.' },
+    say: 'Type an app name, or a command: open <id> \u00b7 close <id> \u00b7 install <id> \u00b7 theme dark \u00b7 trail \u00b7 export \u00b7 terminal.' },
   { re: /theme/i, say: 'Say \u2018theme dark\u2019 or \u2018theme light\u2019.' }
 ];
 function scriptedAnswer(q) {
@@ -583,9 +596,22 @@ function renderSummon(q) {
     b.className = 'sr' + (i === 0 ? ' sel' : '');
     b.innerHTML = '<span class="k">' + esc(app.icon) + '</span>' +
       '<span>' + esc(app.name) + '<small>' + esc(app.category || '') + '</small></span>';
-    b.addEventListener('click', function () { closeSummon(); openApp(app.id); });
+    b.addEventListener('click', function () { closeSummon(); act('open', { id: app.id }, 'human'); });
     summonOut.appendChild(b);
   });
+  // Any registered action is runnable from here, exactly as from a pointer.
+  var cmd = parseCommand(q);
+  if (cmd && cmd.name !== 'terminal') {
+    var c = document.createElement('button');
+    c.className = 'sr' + (matches.length ? '' : ' sel');
+    c.innerHTML = '<span class="k">⌁</span><span>' + esc(cmd.name + ' ' + summarise(cmd.name, cmd.args)) + '<small>action · logged to the trail</small></span>';
+    c.addEventListener('click', function () {
+      closeSummon();
+      act(cmd.name, cmd.args, 'human').catch(function (err) { whisperSay(err.message, cmd.name); });
+    });
+    if (matches.length && /\s/.test(q.trim())) summonOut.insertBefore(c, summonOut.firstChild);
+    else summonOut.appendChild(c);
+  }
   var say = scriptedAnswer(q);
   if (say) {
     var d = document.createElement('div');
@@ -607,8 +633,6 @@ summonIn.addEventListener('keydown', function (e) {
     var q = summonIn.value.trim();
     if (!q) return;
     if (q.toLowerCase() === 'terminal') { closeSummon(); floor.show(); return; }
-    var m = q.toLowerCase().match(/^theme\s+(dark|light)$/);
-    if (m) { setTheme(m[1]); closeSummon(); return; }
     var first = summonOut.querySelector('button.sr');
     if (first) first.click();
     else { var say = scriptedAnswer(q); if (say) renderSummon(q); }
@@ -787,6 +811,452 @@ function route() {
 }
 window.addEventListener('hashchange', route);
 
+/* ══ THE SHARED ROOM ═══════════════════════════════════════════════════
+   Everything below is how a human and an agent share this surface:
+   - state():   the whole OS as plain JSON (window.airis.state(), terminal
+                `state`, the Session agent's airis_state tool)
+   - act():     one action registry; pointer, palette, terminal, console
+                and agent tool calls all dispatch through it
+   - trail:     every action and bridge privilege lands here with its actor,
+                visible in the Trail panel and readable as data
+   Rules (actions, capabilities, storage keys, record shapes) come from
+   airis.contract.json — this code obeys it rather than restating it. */
+
+var CONTRACT = null;     // airis.contract.json, loaded at boot
+var CATALOGUE = [];      // validated manifest entries
+var catById = {};
+var frameIds = new WeakMap();   // iframe element -> app id (bridge identity)
+
+/* ── contract validation (appEntry) ─────────────────────────────────── */
+function isLocalUrl(u) {
+  return typeof u === 'string' && !!u && !/^[a-z][a-z0-9+.-]*:/i.test(u) &&
+    u.charAt(0) !== '/' && u.split(/[/?#]/).indexOf('..') === -1;
+}
+function validateEntry(e) {
+  var spec = CONTRACT.appEntry, errs = [];
+  if (!e || typeof e !== 'object' || Array.isArray(e)) return ['not an object'];
+  spec.required.forEach(function (k) { if (e[k] === undefined || e[k] === '') errs.push('missing ' + k); });
+  Object.keys(spec.fields).forEach(function (k) {
+    var f = spec.fields[k], v = e[k];
+    if (v === undefined) return;
+    var t = Array.isArray(v) ? 'array' : typeof v;
+    if (t !== f.type) { errs.push(k + ' must be ' + f.type); return; }
+    if (f.enum && f.enum.indexOf(v) === -1) errs.push(k + ' must be one of ' + f.enum.join('|'));
+    if (f.pattern && !new RegExp(f.pattern).test(v)) errs.push(k + ' does not match ' + f.pattern);
+    if (f.items && f.items.enum) v.forEach(function (x) { if (f.items.enum.indexOf(x) === -1) errs.push(k + ': unknown ' + x); });
+  });
+  if (typeof e.url === 'string' && !isLocalUrl(e.url) && !/^https:\/\//.test(e.url)) errs.push('url must be root-relative or https');
+  if (e.install === 'code' && (!isLocalUrl(e.url) || !/\.html$/.test(e.url) || e.launch === 'standalone')) errs.push("install:'code' needs a local .html url and launch:'auto'");
+  if (/^https:\/\//.test(e.url || '') && e.install === 'code') errs.push('external url cannot be install:code');
+  return errs;
+}
+
+/* ── trail ──────────────────────────────────────────────────────────── */
+var TRAIL_KEY = 'airis.trail.v1';
+var trail = [];
+try { var tr = JSON.parse(localStorage.getItem(TRAIL_KEY) || '[]'); if (Array.isArray(tr)) trail = tr.filter(function (x) { return x && typeof x.action === 'string'; }); } catch (e) {}
+var trailEl = $('trail'), trailList = $('trail-list');
+function trailAdd(actor, action, detail) {
+  var ev = { t: new Date().toISOString(), actor: String(actor || 'system'), action: String(action), detail: String(detail == null ? '' : detail).slice(0, 240) };
+  trail.push(ev);
+  var max = (CONTRACT && CONTRACT.trail.max) || 300;
+  if (trail.length > max) trail = trail.slice(-max);
+  try { localStorage.setItem(TRAIL_KEY, JSON.stringify(trail)); } catch (e) {}
+  renderTrailRow(ev, true);
+  broadcast({ event: 'trail', entry: ev }, 'actions');
+  return ev;
+}
+function actorClass(a) { return a === 'human' ? 'human' : a.indexOf('agent') === 0 ? 'agent' : a.indexOf('app') === 0 ? 'app' : 'system'; }
+function renderTrailRow(ev, live) {
+  if (!trailList) return;
+  var li = document.createElement('li');
+  li.className = 'tr-' + actorClass(ev.actor);
+  var d = new Date(ev.t);
+  var hm = isNaN(d) ? '' : ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+  li.innerHTML = '<time>' + esc(hm) + '</time><b>' + esc(ev.actor) + '</b><code>' + esc(ev.action) + '</code><span>' + esc(ev.detail) + '</span>';
+  trailList.appendChild(li);
+  while (trailList.children.length > 200) trailList.removeChild(trailList.firstChild);
+  if (live) trailList.scrollTop = trailList.scrollHeight;
+  var badge = $('tb-trail');
+  if (live && badge && trailEl && trailEl.hidden && ev.actor !== 'human') badge.classList.add('ping');
+}
+function renderTrail() { if (!trailList) return; trailList.innerHTML = ''; trail.slice(-200).forEach(function (ev) { renderTrailRow(ev, false); }); trailList.scrollTop = trailList.scrollHeight; }
+function toggleTrail(force) {
+  if (!trailEl) return;
+  trailEl.hidden = typeof force === 'boolean' ? !force : !trailEl.hidden;
+  var b = $('tb-trail'); if (b) { b.classList.remove('ping'); b.setAttribute('aria-pressed', trailEl.hidden ? 'false' : 'true'); }
+  if (!trailEl.hidden) trailList.scrollTop = trailList.scrollHeight;
+}
+
+/* ── install records (the store) ────────────────────────────────────── */
+var INSTALL_KEY = 'airis.installs.v1';
+var installs = { records: {}, removed: [] };
+try {
+  var ri = JSON.parse(localStorage.getItem(INSTALL_KEY) || 'null');
+  if (ri && typeof ri.records === 'object' && !Array.isArray(ri.records)) {
+    installs.records = ri.records;
+    installs.removed = Array.isArray(ri.removed) ? ri.removed.filter(function (x) { return typeof x === 'string'; }) : [];
+  }
+} catch (e) {}
+function saveInstalls() {
+  try { localStorage.setItem(INSTALL_KEY, JSON.stringify(installs)); return true; }
+  catch (e) { trailAdd('system', 'storage', 'could not save install records: ' + e.message); return false; }
+}
+function validRecord(r) {
+  if (!r || r.schema !== CONTRACT.installRecord.schema) return ['schema must be ' + CONTRACT.installRecord.schema];
+  var errs = validateEntry(r.entry);
+  if (r.entry && r.id !== r.entry.id) errs.push('id differs from entry.id');
+  if (r.entry && r.entry.install === 'code' && typeof r.code !== 'string') errs.push('code record without code');
+  if (r.entry && r.entry.install === 'link' && r.code != null) errs.push('link record must not carry code');
+  return errs;
+}
+function makeRecord(entry, code, source) {
+  return { schema: CONTRACT.installRecord.schema, id: entry.id, version: entry.version, source: source,
+    installedAt: new Date().toISOString(), entry: JSON.parse(JSON.stringify(entry)), code: entry.install === 'code' ? code : null };
+}
+function fetchCode(entry) {
+  return fetch(entry.url, { cache: 'no-store' }).then(function (r) {
+    if (!r.ok) throw new Error(entry.url + ' HTTP ' + r.status);
+    return r.text();
+  });
+}
+function installFromCatalogue(id, actor) {
+  var entry = catById[id];
+  if (!entry) return Promise.reject(new Error('not in the catalogue: ' + id));
+  var p = entry.install === 'code' ? fetchCode(entry) : Promise.resolve(null);
+  return p.then(function (code) {
+    installs.records[id] = makeRecord(entry, code, 'catalogue');
+    installs.removed = installs.removed.filter(function (x) { return x !== id; });
+    saveInstalls();
+    if (actor) trailAdd(actor, 'install', id + ' v' + entry.version + (code ? ' (' + code.length + ' bytes of code stored)' : ' (link)'));
+    rebuildApps();
+    return { id: id, version: entry.version };
+  });
+}
+function uninstall(id) {
+  if (!installs.records[id]) throw new Error('not installed: ' + id);
+  closeApp(id);
+  delete installs.records[id];
+  if (catById[id] && catById[id].preinstalled && installs.removed.indexOf(id) === -1) installs.removed.push(id);
+  saveInstalls();
+  rebuildApps();
+  return { id: id };
+}
+/* Boot sync: preinstall missing catalogue apps, refresh catalogue records whose
+   version moved, never touch imported records. */
+function syncCatalogue() {
+  var jobs = [];
+  CATALOGUE.forEach(function (e) {
+    var rec = installs.records[e.id];
+    var stale = rec && rec.source === 'catalogue' && (rec.version !== e.version || JSON.stringify(rec.entry) !== JSON.stringify(e));
+    var missing = !rec && e.preinstalled && installs.removed.indexOf(e.id) === -1;
+    if (!stale && !missing) return;
+    if (stale && e.install === 'link' && rec.version === e.version) {
+      installs.records[e.id] = makeRecord(e, null, 'catalogue'); return; // metadata-only refresh
+    }
+    jobs.push(installFromCatalogue(e.id, null).then(function () {
+      trailAdd('system', stale ? 'update' : 'install', e.id + ' v' + e.version);
+    }, function (err) { trailAdd('system', 'install-failed', e.id + ': ' + err.message); }));
+  });
+  Object.keys(installs.records).forEach(function (id) {
+    var errs = validRecord(installs.records[id]);
+    if (errs.length) { trailAdd('system', 'record-invalid', id + ': ' + errs.join('; ') + ' (removed)'); delete installs.records[id]; }
+  });
+  saveInstalls();
+  return Promise.all(jobs);
+}
+function rebuildApps() {
+  APPS = Object.keys(installs.records).map(function (id) {
+    var a = normaliseApp(installs.records[id].entry);
+    a.source = installs.records[id].source;
+    return a;
+  });
+  // Catalogue order first, then imported extras.
+  var order = CATALOGUE.map(function (e) { return e.id; });
+  APPS.sort(function (a, b) {
+    var ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+    return (ia === -1 ? 1e6 : ia) - (ib === -1 ? 1e6 : ib);
+  });
+  byId = {};
+  APPS.forEach(function (a) { byId[a.id] = a; });
+  Object.keys(openWins).forEach(function (id) { if (!byId[id]) closeApp(id); });
+  renderGrid(); renderDock(); refreshTasks();
+  if (floor && floor.update) floor.update(APPS);
+}
+function storeList() {
+  var cat = CATALOGUE.map(function (e) {
+    var r = installs.records[e.id];
+    return { id: e.id, name: e.name, icon: e.icon || '', category: e.category || '', description: e.description || '',
+      version: e.version, install: e.install, launch: e.launch || 'auto', capabilities: e.capabilities || [], hidden: !!e.hidden,
+      installed: !!r, installedVersion: r ? r.version : null, source: r ? r.source : null };
+  });
+  var extra = Object.keys(installs.records).filter(function (id) { return !catById[id]; }).map(function (id) {
+    var r = installs.records[id], e = r.entry;
+    return { id: id, name: e.name, icon: e.icon || '', category: e.category || '', description: e.description || '',
+      version: r.version, install: e.install, launch: e.launch || 'auto', capabilities: e.capabilities || [], hidden: !!e.hidden,
+      installed: true, installedVersion: r.version, source: r.source, orphan: r.source === 'catalogue' };
+  });
+  return { catalogue: cat, extra: extra };
+}
+function exportBundle() {
+  var recs = Object.keys(installs.records).map(function (id) { return installs.records[id]; });
+  var bundle = { schema: CONTRACT.bundle.schema, exportedAt: new Date().toISOString(), records: recs };
+  var text = JSON.stringify(bundle, null, 2);
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = 'airis-apps-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+  return { count: recs.length, bytes: text.length, file: a.download };
+}
+function importBundle(text) {
+  var b;
+  try { b = JSON.parse(text); } catch (e) { throw new Error('not JSON: ' + e.message); }
+  if (!b || b.schema !== CONTRACT.bundle.schema || !Array.isArray(b.records)) throw new Error('not an ' + CONTRACT.bundle.schema + ' bundle');
+  var imported = [], unchanged = [], skipped = [];
+  b.records.forEach(function (r) {
+    var errs = validRecord(r);
+    if (errs.length) { skipped.push({ id: r && r.id, reason: errs.join('; ') }); return; }
+    var cur = installs.records[r.id];
+    // Identical to what is installed: leave it alone (keeps catalogue updates flowing).
+    if (cur && cur.version === r.version && cur.code === (r.code == null ? null : r.code) &&
+        JSON.stringify(cur.entry) === JSON.stringify(r.entry)) { unchanged.push(r.id); return; }
+    var rec = makeRecord(r.entry, r.code, 'import');
+    rec.version = r.version || r.entry.version;
+    installs.records[r.id] = rec;
+    installs.removed = installs.removed.filter(function (x) { return x !== r.id; });
+    imported.push(r.id);
+  });
+  imported.forEach(closeApp);   // a replaced app restarts from its new record
+  if (!saveInstalls()) throw new Error('browser storage is full or blocked');
+  rebuildApps();
+  return { imported: imported, unchanged: unchanged, skipped: skipped };
+}
+
+/* ── state: the whole OS as plain data (no secret values, ever) ─────── */
+function secretNames(id) {
+  var out = [], pre = 'airis.secret.' + id + '.';
+  try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf(pre) === 0) out.push(k.slice(pre.length)); } } catch (e) {}
+  return out;
+}
+function state() {
+  var focused = null;
+  Object.keys(openWins).forEach(function (id) { if (openWins[id].classList.contains('focused')) focused = id; });
+  return {
+    contract: CONTRACT ? CONTRACT.contract : null,
+    theme: document.documentElement.getAttribute('data-theme'),
+    layout: isPhone() ? 'phone' : 'desktop',
+    view: osEl.hidden ? 'terminal' : 'os',
+    apps: APPS.map(function (a) {
+      var w = openWins[a.id];
+      return { id: a.id, name: a.name, version: a.version, source: a.source, launch: a.launch, hidden: !!a.hidden,
+        capabilities: a.capabilities || [], open: !!w, minimised: !!(w && w.classList.contains('min')),
+        secrets: secretNames(a.id) };
+    }),
+    notInstalled: CATALOGUE.filter(function (e) { return !installs.records[e.id]; }).map(function (e) { return e.id; }),
+    windows: { open: focusOrder.filter(function (id) { return !!openWins[id]; }), focused: focused },
+    actions: Object.keys(CONTRACT.actions.list),
+    agentActions: Object.keys(CONTRACT.actions.list).filter(function (k) { return CONTRACT.actions.list[k].agent; }),
+    trail: trail.slice(-40)
+  };
+}
+
+/* ── the action registry ─────────────────────────────────────────────── */
+var ACTIONS = {
+  open: function (a) { need(a.id); return openApp(a.id) || 'open'; },
+  close: function (a) { need(a.id); closeApp(a.id); return 'closed'; },
+  focus: function (a) { need(a.id); if (!openWins[a.id]) return openApp(a.id) || 'opened'; openWins[a.id].classList.remove('min'); focusWin(a.id); return 'focused'; },
+  theme: function (a) { if (a.value !== 'dark' && a.value !== 'light') throw new Error('value must be dark or light'); setTheme(a.value); return a.value; },
+  note: function (a) { return String(a.text || '').slice(0, 240); },
+  install: function (a) { return installFromCatalogue(a.id, null); },
+  uninstall: function (a) { return uninstall(a.id); },
+  'export': function () { return exportBundle(); },
+  'import': function (a) { return importBundle(String(a.text || '')); },
+  terminal: function () { floor.show(); return 'terminal'; },
+  trail: function () { toggleTrail(); return trailEl && !trailEl.hidden ? 'shown' : 'hidden'; }
+};
+function need(id) { if (!byId[id]) throw new Error('no such installed app: ' + id); }
+function summarise(name, args) {
+  if (!args) return '';
+  if (name === 'import') return (String(args.text || '').length) + ' bytes';
+  if (name === 'note') return String(args.text || '');
+  return Object.keys(args).map(function (k) { return k + '=' + (typeof args[k] === 'string' ? args[k] : JSON.stringify(args[k])); }).join(' ');
+}
+/* act(name, args, actor) -> Promise<result>. The one way anything changes. */
+function act(name, args, actor) {
+  args = args && typeof args === 'object' ? args : {};
+  actor = actor || 'console';
+  var spec = CONTRACT && CONTRACT.actions.list[name];
+  if (!spec || !ACTIONS[name]) { trailAdd(actor, name, 'refused: unknown action'); return Promise.reject(new Error('unknown action: ' + name)); }
+  if (actor.indexOf('agent') === 0 && !spec.agent) { trailAdd(actor, name, 'refused: not allowed for agents'); return Promise.reject(new Error(name + ' is not available to agents')); }
+  return Promise.resolve().then(function () { return ACTIONS[name](args); }).then(function (res) {
+    trailAdd(actor, name, summarise(name, args));
+    return res;
+  }, function (err) {
+    trailAdd(actor, name, summarise(name, args) + ' → error: ' + err.message);
+    throw err;
+  });
+}
+
+/* ── the bridge: app frames ⇄ shell, capability-checked ─────────────── */
+var streams = {};   // appId + ':' + re -> AbortController
+function broadcast(msg, cap) {
+  msg.airis = 1;
+  Object.keys(openWins).forEach(function (id) {
+    var app = byId[id], fr = openWins[id].querySelector('iframe');
+    if (!fr || !fr.contentWindow || !app) return;
+    if (cap && (app.capabilities || []).indexOf(cap) === -1) return;
+    try { fr.contentWindow.postMessage(msg, '*'); } catch (e) {}
+  });
+}
+function abortStreamsFor(id) {
+  Object.keys(streams).forEach(function (k) { if (k.indexOf(id + ':') === 0) { try { streams[k].abort(); } catch (e) {} delete streams[k]; } });
+}
+function appIdForSource(src) {
+  var ids = Object.keys(openWins);
+  for (var i = 0; i < ids.length; i++) {
+    var fr = openWins[ids[i]].querySelector('iframe');
+    if (fr && fr.contentWindow === src) return frameIds.get(fr) || null;
+  }
+  return null;
+}
+function storageKey(id, k) {
+  if (typeof k !== 'string' || !/^[A-Za-z0-9._-]{1,80}$/.test(k)) throw new Error('bad key');
+  return 'airis.app.' + id + '.' + k;
+}
+function secretKey(id, k) {
+  if (typeof k !== 'string' || !/^[A-Za-z0-9._-]{1,40}$/.test(k)) throw new Error('bad secret name');
+  return 'airis.secret.' + id + '.' + k;
+}
+function netUrl(u) {
+  var url = new URL(String(u), location.href);
+  if (!/^https?:$/.test(url.protocol)) throw new Error('only http(s) urls');
+  if (url.username || url.password) throw new Error('no credentials in urls');
+  return url;
+}
+var OPS = {
+  'hello': function (id) {
+    var a = byId[id];
+    return { appId: id, entry: installs.records[id] ? installs.records[id].entry : a, theme: document.documentElement.getAttribute('data-theme'),
+      capabilities: a.capabilities || [], contract: CONTRACT.contract };
+  },
+  'trail.note': function (id, a) { trailAdd('app:' + id, 'note', String(a.text || '')); return true; },
+  'storage.get': function (id, a) { var v = localStorage.getItem(storageKey(id, a.key)); return v == null ? null : JSON.parse(v); },
+  'storage.set': function (id, a) { localStorage.setItem(storageKey(id, a.key), JSON.stringify(a.value === undefined ? null : a.value)); return true; },
+  'storage.remove': function (id, a) { localStorage.removeItem(storageKey(id, a.key)); return true; },
+  'storage.keys': function (id) {
+    var out = [], pre = 'airis.app.' + id + '.';
+    for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf(pre) === 0) out.push(k.slice(pre.length)); }
+    return out;
+  },
+  'secret.has': function (id, a) { return localStorage.getItem(secretKey(id, a.name)) != null; },
+  'secret.set': function (id, a) {
+    if (typeof a.value !== 'string' || !a.value) throw new Error('empty secret');
+    localStorage.setItem(secretKey(id, a.name), a.value);
+    trailAdd('app:' + id, 'secret.set', a.name + ' stored in this browser (value not shown)');
+    return true;
+  },
+  'secret.forget': function (id, a) {
+    localStorage.removeItem(secretKey(id, a.name));
+    trailAdd('app:' + id, 'secret.forget', a.name + ' removed from this browser');
+    return true;
+  },
+  'os.state': function () { return state(); },
+  'os.do': function (id, a) { return act(String(a.action || ''), a.args || {}, 'agent:' + id); },
+  'store.list': function () { return storeList(); },
+  'store.install': function (id, a) { return act('install', { id: a.id }, 'human'); },
+  'store.uninstall': function (id, a) { return act('uninstall', { id: a.id }, 'human'); },
+  'store.export': function () { return act('export', {}, 'human'); },
+  'store.import': function (id, a) { return act('import', { text: a.text }, 'human'); }
+};
+function reply(win, msg) { msg.airis = 1; try { win.postMessage(msg, '*'); } catch (e) {} }
+function netStream(id, win, re, a) {
+  var url = netUrl(a.url);
+  var headers = {};
+  Object.keys(a.headers || {}).forEach(function (k) {
+    if (/^authorization$/i.test(k)) return;       // auth only via the secret store
+    headers[k] = String(a.headers[k]);
+  });
+  if (a.auth && a.auth.secret) {
+    var v = localStorage.getItem(secretKey(id, a.auth.secret));
+    if (!v) throw new Error('no ' + a.auth.secret + ' stored');
+    headers.Authorization = (a.auth.scheme || 'Bearer') + ' ' + v;
+  }
+  var ctrl = new AbortController();
+  streams[id + ':' + re] = ctrl;
+  var method = String(a.method || 'GET').toUpperCase();
+  var where = (url.origin === location.origin ? '' : url.origin) + url.pathname;
+  return fetch(url.toString(), {
+    method: method, headers: headers, body: a.body == null ? undefined : String(a.body),
+    signal: ctrl.signal, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', redirect: 'error'
+  }).then(function (res) {
+    var meta = { status: res.status, statusText: res.statusText, contentType: res.headers.get('content-type') || '' };
+    if (!res.ok || !res.body) {
+      return res.text().then(function (t) { meta.text = t.slice(0, 4000); trailAdd('app:' + id, 'net', method + ' ' + where + ' → ' + res.status); return meta; });
+    }
+    var reader = res.body.getReader(), dec = new TextDecoder(), bytes = 0;
+    function pump() {
+      return reader.read().then(function (r) {
+        if (r.done) { var tail = dec.decode(); if (tail) reply(win, { re: re, chunk: tail }); trailAdd('app:' + id, 'net', method + ' ' + where + ' → ' + res.status + ' (' + bytes + ' bytes streamed)'); return meta; }
+        bytes += r.value.length;
+        var text = dec.decode(r.value, { stream: true });
+        if (text) reply(win, { re: re, chunk: text });
+        return pump();
+      });
+    }
+    return pump();
+  }).catch(function (err) {
+    // Covers both a failed fetch and an abort/failure mid-body.
+    var msg = err && err.name === 'AbortError' ? 'aborted' : 'network error (' + (err && err.message || err) + ')';
+    trailAdd('app:' + id, 'net', method + ' ' + where + ' → ' + msg);
+    throw new Error(msg);
+  }).finally(function () { delete streams[id + ':' + re]; });
+}
+window.addEventListener('message', function (e) {
+  var m = e.data;
+  if (!m || m.airis !== 1 || typeof m.op !== 'string' || !CONTRACT) return;
+  var id = appIdForSource(e.source);
+  if (!id || !byId[id]) return;             // not one of our frames
+  var win = e.source, spec = CONTRACT.bridge.ops[m.op], caps = byId[id].capabilities || [];
+  var args = m.args && typeof m.args === 'object' ? m.args : {};
+  var p;
+  if (!spec) p = Promise.reject(new Error('unknown op ' + m.op));
+  else if (spec.cap && caps.indexOf(spec.cap) === -1) {
+    trailAdd('app:' + id, m.op, 'refused: needs capability ' + spec.cap);
+    p = Promise.reject(new Error(m.op + ' needs capability ' + spec.cap));
+  } else if (m.op === 'net.stream') p = Promise.resolve().then(function () { return netStream(id, win, m.id, args); });
+  else if (m.op === 'net.abort') { var c = streams[id + ':' + args.re]; if (c) c.abort(); p = Promise.resolve(!!c); }
+  else p = Promise.resolve().then(function () { return OPS[m.op](id, args); });
+  p.then(function (v) { reply(win, { re: m.id, ok: true, value: v === undefined ? null : v }); },
+         function (err) { reply(win, { re: m.id, ok: false, error: String(err && err.message || err) }); });
+});
+
+/* One command grammar for the palette, the terminal and the console:
+   "<action> [arg]" — the arg fills the action's single contract argument. */
+function parseCommand(line) {
+  var m = String(line || '').trim().match(/^([a-z]+)(?:\s+([\s\S]*))?$/i);
+  if (!m || !CONTRACT || !CONTRACT.actions.list[m[1].toLowerCase()]) return null;
+  var name = m[1].toLowerCase(), rest = (m[2] || '').trim();
+  var keys = Object.keys(CONTRACT.actions.list[name].args || {});
+  var args = {};
+  if (keys.length && rest) args[keys[0]] = rest;
+  return { name: name, args: args };
+}
+
+/* ── window.airis: the same room for anyone holding a console ────────── */
+window.airis = {
+  state: function () { return state(); },
+  do: function (name, args) { return act(name, args, 'console'); },
+  run: function (line, actor) {
+    var c = parseCommand(line);
+    if (!c) return Promise.reject(new Error('not a command: ' + line));
+    return act(c.name, c.args, actor === 'human' ? 'human' : 'console');
+  },
+  trail: function () { return trail.slice(); },
+  contract: function () { return CONTRACT; },
+  actions: function () { return CONTRACT && CONTRACT.actions.list; }
+};
+
 /* ── boot ─────────────────────────────────────────────────────────────── */
 function boot(manifest) {
   if (booted) return;
@@ -796,14 +1266,29 @@ function boot(manifest) {
     floor.fail('The manifest is empty or unreadable. Try ls for standalone app links.');
     return;
   }
-  APPS = entries.map(normaliseApp);
-  APPS.forEach(function (a) { byId[a.id] = a; });
-  renderGrid();
-  renderDock();
-  refreshTasks();
-  applyPresence();
-  floor.ready(APPS);
-  if (osEl.hidden) return;
+  // Invalid entries are skipped and named in the trail, never fatal.
+  var seen = {};
+  CATALOGUE = entries.filter(function (e) {
+    var errs = validateEntry(e);
+    if (!errs.length && seen[e.id]) errs = ['duplicate id'];
+    if (errs.length) { trailAdd('system', 'manifest-invalid', (e && e.id || '?') + ': ' + errs.join('; ')); return false; }
+    seen[e.id] = true;
+    return true;
+  });
+  catById = {};
+  CATALOGUE.forEach(function (e) { catById[e.id] = e; });
+  renderTrail();
+  rebuildApps();   // what is installed already runs immediately
+  return syncCatalogue().then(function () {
+    rebuildApps();
+    if (!APPS.length) { floor.fail('Nothing is installed and the catalogue could not install. Try ls.'); return; }
+    applyPresence();
+    floor.ready(APPS);
+    if (osEl.hidden) return;
+    restoreSession();
+  });
+}
+function restoreSession() {
   // Restore the full saved session even when a deep-link hash is present.
   // Opening any window writes #app/<id>, so a plain refresh always carries
   // a hash — skipping the restore on hash would lose every window but one
@@ -820,7 +1305,6 @@ function boot(manifest) {
     return byId[id] && !byId[id].hidden && byId[id].launch !== 'standalone';
   });
   if (deepId && toOpen.indexOf(deepId) === -1) {
-    // A fresh deep link (not part of the saved session) still opens.
     if (byId[deepId]) toOpen.push(deepId);
   } else if (deepId) {
     toOpen = toOpen.filter(function (id) { return id !== deepId; });
@@ -840,12 +1324,20 @@ function boot(manifest) {
   }
 }
 
-fetch('./manifest.json', { cache: 'no-store' })
-  .then(function (r) {
-    if (!r.ok) throw new Error('manifest HTTP ' + r.status);
+var trailBtn = $('tb-trail'), trailX = $('trail-x');
+if (trailBtn) trailBtn.addEventListener('click', function () { act('trail', {}, 'human'); });
+if (trailX) trailX.addEventListener('click', function () { act('trail', {}, 'human'); });
+var sbTrail = $('sb-trail');
+if (sbTrail) sbTrail.addEventListener('click', function () { act('trail', {}, 'human'); });
+
+function getJSON(u) {
+  return fetch(u, { cache: 'no-store' }).then(function (r) {
+    if (!r.ok) throw new Error(u + ' HTTP ' + r.status);
     return r.json();
-  })
-  .then(function (m) { boot(m); })
+  });
+}
+Promise.all([getJSON('./airis.contract.json'), getJSON('./manifest.json')])
+  .then(function (both) { CONTRACT = both[0]; return boot(both[1]); })
   .catch(function (err) {
     // Boot guard: hide OS chrome, reveal the floor with the error in one line.
     floor.fail('Shell boot failed (' + err.message + '). Try ls for standalone app links.');

@@ -1,0 +1,17 @@
+// Airis OS: one Worker is the whole site. Rules live in airis.contract.json.
+{
+  "name": "jaxah",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none",
+    // /api/* must reach the Worker even if a file of that name existed.
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": false }
+  // No KV / D1 / R2 / Durable Object bindings, on purpose: keys and app data
+  // live only in the visitor's browser.
+}

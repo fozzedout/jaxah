@@ -1,0 +1,260 @@
+{
+  "contract": "airis/1",
+  "about": "THE source of truth for this site. The site is Airis OS: one Cloudflare Worker serves every file in this repo as a static asset and routes /api/*. Every rule a human or agent needs to add, change or remove an app is in this file. Code reads this file at runtime (shell.js, worker.js via lib/router.js, scripts/dev.mjs, scripts/check.mjs) - when prose elsewhere disagrees, this file wins.",
+
+  "recipes": {
+    "addApp": [
+      "1. Write the app as ONE self-contained HTML file under apps/<id>.html (inline CSS/JS, no external requests) if it should be installable as code; or keep an existing multi-file page where it is and use install:'link'.",
+      "2. Append one entry to manifest.json .apps that satisfies appEntry below. id must match appEntry.fields.id.pattern and be unique.",
+      "3. If it needs storage, secrets, network, OS actions or the store, list them in capabilities and talk to the shell over the bridge (see bridge). Never add allow-same-origin.",
+      "4. If the page forbids framing (frame-ancestors) or needs real origin storage (localStorage/IndexedDB of its own), set launch:'standalone'.",
+      "5. Run: node scripts/check.mjs   (validates manifest + files + CSP + routes against this contract).",
+      "6. Run: node scripts/dev.mjs   and open http://localhost:8788/#app/<id>."
+    ],
+    "changeApp": [
+      "Edit the file. For install:'code' apps also bump the entry's version in manifest.json - catalogue-installed records auto-update when the manifest version differs; imported records are never overwritten.",
+      "Run node scripts/check.mjs."
+    ],
+    "removeApp": [
+      "Delete the entry from manifest.json (browsers keep an installed copy until the user uninstalls it; catalogue records whose entry vanished are shown as orphaned in Store).",
+      "If the file had a public URL, keep the file or add a redirect in worker.redirects so the old URL does not break.",
+      "Run node scripts/check.mjs."
+    ],
+    "addProviderPreset": "Append one object to manifest.json -> apps[id=session].settings.presets matching sessionPreset below. No code change.",
+    "addUpstream": "Add one key to worker.upstreams. It is served at /api/<key>/<allowed path>. No code change."
+  },
+
+  "layout": {
+    "index.html": "the OS shell page (served at /). Terminal floor markup first, OS chrome hidden until boot succeeds.",
+    "terminal.js / terminal.css": "the floor. No dependency on shell, manifest, contract, storage or network. Must keep working if everything else fails.",
+    "shell.js / shell.css": "window manager, bridge host, action registry, event trail, install records. Reads manifest.json and this file.",
+    "manifest.json": "the catalogue. What exists. Not what runs - an install record is what runs.",
+    "apps/": "first-party apps (session, store, persona, todo, desk, house). apps/<id>.html.",
+    "worker.js": "Worker entry. Thin: imports this file and lib/router.js.",
+    "lib/router.js": "route table implementation shared by worker.js and scripts/dev.mjs (pure fetch API, no Worker or Node specifics).",
+    "wrangler.jsonc": "Worker config. assets.directory = '.' (the repo root IS the site).",
+    ".assetsignore": "files never uploaded as assets.",
+    "scripts/dev.mjs": "dependency-free Node dev server: static files + same router. node scripts/dev.mjs [port]",
+    "scripts/check.mjs": "contract checker. node scripts/check.mjs [--live http://localhost:8788]",
+    "AGENTS.md": "pointer to this file for agents that look there first; holds no rules.",
+    "*.html at root, art/": "pre-existing standalone pages. Their URLs are permanent (see tests.legacyUrls)."
+  },
+
+  "appEntry": {
+    "required": ["id", "name", "url", "version", "install"],
+    "fields": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$", "doc": "stable key; also the #app/<id> deep link and the storage namespace" },
+      "name": { "type": "string", "doc": "label on tiles, taskbar, palette" },
+      "title": { "type": "string", "doc": "optional window title; defaults to name" },
+      "icon": { "type": "string", "doc": "one emoji or short glyph" },
+      "url": { "type": "string", "doc": "root-relative path (no leading slash, no ../) or absolute https URL. For install:'code' this is where the code is fetched from at install time." },
+      "version": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+){0,2}$", "doc": "bump when the code changes" },
+      "install": { "type": "string", "enum": ["code", "link"], "doc": "code: the HTML is fetched and stored in the install record and runs from there (srcdoc). link: the record stores only the URL and the page runs from the URL." },
+      "preinstalled": { "type": "boolean", "doc": "installed automatically on first boot and kept up to date from the catalogue" },
+      "launch": { "type": "string", "enum": ["auto", "standalone"], "doc": "auto: sandboxed window (desktop) / sheet (phone). standalone: new browser tab, no frame." },
+      "category": { "type": "string" },
+      "description": { "type": "string" },
+      "size": { "type": "string", "enum": ["small", "window", "large", "full"] },
+      "desktop": { "type": "object", "doc": "{ width, height } hint in px" },
+      "phone": { "type": "object", "doc": "{ slot: 'sheet' }" },
+      "pinned": { "type": "boolean", "doc": "shown in the phone dock" },
+      "hidden": { "type": "boolean", "doc": "not on the desktop grid; still in terminal ls, Store, and #app/<id>" },
+      "capabilities": { "type": "array", "items": { "enum": ["storage", "secrets", "net", "actions", "store"] }, "doc": "bridge ops the app may call; anything not listed is refused" },
+      "settings": { "type": "object", "doc": "free-form data handed to the app in the bridge hello reply (e.g. Session presets)" },
+      "legacyUrls": { "type": "array", "items": { "type": "string" }, "doc": "old public URLs of this app; each must resolve (file or redirect)" }
+    },
+    "rules": [
+      "install:'code' requires url to be a local .html file and launch:'auto'.",
+      "launch:'standalone' apps get no bridge (they are not framed).",
+      "An external https url must use launch:'standalone' or install:'link'."
+    ]
+  },
+
+  "appFiles": {
+    "codeApps": "Single HTML file. Everything inline. It runs as <iframe srcdoc> with an opaque origin, so it has NO localStorage, cookies, IndexedDB or same-origin fetch of its own - use the bridge. Relative URLs resolve against the shell page (site root).",
+    "linkApps": "Any page. It runs as <iframe src=url> with an opaque origin (same limits) unless launch:'standalone'.",
+    "theme": "The hello reply carries theme:'dark'|'light'. The shell also posts {airis:1, event:'theme', theme} on change."
+  },
+
+  "sandbox": {
+    "iframe": "allow-scripts allow-forms allow-modals allow-downloads",
+    "never": ["allow-same-origin", "allow-top-navigation", "allow-top-navigation-by-user-activation", "allow-popups-to-escape-sandbox"],
+    "why": "Opaque origin: an app cannot touch the shell DOM, the shell's localStorage (where keys and install records live), or another app. All privilege goes through the bridge, which checks capabilities and writes the trail."
+  },
+
+  "csp": {
+    "shell": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data:; frame-src 'self' https://lexfall.com; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'",
+    "where": "index.html <meta http-equiv=Content-Security-Policy>. srcdoc code apps inherit it.",
+    "why": {
+      "script-src 'unsafe-inline'": "code apps are single inline files running under the inherited policy",
+      "connect-src https: localhost": "the shell performs net.stream for apps: same-origin /api/go, or a user-configured OpenAI-compatible endpoint (OpenRouter over https, LM Studio on localhost)",
+      "img-src blob:": "Store export builds a Blob download URL",
+      "frame-src lexfall.com": "kept for compatibility; Lexfall itself launches standalone because it sends frame-ancestors 'none'"
+    },
+    "apiHeaders": "Worker /api responses carry cache-control: no-store and never set-cookie."
+  },
+
+  "bridge": {
+    "transport": "window.postMessage between the app frame and the shell. The shell identifies the caller by event.source (the frame's contentWindow), never by anything the app claims.",
+    "request": { "airis": 1, "id": "number, unique per app", "op": "string from ops", "args": "object" },
+    "reply": { "airis": 1, "re": "request id", "ok": "boolean", "value": "any (when ok)", "error": "string (when !ok)" },
+    "streamChunk": { "airis": 1, "re": "request id", "chunk": "text" },
+    "event": { "airis": 1, "event": "theme | trail", "...": "payload" },
+    "ops": {
+      "hello": { "cap": null, "returns": "{ appId, entry, theme, capabilities, contract }" },
+      "trail.note": { "cap": null, "args": "{ text }", "doc": "app writes one line to the shared trail as actor app:<id>" },
+      "storage.get": { "cap": "storage", "args": "{ key }" },
+      "storage.set": { "cap": "storage", "args": "{ key, value(JSON) }" },
+      "storage.remove": { "cap": "storage", "args": "{ key }" },
+      "storage.keys": { "cap": "storage", "args": "{}" },
+      "secret.has": { "cap": "secrets", "args": "{ name }", "doc": "there is deliberately no secret.get: the value never returns to app code" },
+      "secret.set": { "cap": "secrets", "args": "{ name, value }" },
+      "secret.forget": { "cap": "secrets", "args": "{ name }" },
+      "net.stream": { "cap": "net", "args": "{ url, method, headers, body, auth: { secret, scheme } }", "doc": "shell fetches; streams text chunks; final reply value { status, statusText, contentType, text? }. auth injects 'Authorization: <scheme> <secret value>' from this app's secret store - and only to the url of this call." },
+      "net.abort": { "cap": "net", "args": "{ re }" },
+      "os.state": { "cap": "actions", "args": "{}", "returns": "the same object window.airis.state() returns" },
+      "os.do": { "cap": "actions", "args": "{ action, args, actor }", "doc": "runs a registered action whose agent flag is true; actor is logged as agent:<app id>" },
+      "store.list": { "cap": "store" },
+      "store.install": { "cap": "store", "args": "{ id }" },
+      "store.uninstall": { "cap": "store", "args": "{ id }" },
+      "store.export": { "cap": "store", "doc": "shell downloads the bundle" },
+      "store.import": { "cap": "store", "args": "{ text }" }
+    }
+  },
+
+  "actions": {
+    "doc": "One registry. Pointer UI, the Summon palette, the terminal (when the shell is up), window.airis.do() for a browser-driving agent, and the Session agent's tool calls all dispatch through it. Every dispatch lands in the trail with its actor.",
+    "list": {
+      "open":      { "args": { "id": "app id" }, "agent": true },
+      "close":     { "args": { "id": "app id" }, "agent": true },
+      "focus":     { "args": { "id": "app id" }, "agent": true },
+      "theme":     { "args": { "value": "dark|light" }, "agent": true },
+      "note":      { "args": { "text": "string" }, "agent": true, "doc": "write a line to the trail" },
+      "install":   { "args": { "id": "catalogue app id" }, "agent": true },
+      "uninstall": { "args": { "id": "app id" }, "agent": false },
+      "export":    { "args": {}, "agent": false },
+      "import":    { "args": { "text": "bundle JSON" }, "agent": false },
+      "terminal":  { "args": {}, "agent": false },
+      "trail":     { "args": {}, "agent": true, "doc": "toggle the trail panel" }
+    },
+    "actors": ["human", "agent:<app id>", "app:<app id>", "system", "console"]
+  },
+
+  "storage": {
+    "where": "browser localStorage of the site origin only. Nothing is stored server-side; the Worker has no KV, D1, R2 or Durable Object bindings.",
+    "keys": {
+      "airis.installs.v1": "{ records: { <id>: installRecord } }",
+      "airis.trail.v1": "array of trailEvent, newest last, capped at trail.max",
+      "airis.app.<id>.<key>": "app storage (bridge storage.*)",
+      "airis.secret.<id>.<name>": "app secret (bridge secret.*). Never exported, never shown in state or trail.",
+      "airis-os.theme": "'dark' | 'light'",
+      "airis-os.windows.v1": "{ open: [ids], geo: { id: {l,t,w,h,max} } }",
+      "airis-os.presence / airis-os.roomy / airis-os.last": "shell UI hints"
+    }
+  },
+
+  "trail": {
+    "max": 300,
+    "event": { "t": "ISO time", "actor": "see actions.actors", "action": "string", "detail": "short string; never contains secret values, request headers or bodies" }
+  },
+
+  "installRecord": {
+    "schema": "airis.install/1",
+    "shape": {
+      "schema": "airis.install/1",
+      "id": "app id",
+      "version": "from the entry at install time",
+      "source": "catalogue | import",
+      "installedAt": "ISO time",
+      "entry": "copy of the manifest entry (capabilities and settings included)",
+      "code": "full HTML string when entry.install is 'code', else null"
+    },
+    "rules": [
+      "The record is what runs: code records run as srcdoc=record.code; link records run from record.entry.url.",
+      "source:'catalogue' records are refreshed when manifest version differs. source:'import' records are never overwritten by the catalogue.",
+      "preinstalled catalogue entries are installed on boot if missing (unless the user uninstalled them: id is kept in removed[])."
+    ]
+  },
+
+  "bundle": {
+    "schema": "airis.bundle/1",
+    "shape": { "schema": "airis.bundle/1", "exportedAt": "ISO time", "records": "[installRecord]" },
+    "excludes": "secrets, app storage, trail, window layout",
+    "import": "each record is validated against installRecord + appEntry. A record identical to the installed one (version, entry, code) is left untouched. Other valid ones are stored with source:'import' (replacing same id; an open window of that app restarts). Invalid ones are reported and skipped."
+  },
+
+  "sessionPreset": {
+    "fields": {
+      "id": "string",
+      "label": "string shown in the strip",
+      "baseUrl": "OpenAI-compatible base, e.g. /api/go or https://openrouter.ai/api/v1 or http://localhost:1234/v1. The app calls <baseUrl>/chat/completions and <baseUrl>/models.",
+      "model": "NOT a preset field: presets carry no model and there is no default. The user types the model id in the strip (the GET <baseUrl>/models list is only a suggestion datalist and never auto-fills it); it is stored per preset in this browser only, via storage.set key 'settings' (site-origin localStorage), and never stored by the Worker. Sending is refused until it is filled in.",
+      "editable": "boolean: base URL may be edited in the strip",
+      "headers": "optional extra request headers; the literal {session} is replaced with the conversation id"
+    }
+  },
+
+  "worker": {
+    "entry": "worker.js",
+    "config": "wrangler.jsonc",
+    "runWorkerFirst": ["/api/*"],
+    "routes": [
+      { "match": "/api/<upstream>/<path>", "to": "worker.upstreams[<upstream>]", "doc": "same-origin passthrough. Only (method, path) pairs in that upstream's allow list. Anything else under /api: 404 JSON. Wrong method: 405. Cross-origin Origin header: 403. Query strings dropped." },
+      { "match": "redirects[]", "to": "301 to the listed path", "doc": "only reached when no static asset matches" },
+      { "match": "everything else", "to": "static asset from the repo root (assets.directory '.', html_handling auto-trailing-slash: /page.html 307s to /page which serves page.html - same as Pages did)", "notFound": "404" }
+    ],
+    "redirects": [
+      { "from": "/os", "to": "/" },
+      { "from": "/os/", "to": "/" },
+      { "from": "/os/index.html", "to": "/" },
+      { "from": "/os/manifest.json", "to": "/manifest.json" },
+      { "fromPrefix": "/os/apps/", "toPrefix": "/apps/" },
+      { "fromPrefix": "/os/assets/", "toPrefix": "/assets/" }
+    ],
+    "upstreams": {
+      "go": {
+        "label": "OpenCode Go",
+        "base": "https://opencode.ai/zen/go/v1",
+        "envOverride": "UPSTREAM_GO",
+        "allow": [
+          { "method": "POST", "path": "chat/completions" },
+          { "method": "GET", "path": "models" }
+        ],
+        "forwardRequestHeaders": ["authorization", "content-type", "accept", "x-opencode-session"],
+        "setRequestHeaders": { "user-agent": "airis-os/1.0 (+https://jaxah.com)", "x-opencode-client": "airis-os" },
+        "requireHeader": { "name": "x-opencode-session", "ifMissing": "random uuid per request (send a stable one per conversation instead; Session does)" },
+        "forwardResponseHeaders": ["content-type", "x-request-id", "retry-after"]
+      }
+    },
+    "keyHandling": "Authorization is copied from the caller to the upstream and nowhere else: not logged, not stored, not echoed in errors. The Worker has no storage bindings."
+  },
+
+  "dev": {
+    "wrangler": "npx wrangler dev        # http://localhost:8787 (needs wrangler; nothing to npm install in this repo)",
+    "node": "node scripts/dev.mjs       # http://localhost:8788 - static + the same lib/router.js; no dependencies",
+    "stubUpstream": "UPSTREAM_GO=http://127.0.0.1:9999 node scripts/dev.mjs   # point /api/go at a local stub",
+    "deploy": "npx wrangler deploy"
+  },
+
+  "tests": {
+    "check": "node scripts/check.mjs                              # offline: manifest/contract/files/CSP",
+    "live": "node scripts/check.mjs --live http://localhost:8788  # also: every legacy URL resolves, /api allowlist refuses the rest",
+    "legacyUrls": [
+      "/", "/index.html", "/repo.html", "/lexfall.html", "/lsb-coding.html", "/lsb-pwman.html", "/fuel-calc-uk.html",
+      "/trie-test.html", "/trie-test.html?dataset=words", "/idb-test.html", "/reveal.html", "/rustys-commands.html",
+      "/settings.html", "/breaking-firefox.html", "/art/jeb/index.html",
+      "/os/", "/os/index.html", "/os/manifest.json",
+      "/os/apps/house.html", "/os/apps/persona.html", "/os/apps/todo.html", "/os/apps/desk.html",
+      "/os/assets/airis-scripted.mp3"
+    ],
+    "apiMustRefuse": [
+      { "method": "GET", "path": "/api/go/chat/completions", "status": 405 },
+      { "method": "POST", "path": "/api/go/completions", "status": 404 },
+      { "method": "POST", "path": "/api/go/../../evil", "status": 404 },
+      { "method": "POST", "path": "/api/go/chat/completions/x", "status": 404 },
+      { "method": "GET", "path": "/api/nope/models", "status": 404 },
+      { "method": "GET", "path": "/api/", "status": 404 },
+      { "method": "POST", "path": "/api/go/chat/completions", "origin": "https://evil.example", "status": 403 }
+    ]
+  }
+}

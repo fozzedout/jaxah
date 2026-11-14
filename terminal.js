@@ -16,18 +16,25 @@ var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 // Independent launch links remain available when the manifest cannot load.
 var apps = [
+  ['session', 'Session', '#app/session'],
+  ['store', 'Store', '#app/store'],
   ['lexfall', 'Lexfall', 'https://lexfall.com'],
-  ['persona', 'Persona', './apps/persona.html'],
-  ['todo', 'To Do', './apps/todo.html'],
-  ['fuel-calc-uk', 'Fuel Calc', '../fuel-calc-uk.html'],
-  ['lsb-coding', 'LSB Lab', '../lsb-coding.html'],
-  ['jeb-gallery', 'JEB Gallery', '../art/jeb/index.html'],
-  ['rusty', 'Rusty', '../rustys-commands.html'],
-  ['reveal', 'Reveal', '../reveal.html'],
-  ['trie-test', 'Trie Test', '../trie-test.html'],
-  ['idb-test', 'IDB Test', '../idb-test.html'],
-  ['breaking-firefox', 'Breaking Firefox', '../breaking-firefox.html'],
-  ['lexfall-settings', 'Lexfall Settings', '../settings.html']
+  ['lexfall-local', 'Lexfall (local)', 'lexfall.html'],
+  ['persona', 'Persona', 'apps/persona.html'],
+  ['todo', 'To Do', 'apps/todo.html'],
+  ['desk', 'Desk', 'apps/desk.html'],
+  ['house', 'House', 'apps/house.html'],
+  ['fuel-calc-uk', 'Fuel Calc', 'fuel-calc-uk.html'],
+  ['lsb-coding', 'LSB Lab', 'lsb-coding.html'],
+  ['lsb-pwman', 'LSB Password Manager', 'lsb-pwman.html'],
+  ['jeb-gallery', 'JEB Gallery', 'art/jeb/index.html'],
+  ['rusty', 'Rusty', 'rustys-commands.html'],
+  ['reveal', 'Reveal', 'reveal.html'],
+  ['trie-test', 'Trie Test', 'trie-test.html'],
+  ['idb-test', 'IDB Test', 'idb-test.html'],
+  ['breaking-firefox', 'Breaking Firefox', 'breaking-firefox.html'],
+  ['lexfall-settings', 'Lexfall Settings', 'settings.html'],
+  ['repo', 'Repo', 'repo.html']
 ];
 
 function scroll() { terminal.scrollTop = terminal.scrollHeight; }
@@ -98,18 +105,36 @@ function command(raw) {
   var parts = raw.trim().split(/\s+/);
   var cmd = parts[0].toLowerCase();
   var arg = parts.slice(1).join(' ');
+  // When the shell is up, OS commands go through its action registry (and
+  // land in the trail); when it is not, the floor answers on its own.
+  var room = ready && window.airis && typeof window.airis.run === 'function' ? window.airis : null;
   if (cmd === 'help') {
-    print('Say hello or ask who are you. Commands: ls · open <id> (standalone) · about · theme dark|light · clear · exit.');
+    print(room
+      ? 'Commands: ls · open <id> · close <id> · install <id> · uninstall <id> · theme dark|light · trail · export · state · log · about · clear · exit. Session is the live agent: open session.'
+      : 'Say hello or ask who are you. Commands: ls · open <id> (standalone) · about · theme dark|light · clear · exit.');
+  } else if (room && cmd === 'state') {
+    print(JSON.stringify(room.state(), null, 1));
+  } else if (room && cmd === 'log') {
+    room.trail().slice(-15).forEach(function (ev) { print(ev.t.slice(11, 19) + ' ' + ev.actor + ' ' + ev.action + ' ' + ev.detail); });
+  } else if (room && ['open', 'close', 'focus', 'install', 'uninstall', 'export', 'trail', 'note'].indexOf(cmd) !== -1) {
+    room.run(raw, 'human').then(function (res) {
+      print(cmd + (arg ? ' ' + arg : '') + ': ' + (typeof res === 'string' ? res : 'done') + '.');
+      if (cmd === 'open' || cmd === 'focus') hide();
+    }, function (err) { print(err.message, 'err'); });
   } else if (cmd === 'ls') {
     apps.forEach(function (app) { print(app[0] + ' — ' + app[1], '', app); });
   } else if (cmd === 'open') {
     var app = apps.filter(function (a) { return a[0] === arg; })[0];
-    if (app) location.assign(app[2]);
+    if (app && app[2].charAt(0) === '#') print('That app runs inside the OS only; the shell is unavailable right now.', 'err');
+    else if (app) location.assign(app[2]);
     else print('No such app. Try ls.', 'err');
   } else if (cmd === 'theme') {
     if (arg === 'dark' || arg === 'light') {
-      document.documentElement.setAttribute('data-theme', arg);
-      try { localStorage.setItem('airis-os.theme', arg); } catch (e) {}
+      if (room) room.run('theme ' + arg, 'human');
+      else {
+        document.documentElement.setAttribute('data-theme', arg);
+        try { localStorage.setItem('airis-os.theme', arg); } catch (e) {}
+      }
       print('Theme: ' + arg + '. The terminal keeps its own colours.');
     } else print('Try theme dark or theme light.', 'err');
   } else if (cmd === 'clear') {
@@ -117,7 +142,7 @@ function command(raw) {
   } else if (cmd === 'exit') {
     hide();
   } else if (/^(hi|hello|hey)\b/i.test(raw.trim())) {
-    print("Hello. I'm scripted, not live. You can talk to me here even when the shell is unavailable.");
+    print("Hello. I'm scripted, not live. You can talk to me here even when the shell is unavailable. For a live agent: open session.");
   } else if (cmd === 'about' || /who are you|your name|are you (live|real)/i.test(raw)) {
     print("I'm Airis. I'm scripted, not live. Persona is my full presence; this terminal is my standalone fallback. No backend or live AI.");
   } else {
@@ -141,7 +166,10 @@ document.addEventListener('keydown', function (event) {
     terminal.hidden ? show() : hide();
   }
 });
-window.addEventListener('hashchange', function () { if (location.hash === '#terminal') show(); });
+window.addEventListener('hashchange', function () {
+  if (location.hash === '#terminal') show();
+  else if (ready && /^#app\//.test(location.hash) && !terminal.hidden) hide();
+});
 window.addEventListener('error', function (event) {
   var target = event.target;
   if (target && target.tagName === 'SCRIPT' && /\/shell\.js(?:[?#]|$)/.test(target.src)) {
@@ -157,8 +185,13 @@ window.addEventListener('unhandledrejection', function () {
 window.AirisTerminal = {
   show: show,
   fail: fail,
-  ready: function (manifestApps) {
-    apps = manifestApps.map(function (a) { return [a.id, a.name, a.url]; });
+  update: function (installed) {
+    apps = installed.map(function (a) {
+      return [a.id, a.name, a.install === 'code' ? '#app/' + a.id : a.url];
+    });
+  },
+  ready: function (installed) {
+    window.AirisTerminal.update(installed);
     ready = true;
     if (requested) show();
     else hide();

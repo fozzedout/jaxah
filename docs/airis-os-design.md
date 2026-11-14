@@ -1,8 +1,23 @@
 # Airis OS — Design Document
 
-> Status: static playground implemented under `/os/`. Goal: explore what an
-> ever-present AI companion's desktop should feel like on Paul's public
-> site. No auth, no backend, static files only (Cloudflare Pages).
+> Status (2026-11-14): Airis OS **is the whole site**, served by one
+> Cloudflare Worker (`wrangler.jsonc`, `worker.js`) with the repo root as
+> static assets. **The rules live in `/airis.contract.json`** — manifest
+> schema, app conventions, sandbox, CSP, bridge, actions, install records,
+> Worker routes, tests. Where this document disagrees with the contract, the
+> contract wins; this file keeps the design reasoning and history.
+>
+> Principle: agent-friendly, not AI-first. The OS is a shared room — a human
+> and an agent act on the same surface through one action registry, every
+> action lands in one visible trail with its actor, and the whole state is
+> plain JSON (`window.airis.state()`). Session (`apps/session.html`) is a
+> blank, bring-your-own-key live agent; the Worker's `/api/go` route is a
+> same-origin passthrough to OpenCode Go because that API sends no CORS
+> headers. Apps install as records in localStorage (code included), export
+> as one JSON bundle and import back — no accounts, no server storage.
+>
+> Sections 1–6 below describe the v1 shell; paths that said `/os/` now live
+> at the root (`/os/*` 301-redirects).
 
 ## 1. Presence hierarchy: persona, terminal floor, prompt marker
 
@@ -62,8 +77,8 @@ index.html — terminal visible by default; OS chrome hidden until ready
   discoverable through the terminal's app list.
 - **Apps.** Standalone pages loaded in
   `<iframe sandbox="allow-scripts">`. Without `allow-same-origin`, apps have
-  opaque origins and cannot access shell DOM or storage. No message bridge
-  is defined. Local app URLs are relative to `/os/`. Lexfall opens standalone
+  opaque origins and cannot access shell DOM or storage. Privileges go
+  through the postMessage bridge defined in the contract. Local app URLs are relative to `/`. Lexfall opens standalone
   in its own browser tab at `https://lexfall.com` because the site sends
   `frame-ancestors 'none'`, which forbids embedding.
 
@@ -141,9 +156,7 @@ manifest, and iframe isolation keep the same meaning in both layouts.
 | `reveal` | `reveal.html` | Secure Reveal · Tools | Needs blurb clarifying static-only limits |
 | `breaking-firefox` | `breaking-firefox.html` | Breaking Firefox · Dev | Joke/demo page; include or hide behind `hidden: true` flag |
 
-`lsb-pwman` is not shipped: the root `lsb-pwman.html` is Paul's uncommitted
-work in progress. It is omitted from the manifest, terminal links, and no-JS
-list until a supported app is ready. The OS does not copy or modify it.
+`lsb-pwman.html` is listed as a standalone app; the OS does not modify it.
 
 Non-apps (stay out of manifest): `en-words*`, `words*` data files, `pink.png`,
 `lsb-*.js/css` includes. Proposed manifest field `hidden: true` covers dev

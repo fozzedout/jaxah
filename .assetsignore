@@ -1,0 +1,14 @@
+# Never served as static assets (wrangler.jsonc -> assets.directory ".")
+.git
+.gitignore
+.wrangler
+.dev.vars
+.dev.vars.*
+.env*
+node_modules
+wrangler.jsonc
+worker.js
+lib
+scripts
+docs
+AGENTS.md

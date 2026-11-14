@@ -45,52 +45,42 @@ function encodeText() {
   console.log("Encoded Text");
 }
 
-function decodeText() {
-  var img = document.getElementById("image");
-  var canvas = document.createElement("canvas");
-  var ctx = canvas.getContext("2d", { willReadFrequently: true });
-  canvas.width = img.width;
-  canvas.height = img.height;
-  ctx.drawImage(img, 0, 0);
+async function decodeText() {
+  if (!encodedFile && !currentFile) return;
+  const { width: W, height: H, channels, pixels } = await parsePNG(encodedFile || currentFile);
+  const decoder = new TextDecoder("utf-8");
+  let y = 0, decodedText = "";
 
-  var y = 0;
-  var decodedText = "";
-  var decoder = new TextDecoder("utf-8");
-
-  while (y < img.height) {
-    var binaryText = [];
-    var x = 0;
-
-    while (x < img.width) {
-      var byte = 0;
-
-      for (var j = 7; j >= 0; j--) {
-        var pixel = ctx.getImageData(x, y, 1, 1);
-        var bit = pixel.data[0] & 1;
-        byte = (byte << 1) | bit;
-        x++;
-      }
-
-      if (byte === 0) break; // Check for null byte
-      binaryText.push(byte);
+  while (y < H) {
+    const lineBytes = [];
+    let x = 0;
+    while (x + 8 <= W) {
+      let byte = 0;
+      for (let j = 7; j >= 0; j--) byte = (byte << 1) | (pixels[(y*W+x++)*channels] & 1);
+      if (byte === 0) break;
+      lineBytes.push(byte);
     }
-
-    var decodedLine = decoder.decode(Uint8Array.from(binaryText));
-    if (decodedLine === "END") break;
-
-    decodedText += decodedLine + "\n";
+    const line = decoder.decode(Uint8Array.from(lineBytes));
+    if (line === "END") break;
+    decodedText += line + "\n";
     y++;
   }
 
-  document.getElementById("text").value = decodedText; // Set the decoded text
-
-  console.log("Decoded Text");
+  document.getElementById("text").value = decodedText;
+  console.log("Decoded sequential text");
   return decodedText;
+}
+
+function cryptoInt(n) {
+  const lim = Math.floor(0x100000000 / n) * n;
+  const b = new Uint32Array(1);
+  do { crypto.getRandomValues(b); } while (b[0] >= lim);
+  return b[0] % n;
 }
 
 function generateRandomPassword(length) {
   const characters = Array.from({ length: length }, () => {
-    const randomNumber = Math.floor(Math.random() * (0x10ffff - 0x20) + 0x20);
+    const randomNumber = cryptoInt(0x10ffff - 0x20) + 0x20;
     return String.fromCharCode(randomNumber);
   });
   return characters.join("");
@@ -106,21 +96,21 @@ function generatePassword(length) {
 
     // Add number & symbol
     if (i > 0 && i % 7 === 0) {
-      if (Math.random() < 0.5) {
+      if (cryptoInt(2) === 0) {
         // 50% chance of adding a symbol first
-        password += symbols[Math.floor(Math.random() * symbols.length)];
-        password += Math.floor(Math.random() * 10);
+        password += symbols[cryptoInt(symbols.length)];
+        password += cryptoInt(10);
       } else {
         // 50% chance of adding a number first
-        password += Math.floor(Math.random() * 10);
-        password += symbols[Math.floor(Math.random() * symbols.length)];
+        password += cryptoInt(10);
+        password += symbols[cryptoInt(symbols.length)];
       }
     } else if (i % 2 === 0) {
       // Even index, add a consonant
-      password += consonants[Math.floor(Math.random() * consonants.length)];
+      password += consonants[cryptoInt(consonants.length)];
     } else {
       // Odd index, add a vowel
-      const randomIndex = Math.floor(Math.random() * vowels.length);
+      const randomIndex = cryptoInt(vowels.length);
       password += vowels[randomIndex];
     }
 
@@ -376,6 +366,10 @@ function encodeRandom() {
    * @type {HTMLImageElement}
    */
   var img = document.getElementById("image");
+  // The image this encode is produced from. toBlob below is async; if a new
+  // image is loaded before it returns, its result belongs to the old image
+  // and is discarded.
+  const gen = imageGen;
 
   /**
    * A dynamically created canvas element.
@@ -459,144 +453,64 @@ function encodeRandom() {
 
   concatenatedArray = [];
 
-  // Get the encoded image data URL
-  var encodedImage = canvas.toDataURL();
-
-  // Update the original image with the encoded image
-  img.src = encodedImage;
+  const stem = currentFilename.replace(/\.[^.]+$/, "");
+  canvas.toBlob(blob => {
+    if (gen !== imageGen) return; // a different image was loaded meanwhile: drop this stale result
+    if (!blob) {
+      document.getElementById("lblProgress").innerText = "Encode failed";
+      return;
+    }
+    setEncoded(new File([blob], stem + "_enc.png", { type: 'image/png' }), gen);
+    img.src = URL.createObjectURL(blob);
+    document.getElementById("lblProgress").innerText = "Encoded (not scrambled)";
+  }, 'image/png');
 
   // Display message in the console
   console.log("Encoded Text");
 }
 
-/**
- * Decodes text from an image using a seeded random process.
- * @returns {string} - The decoded text.
- */
-function decodeRandom() {
-  /**
-   * Reference to the image element.
-   * @type {HTMLImageElement}
-   */
-  var img = document.getElementById("image");
+async function decodeRandom() {
+  if (!encodedFile && !currentFile) return;
+  const { width: W, height: H, channels, pixels } = await parsePNG(encodedFile || currentFile);
 
-  /**
-   * A dynamically created canvas element.
-   * @type {HTMLCanvasElement}
-   */
-  var canvas = document.createElement("canvas");
+  const igX = Math.floor(W/2), igY = Math.floor(H/2);
+  const si = (igY*W+igX)*channels;
+  // Treat RGB images as alpha=255 to match what canvas returns for opaque images
+  const alpha = channels >= 4 ? pixels[si+3] : 255;
+  const seedNum = (pixels[si]<<24)+(pixels[si+1]<<16)+(pixels[si+2]<<8)+alpha;
 
-  /**
-   * The 2D rendering context of the canvas.
-   * @type {CanvasRenderingContext2D}
-   */
-  var ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const getBit = (x,y,z) => pixels[(y*W+x)*channels+z] & 1;
 
-  // Set canvas dimensions to match image dimensions
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
+  let rng = fastRand(seedNum);
+  const ucLen = scatterPoints(W-1, H-1, 2, 32, igX, igY, rng);
+  if (!ucLen) return;
 
-  // Draw the image onto the canvas
-  ctx.drawImage(img, 0, 0);
-
-  // Calculate center coordinates to ignore for decoding
-  const ignoreX = Math.floor(canvas.width / 2);
-  const ignoreY = Math.floor(canvas.height / 2);
-
-  // Get pixel data at ignoreX, ignoreY for seed generation
-  var seed = ctx.getImageData(ignoreX, ignoreY, 1, 1);
-
-  // Initialize a seeded random number generator
-  var random = new fastRand((seed.data[0] << 24)+(seed.data[1] << 16)+(seed.data[2] << 8)+seed.data[3]);
-
-  // Fetch the data length
-  const ucLength = scatterPoints(
-    canvas.width - 1,
-    canvas.height - 1,
-    2,
-    32,
-    ignoreX,
-    ignoreY,
-    random
-  );
-  if (ucLength === false) return;
-
-  // Extract length information from pixel data
-  var lengthArray = new Uint8Array(4);
-  var bitpos = 0;
-  var byte = 0;
-  var pos = 0;
-  for (var idx = 0; idx < 32; idx++) {
-    var pixel = ctx.getImageData(ucLength[idx].x, ucLength[idx].y, 1, 1);
-    var bit = pixel.data[ucLength[idx].z] & 1;
-    byte = (byte << 1) | bit;
-    bitpos++;
-    if (bitpos == 8) {
-      lengthArray[pos] = byte;
-      bitpos = 0;
-      byte = 0;
-      pos++;
-    }
+  let byte=0, bitpos=0, pos=0;
+  const lenBytes = new Uint8Array(4);
+  for (let i=0; i<32; i++) {
+    byte = (byte<<1) | getBit(ucLen[i].x, ucLen[i].y, ucLen[i].z);
+    if (++bitpos===8) { lenBytes[pos++]=byte; bitpos=0; byte=0; }
   }
 
-  // Calculate the length of the encoded data
-  var length =
-    (lengthArray[0] << 24) |
-    (lengthArray[1] << 16) |
-    (lengthArray[2] << 8) |
-    lengthArray[3];
+  const length = ((lenBytes[0]<<24)|(lenBytes[1]<<16)|(lenBytes[2]<<8)|lenBytes[3])>>>0;
+  console.log("Decoded length:", length);
+  if (length===0 || length>500_000) return;
 
-  console.log("Length: ");
-  console.log(length);
+  rng = fastRand(seedNum);
+  const uc = scatterPoints(W-1, H-1, 2, 32+length*8, igX, igY, rng);
+  if (!uc) return;
 
-  // Reset the seed for data decoding
-  var random = new fastRand((seed.data[0] << 24)+(seed.data[1] << 16)+(seed.data[2] << 8)+seed.data[3]);
-
-  // Regenerate unique coordinates including the length to avoid collisions
-  const uc = scatterPoints(
-    canvas.width - 1,
-    canvas.height - 1,
-    2,
-    32 + length * 8,
-    ignoreX,
-    ignoreY,
-    random
-  );
-
-  // Extract data section coordinates
-  const ucData = uc.slice(32);
-
-  // Decode binary text from image pixels
-  var binaryText = new Uint8Array(length);
-  bitpos = 0;
-  pos = 0;
-  byte = 0;
-
-  for (var idx = 0; idx < length * 8; idx++) {
-    if (idx % 10000 == 0) console.log("looping through ", idx);
-
-    var pixel = ctx.getImageData(ucData[idx].x, ucData[idx].y, 1, 1);
-    var bit = pixel.data[ucData[idx].z] & 1;
-    byte = (byte << 1) | bit;
-    bitpos++;
-    if (bitpos == 8) {
-      binaryText[pos] = byte;
-      bitpos = 0;
-      byte = 0;
-      pos++;
-    }
+  const textBytes = new Uint8Array(length);
+  byte=0; bitpos=0; pos=0;
+  for (let i=32; i<uc.length; i++) {
+    byte = (byte<<1) | getBit(uc[i].x, uc[i].y, uc[i].z);
+    if (++bitpos===8) { textBytes[pos++]=byte; bitpos=0; byte=0; }
   }
 
-  // Decode UTF-8 encoded binary text
-  var decoder = new TextDecoder("utf-8");
-  var decodedText = decoder.decode(Uint8Array.from(binaryText));
-
-  // Set the decoded text in the text input element
-  document.getElementById("text").value = decodedText;
-
-  // Display message in the console
-  console.log("Decoded Text");
-  return decodedText;
+  const text = new TextDecoder('utf-8').decode(textBytes);
+  document.getElementById("text").value = text;
+  console.log("Decoded random text:", text.length, "chars");
+  return text;
 }
 
 
@@ -821,17 +735,36 @@ function myDisplayer() {
 }
 
 
+let currentFilename = "";
+let currentFile = null; // original raw File object
+let encodedFile = null;
+// Generation of the currently loaded image. Bumped on every load; an encode
+// captures it at start and its result is kept only if it still matches.
+let imageGen = 0;
+let encodedGen = -1; // generation encodedFile was produced from
+
+function setEncoded(file, gen) {
+  if (gen !== imageGen) return false;
+  encodedFile = file;
+  encodedGen = gen;
+  return true;
+}
+
 function previewImage(input) {
   if (input.files && input.files[0]) {
-    var reader = new FileReader();
-
-    reader.onload = function (e) {
-      var image = document.getElementById("image");
+    const gen = ++imageGen;
+    currentFile = input.files[0];
+    encodedFile = null;
+    encodedGen = -1;
+    currentFilename = currentFile.name;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      if (gen !== imageGen) return; // a later load superseded this one
+      const image = document.getElementById("image");
       image.src = e.target.result;
       displayImageInfo(image);
     };
-
-    reader.readAsDataURL(input.files[0]);
+    reader.readAsDataURL(currentFile);
   }
 }
 
@@ -840,4 +773,96 @@ function displayImageInfo(image) {
   const spaceBits = area * 3 - 32; // remove 32 bits for the length of the data
   const spaceBytes = Math.floor(spaceBits / 8); // convert to bytes
   document.getElementById("lblSpace").innerText = "Data Space: " + spaceBytes;
+}
+
+// Encode with random placement then fill every unused R/G/B LSB with
+// cryptographically random bits. Operates directly on PNG bytes — no canvas,
+// immune to Brave/Firefox anti-fingerprinting noise.
+async function encodeAndScramble() {
+  if (!currentFile) {
+    document.getElementById("lblProgress").innerText = "Load an image first";
+    return;
+  }
+  const gen = imageGen;
+  const srcFile = currentFile;
+  const srcName = currentFilename;
+
+  let png;
+  try {
+    png = await parsePNG(srcFile);
+  } catch (e) {
+    document.getElementById("lblProgress").innerText = "Error: " + e.message;
+    return;
+  }
+
+  const { width: W, height: H, channels, colorType, pixels: d } = png;
+  const igX = Math.floor(W/2), igY = Math.floor(H/2);
+
+  const si = (igY*W+igX)*channels;
+  const alpha = channels >= 4 ? d[si+3] : 255; // RGB images treated as opaque
+  const seed = (d[si]<<24)+(d[si+1]<<16)+(d[si+2]<<8)+alpha;
+
+  const text = document.getElementById("text").value;
+  const encoded = new TextEncoder().encode(text);
+  const payload = new Uint8Array(4 + encoded.length);
+  payload[0]=(encoded.length>>24)&0xff; payload[1]=(encoded.length>>16)&0xff;
+  payload[2]=(encoded.length>>8) &0xff; payload[3]= encoded.length      &0xff;
+  payload.set(encoded, 4);
+
+  const rng = new fastRand(seed);
+  const uc = scatterPoints(W-1, H-1, 2, payload.length*8, igX, igY, rng);
+  if (uc === false) {
+    document.getElementById("lblProgress").innerText = "Image too small for this text";
+    return;
+  }
+
+  // Write payload bits directly into pixel array
+  for (let i=0, bi=0; i<payload.length; i++) {
+    for (let j=7; j>=0; j--, bi++) {
+      const p=uc[bi], fi=(p.y*W+p.x)*channels+p.z;
+      d[fi] = (d[fi]&0xfe)|((payload[i]>>j)&1);
+    }
+  }
+
+  // Scramble all unused R/G/B LSBs with crypto-random noise
+  const used = new Set(uc.map(p => (p.y*W+p.x)*channels+p.z));
+  const noise = new Uint8Array(W*H);
+  for (let o=0; o<noise.length; o+=65536) {
+    crypto.getRandomValues(noise.subarray(o, Math.min(o+65536, noise.length)));
+  }
+  for (let y=0,ni=0; y<H; y++) {
+    for (let x=0; x<W; x++,ni++) {
+      if (x===igX && y===igY) continue; // preserve seed pixel
+      for (let z=0; z<3; z++) {
+        const fi=(y*W+x)*channels+z;
+        if (!used.has(fi)) d[fi]=(d[fi]&0xfe)|((noise[ni]>>z)&1);
+      }
+    }
+  }
+
+  const pngBytes = await encodePNG(W, H, channels, colorType, d);
+  if (gen !== imageGen) return; // a different image was loaded during the encode: drop it
+  const blob = new Blob([pngBytes], { type: 'image/png' });
+
+  const stem = srcName.replace(/\.[^.]+$/, "");
+  setEncoded(new File([blob], stem + "_enc.png", { type: 'image/png' }), gen);
+
+  const img = document.getElementById("image");
+  img.src = URL.createObjectURL(blob);
+  displayImageInfo(img);
+  document.getElementById("lblProgress").innerText = "Encoded + scrambled";
+  console.log("Encoded and scrambled:", text.length, "chars");
+}
+
+function downloadCurrent() {
+  if (!encodedFile || encodedGen !== imageGen) {
+    document.getElementById("lblProgress").innerText = "Encode first — nothing encoded to download";
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(encodedFile);
+  a.download = encodedFile.name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }

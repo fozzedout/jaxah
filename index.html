@@ -1,56 +1,172 @@
 <!DOCTYPE html>
+<html lang="en" data-theme="dark">
 <head>
-  <title>Repo</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Airis OS</title>
+<meta name="description" content="Airis OS — a shared room for a human and an agent. Bring your own key; open Session.">
+<link rel="describedby" href="./airis.contract.json" type="application/json">
+<!--
+  Airis OS. This page is the whole site. No build step.
+  AGENTS: every rule (manifest schema, app conventions, sandbox, CSP, install
+  records, Worker routes, tests) is in /airis.contract.json. Read that first.
+  Shell / manifest / record / app: shell.js runs the install records made from
+  manifest.json, each app in an opaque-origin sandboxed iframe. The plain
+  terminal floor underneath (#terminal) works even if all of that fails.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data:; frame-src 'self' https://lexfall.com; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<link rel="stylesheet" href="./terminal.css">
+<link rel="stylesheet" href="./shell.css">
+</head>
+<body class="term">
 
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- ══ TERMINAL FLOOR ══
+       Plain state underneath the OS. Shown automatically if the manifest or
+       shell breaks, on purpose via the backtick key, or via ?terminal=1.
+       Its own runtime loads first; replies are scripted and local. -->
+  <div id="terminal" role="region" aria-label="Airis terminal">
+    <div id="term-out" role="log" aria-live="polite" aria-relevant="additions"></div>
+    <form id="term-form" autocomplete="off">
+      <label for="term-in"><span class="term-dot" aria-hidden="true"></span><span class="term-sr">Talk to Airis</span></label>
+      <input id="term-in" type="text" autocomplete="off" autocapitalize="off"
+             spellcheck="false" aria-label="terminal input" enterkeyhint="send">
+      <button type="submit">Send</button>
+    </form>
+    <div id="term-hint">Scripted, local replies · try: hello or help</div>
+  </div>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-      }
-    }
-  </script>
+  <noscript>
+    <style>#terminal { display: none; }</style>
+    <div class="nojs">
+      <h1>Airis OS</h1>
+      <p>The shell needs JavaScript. The apps don't — plain links:</p>
+      <ul>
+        <li><a href="https://lexfall.com">Lexfall</a> · <a href="./lexfall.html">local copy</a></li>
+        <li><a href="./apps/persona.html">Persona</a></li>
+        <li><a href="./apps/todo.html">To Do</a></li>
+        <li><a href="./apps/house.html">House</a></li>
+        <li><a href="./apps/desk.html">Desk</a></li>
+        <li><a href="./fuel-calc-uk.html">Fuel Calc</a></li>
+        <li><a href="./lsb-coding.html">LSB Lab</a></li>
+        <li><a href="./lsb-pwman.html">LSB Passwords</a></li>
+        <li><a href="./art/jeb/index.html">JEB Gallery</a></li>
+        <li><a href="./rustys-commands.html">Rusty</a></li>
+        <li><a href="./reveal.html">Reveal</a></li>
+        <li><a href="./trie-test.html">Trie Test</a> · <a href="./idb-test.html">IDB Test</a> · <a href="./breaking-firefox.html">Breaking Firefox</a> · <a href="./settings.html">Lexfall Settings</a> · <a href="./repo.html">Old home</a></li>
+        <li><a href="./airis.contract.json">airis.contract.json</a> — how this site works, as data</li>
+      </ul>
+    </div>
+  </noscript>
 
-  </head>
-  <body class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lgring-1 ring-slate-900/5 shadow-xl">
-<div class="max-w-md mx-auto rounded-xl shadow-md overflow-hidden text-center px-6 py-10 ">
-<p>Nothing to see here, move along</p>
+  <!-- ══ OS CHROME ══ -->
+  <div id="os" tabindex="-1" hidden>
+    <header id="statusbar">
+      <span id="sb-time">--:--</span>
+      <span id="sb-name">Airis OS</span>
+      <span class="presence-switch" role="group" aria-label="Presence">
+        <button data-p="bob" title="Wandering companion" aria-label="Wandering companion">✦</button>
+        <button data-p="portrait" title="Portrait presence" aria-label="Portrait presence">◍</button>
+        <button data-p="orb" title="Quiet orb" aria-label="Quiet orb">○</button>
+        <button class="room-toggle" title="Give me room" aria-label="Give me room" aria-pressed="false">⛶</button>
+      </span>
+      <button id="sb-trail" title="Trail" aria-label="Trail">≡</button>
+      <button id="sb-theme" title="theme" aria-label="Toggle theme">◐</button>
+    </header>
 
-<div><img class="py-8" src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHcwYWxpaWVrODR1MzZjbjB5M2Via2Zud2VsM3F2YnUyZjZ3ZW52NyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xUStFKHmuFPYk/giphy.gif" /></div>
+    <main id="stage">
+      <div id="icon-grid" role="list" aria-label="apps"></div>
+      <div id="windows"></div>
+      <!-- Wandering companion (desktop presence). CSS/JS only, no assets. -->
+      <div id="presence-bob" hidden>
+        <button id="bob-hit" aria-label="Summon Airis">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <ellipse class="bob-shadow" cx="32" cy="56" rx="14" ry="4" />
+            <g class="bob-body">
+              <rect x="18" y="18" width="28" height="32" rx="12" class="bob-shell" />
+              <circle class="bob-eye l" cx="26" cy="32" r="4.5" />
+              <circle class="bob-eye r" cx="38" cy="32" r="4.5" />
+              <circle class="bob-glint l" cx="27.5" cy="30.5" r="1.4" />
+              <circle class="bob-glint r" cx="39.5" cy="30.5" r="1.4" />
+              <rect class="bob-mouth" x="28" y="41" width="8" height="2.4" rx="1.2" />
+              <rect class="bob-foot l" x="21" y="50" width="9" height="5" rx="2.5" />
+              <rect class="bob-foot r" x="34" y="50" width="9" height="5" rx="2.5" />
+            </g>
+          </svg>
+        </button>
+      </div>
+    </main>
 
-<div class="flex flex-wrap justify-center gap-2">
-  <a 
-	class="my-5 py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
-	href="lsb-coding.html">LSB Encoding & Decoding Tests
-  </a>
-  <a 
-	class="my-5 py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
-	href="lexfall.html">Lexfall
-  </a>
-  <a 
-	class="my-5 py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
-	href="trie-test.html">Trie Test (en-words)
-  </a>
-  <a 
-	class="my-5 py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
-	href="trie-test.html?dataset=words">Trie Test (words.txt precompiled)
-  </a>
-  <a 
-	class="my-5 py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
-	href="idb-test.html">IndexedDB Test (en-words)
-  </a>
-  <a 
-	class="my-5 py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
-	href="art/jeb/index.html">Jonathon Earl Bowser Gallery
-  </a>
-  <a 
-	class="my-5 py-2.5 px-5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" 
-	href="fuel-calc-uk.html">UK Fuel Cost Calculator
-  </a>
-</div>
-	</div>
+    <div id="whisper" hidden>
+      <span id="whisper-why"></span>
+      <span id="whisper-text"></span>
+      <button id="whisper-x" aria-label="dismiss">×</button>
+    </div>
+
+    <footer id="taskbar">
+      <button id="tb-summon" aria-label="Summon Airis"><span id="halo" class="prompt-dot" aria-hidden="true"></span></button>
+      <div id="task-apps" role="group" aria-label="open apps"></div>
+      <span class="presence-switch" role="group" aria-label="Presence">
+        <button data-p="bob" title="Wandering companion" aria-label="Wandering companion">✦</button>
+        <button data-p="portrait" title="Portrait presence" aria-label="Portrait presence">◍</button>
+        <button data-p="orb" title="Quiet orb" aria-label="Quiet orb">○</button>
+        <button class="room-toggle" title="Give me room" aria-label="Give me room" aria-pressed="false">⛶</button>
+      </span>
+      <button id="tb-trail" title="Trail — every action, by whom" aria-label="Trail" aria-pressed="false">≡</button>
+      <button id="tb-clock" title="time">--:--</button>
+    </footer>
+
+    <nav id="dock" aria-label="dock">
+      <div id="dock-apps"></div>
+      <button id="dock-summon" aria-label="Summon Airis"><span class="prompt-dot" aria-hidden="true"></span></button>
+    </nav>
+
+    <!-- Portrait presence (mobile default): a small living face in the corner.
+         CSS/SVG only, no assets. Click summons. -->
+    <button id="presence-portrait" aria-label="Summon Airis" hidden>
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="26" class="pf-face" />
+        <g class="pf-eyes">
+          <ellipse class="pf-eye" cx="23" cy="28" rx="5" ry="6" />
+          <ellipse class="pf-eye" cx="41" cy="28" rx="5" ry="6" />
+          <g class="pf-pupils">
+            <circle cx="23" cy="29" r="2.2" class="pf-pupil" />
+            <circle cx="41" cy="29" r="2.2" class="pf-pupil" />
+          </g>
+        </g>
+        <path class="pf-mouth" d="M26 44 Q32 47 38 44" />
+      </svg>
+    </button>
+
+    <!-- Quiet orb (content-max default): dims when idle, leans to the
+         pointer, grows when approached. Click summons. -->
+    <button id="presence-orb" aria-label="Summon Airis — breathe with me" hidden>
+      <span aria-hidden="true"></span>
+    </button>
+
+    <!-- Presence switcher lives in the taskbar (desktop) and the statusbar
+         (phone) — one control per layout, synced, never floating over windows.
+         Defaults follow context (wide→wanderer, narrow→portrait, room→orb)
+         until touched. -->
+
+    <!-- Trail: the shared record. Every action — by the human, an agent, an
+         app or the system — is one row. Same data as airis.state().trail. -->
+    <aside id="trail" aria-label="Trail" hidden>
+      <header><span>Trail</span><small>human · agent · app · system</small><button id="trail-x" aria-label="close trail">×</button></header>
+      <ol id="trail-list" role="log" aria-live="polite"></ol>
+    </aside>
+
+    <!-- Summon is a command palette. Persona is Airis's full presence. -->
+    <div id="summon" hidden>
+      <div id="summon-box" role="dialog" aria-label="summon">
+        <input id="summon-in" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Apps or commands · open session · theme light · trail"
+               aria-label="summon input">
+        <div id="summon-out"></div>
+      </div>
+    </div>
+  </div>
+
+<script src="./terminal.js"></script>
+<script src="./shell.js" defer></script>
 </body>
 </html>

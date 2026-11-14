@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LSB Password Manager</title>
+  <style>
+    :root { color-scheme: dark; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #cbd5e1;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 0.95rem; font-weight: 600; color: #f1f5f9; }
+    #folderName { font-size: 0.8rem; color: #64748b; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #334155;
+    }
+    .sidebar-controls {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-bottom: 1px solid #334155;
+    }
+    #searchInput {
+      padding: 7px 10px;
+      background: #0f172a;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      outline: none;
+      width: 100%;
+    }
+    #searchInput:focus { border-color: #3b82f6; }
+    #imgCount { font-size: 0.75rem; color: #64748b; }
+
+    #imgList { flex: 1; overflow-y: auto; padding: 6px; }
+
+    .img-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .img-card:hover { background: #1e293b; }
+    .img-card.active { background: #1d4ed8; border-color: #3b82f6; }
+
+    .thumb {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 4px;
+      background: #334155;
+      flex-shrink: 0;
+    }
+    .img-label {
+      font-size: 0.82rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Content ── */
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 10px;
+      overflow: hidden;
+    }
+    .content-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    #panelTitle { flex: 1; font-size: 1rem; font-weight: 600; color: #f1f5f9; }
+
+    .content-body {
+      flex: 1;
+      overflow-y: auto;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.875rem;
+    }
+    #placeholder { color: #475569; }
+
+    .decoded-line {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .decoded-line:hover { background: #0f172a; }
+    .line-text { flex: 1; word-break: break-all; }
+    .line-key { color: #94a3b8; }
+    .line-val { color: #f1f5f9; }
+
+    .copy-btn {
+      flex-shrink: 0;
+      padding: 2px 8px;
+      background: #334155;
+      border: none;
+      border-radius: 4px;
+      color: #94a3b8;
+      font-size: 0.72rem;
+      cursor: pointer;
+      opacity: 0;
+      font-family: system-ui, sans-serif;
+    }
+    .decoded-line:hover .copy-btn { opacity: 1; }
+    .copy-btn:hover { background: #475569; color: #e2e8f0; }
+    .copy-btn.copied { background: #166534; color: #86efac; opacity: 1; }
+
+    /* ── Generic buttons ── */
+    button {
+      padding: 6px 14px;
+      background: #334155;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button:hover:not(:disabled) { background: #475569; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    .btn-primary { background: #1d4ed8; border-color: #3b82f6; }
+    .btn-primary:hover:not(:disabled) { background: #2563eb; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>LSB Password Manager</h1>
+  <button onclick="openFolder()">Open Folder</button>
+  <span id="folderName">No folder selected</span>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-controls">
+      <input id="searchInput" type="text" placeholder="Search…" oninput="filterImages(this.value)" />
+      <span id="imgCount">—</span>
+    </div>
+    <div id="imgList"></div>
+  </div>
+
+  <div class="content">
+    <div class="content-header">
+      <span id="panelTitle">Select an image</span>
+      <button id="copyAllBtn" class="btn-primary" onclick="copyAllContent()" disabled>Copy All</button>
+    </div>
+    <div class="content-body">
+      <span id="placeholder">Open a folder and select an image to decode</span>
+      <div id="lines"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Steganography (random placement only — compatible with lsb-coding.js) ───
+
+function fastRand(seed) {
+  seed |= 0;
+  return function () {
+    seed = seed ^ (seed << 15);
+    seed = seed ^ (seed >> 17);
+    seed = seed ^ (seed << 16);
+    return (seed >>> 0) / 4294967296;
+  };
+}
+
+// Identical iteration/shuffle order to lsb-coding.js for format compatibility.
+// Note: images larger than ~800×800 will be slow due to object allocation.
+function scatterPoints(maxX, maxY, maxZ, length, ignoreX, ignoreY, random) {
+  if ((maxX + 1) * (maxY + 1) * (maxZ + 1) < length + 3) return false;
+
+  const maxSize = (maxX + 1) * (maxY + 1) * (maxZ + 1);
+  const allPoints = new Array(maxSize - (maxZ + 1));
+  let i = 0;
+  for (let x = 0; x <= maxX; x++) {
+    for (let y = 0; y <= maxY; y++) {
+      if (!(x === ignoreX && y === ignoreY)) {
+        for (let z = 0; z <= maxZ; z++) {
+          allPoints[i++] = { x, y, z };
+        }
+      }
+    }
+  }
+  for (let i = allPoints.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [allPoints[i], allPoints[j]] = [allPoints[j], allPoints[i]];
+  }
+  return allPoints.slice(0, length);
+}
+
+// ─── Direct PNG decode — no canvas, bypasses Brave anti-fingerprinting ────────
+
+const _crcT = (() => {
+  const t = new Uint32Array(256);
+  for (let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c;}
+  return t;
+})();
+function _r32(b,o){return((b[o]<<24)|(b[o+1]<<16)|(b[o+2]<<8)|b[o+3])>>>0;}
+function _cat(...a){const o=new Uint8Array(a.reduce((s,x)=>s+x.length,0));let f=0;for(const x of a){o.set(x,f);f+=x.length;}return o;}
+async function _pipe(s,d){const w=s.writable.getWriter();w.write(d);w.close();const c=[];const r=s.readable.getReader();for(;;){const{done,value}=await r.read();if(done)break;c.push(value);}return _cat(...c);}
+const _inflate=d=>_pipe(new DecompressionStream('deflate'),d);
+
+async function parsePNG(file) {
+  const b = new Uint8Array(await file.arrayBuffer());
+  const SIG=[137,80,78,71,13,10,26,10];
+  for(let i=0;i<8;i++)if(b[i]!==SIG[i])throw new Error('Not a PNG');
+
+  let pos=8,W,H,colorType;
+  const idat=[];
+  while(pos<b.length){
+    const len=_r32(b,pos);pos+=4;
+    const type=String.fromCharCode(b[pos],b[pos+1],b[pos+2],b[pos+3]);pos+=4;
+    const data=b.slice(pos,pos+len);pos+=len+4;
+    if(type==='IHDR'){W=_r32(data,0);H=_r32(data,4);colorType=data[9];
+      if(data[8]!==8)throw new Error('Only 8-bit PNG supported');
+      if(data[12]!==0)throw new Error('Interlaced PNG not supported');}
+    else if(type==='IDAT')idat.push(data);
+    else if(type==='IEND')break;
+  }
+  const ch={2:3,6:4}[colorType];
+  if(!ch)throw new Error(`Unsupported color type ${colorType}`);
+
+  const filt=await _inflate(_cat(...idat));
+  const stride=W*ch;
+  const px=new Uint8Array(W*H*ch);
+  const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c;};
+  for(let y=0;y<H;y++){
+    const f=filt[y*(stride+1)],src=y*(stride+1)+1,dst=y*stride;
+    for(let x=0;x<stride;x++){
+      const raw=filt[src+x],a=x>=ch?px[dst+x-ch]:0,bv=y>0?px[dst-stride+x]:0,c=y>0&&x>=ch?px[dst-stride+x-ch]:0;
+      px[dst+x]=(f===0?raw:f===1?raw+a:f===2?raw+bv:f===3?raw+((a+bv)>>1):raw+paeth(a,bv,c))&0xff;
+    }
+  }
+  return{W,H,ch,px};
+}
+
+async function decodeFile(file) {
+  let W, H, ch, px;
+  try {
+    ({ W, H, ch, px } = await parsePNG(file));
+  } catch (e) {
+    return null; // not a supported PNG
+  }
+
+  const igX=Math.floor(W/2), igY=Math.floor(H/2);
+  const si=(igY*W+igX)*ch;
+  // treat RGB (ch=3) as alpha=255 to match what canvas returns for opaque images
+  const alpha = ch>=4 ? px[si+3] : 255;
+  const seed=(px[si]<<24)+(px[si+1]<<16)+(px[si+2]<<8)+alpha;
+
+  const getBit=(x,y,z)=>px[(y*W+x)*ch+z]&1;
+
+  let rng=fastRand(seed);
+  const ucLen=scatterPoints(W-1,H-1,2,32,igX,igY,rng);
+  if(!ucLen)return null;
+
+  let byte=0,bitpos=0,pos=0;
+  const lenBytes=new Uint8Array(4);
+  for(let i=0;i<32;i++){
+    byte=(byte<<1)|getBit(ucLen[i].x,ucLen[i].y,ucLen[i].z);
+    if(++bitpos===8){lenBytes[pos++]=byte;bitpos=0;byte=0;}
+  }
+
+  const length=((lenBytes[0]<<24)|(lenBytes[1]<<16)|(lenBytes[2]<<8)|lenBytes[3])>>>0;
+  if(length===0||length>500_000)return null;
+
+  rng=fastRand(seed);
+  const uc=scatterPoints(W-1,H-1,2,32+length*8,igX,igY,rng);
+  if(!uc)return null;
+
+  const textBytes=new Uint8Array(length);
+  byte=0;bitpos=0;pos=0;
+  for(let i=32;i<uc.length;i++){
+    byte=(byte<<1)|getBit(uc[i].x,uc[i].y,uc[i].z);
+    if(++bitpos===8){textBytes[pos++]=byte;bitpos=0;byte=0;}
+  }
+
+  try{return new TextDecoder('utf-8').decode(textBytes);}catch{return null;}
+}
+
+// ─── App state ───────────────────────────────────────────────────────────────
+
+let allFiles = [];
+let filtered = [];
+let currentName = null;
+let currentText = null;
+
+// ─── Folder access ───────────────────────────────────────────────────────────
+
+async function openFolder() {
+  let dirHandle;
+  try {
+    dirHandle = await window.showDirectoryPicker({ id: 'lsb-pwman', mode: 'read' });
+  } catch (e) {
+    if (e.name !== 'AbortError') console.error(e);
+    return;
+  }
+
+  document.getElementById('folderName').textContent = dirHandle.name;
+  allFiles = [];
+
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind !== 'file') continue;
+    if (!/\.(png|jpg|jpeg|gif|webp|bmp)$/i.test(name)) continue;
+    const file = await handle.getFile();
+    allFiles.push({ name, file });
+  }
+
+  allFiles.sort((a, b) => a.name.localeCompare(b.name));
+  document.getElementById('searchInput').value = '';
+  filterImages('');
+}
+
+// ─── Image list ───────────────────────────────────────────────────────────────
+
+function filterImages(query) {
+  const q = (query || '').toLowerCase();
+  filtered = q ? allFiles.filter(f => f.name.toLowerCase().includes(q)) : [...allFiles];
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById('imgList');
+  document.getElementById('imgCount').textContent =
+    `${filtered.length} image${filtered.length !== 1 ? 's' : ''}`;
+  list.innerHTML = '';
+
+  for (const { name, file } of filtered) {
+    const card = document.createElement('div');
+    card.className = 'img-card' + (name === currentName ? ' active' : '');
+
+    const thumb = document.createElement('img');
+    thumb.className = 'thumb';
+    thumb.src = URL.createObjectURL(file); // revoked when tab closes
+    thumb.alt = '';
+
+    const label = document.createElement('span');
+    label.className = 'img-label';
+    label.textContent = name.replace(/\.[^.]+$/, '');
+
+    card.append(thumb, label);
+    card.addEventListener('click', () => selectImage(name, file, card));
+    list.append(card);
+  }
+}
+
+// ─── Decode & display ─────────────────────────────────────────────────────────
+
+async function selectImage(name, file, card) {
+  currentName = name;
+  currentText = null;
+
+  document.querySelectorAll('.img-card').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+
+  document.getElementById('panelTitle').textContent = name.replace(/\.[^.]+$/, '');
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('copyAllBtn').disabled = true;
+  document.getElementById('lines').innerHTML =
+    '<span style="color:#60a5fa;font-family:system-ui">Decoding…</span>';
+
+  const text = await decodeFile(file);
+
+  if (text === null) {
+    document.getElementById('lines').innerHTML =
+      '<span style="color:#f87171;font-family:system-ui">No LSB data found — image may not be encoded, or is too large to decode</span>';
+    return;
+  }
+
+  currentText = text;
+  renderDecoded(text);
+  document.getElementById('copyAllBtn').disabled = false;
+}
+
+function renderDecoded(text) {
+  const container = document.getElementById('lines');
+  container.innerHTML = '';
+
+  for (const line of text.split('\n')) {
+    if (!line.trim()) {
+      const spacer = document.createElement('div');
+      spacer.style.height = '6px';
+      container.append(spacer);
+      continue;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'decoded-line';
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'line-text';
+
+    const sep = line.indexOf(':');
+    if (sep > 0 && sep < 30) {
+      const k = document.createElement('span');
+      k.className = 'line-key';
+      k.textContent = line.slice(0, sep + 1);
+      const v = document.createElement('span');
+      v.className = 'line-val';
+      v.textContent = line.slice(sep + 1);
+      textSpan.append(k, v);
+    } else {
+      textSpan.textContent = line;
+    }
+
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = 'copy';
+    const copyTarget = (sep > 0 && sep < 30) ? line.slice(sep + 1).trimStart() : line;
+    btn.addEventListener('click', () => copyText(copyTarget, btn));
+
+    row.append(textSpan, btn);
+    container.append(row);
+  }
+}
+
+function copyAllContent() {
+  if (currentText) copyText(currentText, document.getElementById('copyAllBtn'));
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1400);
+  });
+}
+</script>
+</body>
+</html>

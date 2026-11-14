@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session</title>
+<!--
+  Session: a blank session with a live agent. Bring your own key.
+  Runs from its install record (srcdoc) in an opaque-origin sandbox, so it has
+  no storage or network of its own: everything goes through the Airis bridge
+  (airis.contract.json -> bridge). The key is handed to the shell's secret store
+  once and never comes back to this code; the shell attaches it to requests for
+  the configured endpoint only. Presets are data (manifest settings.presets).
+-->
+<style>
+:root { --bg:#0a1418; --panel:#0f1f25; --line:rgba(255,255,255,.12); --ink:#e8f1f0; --dim:#9fb8b4; --faint:#6f8783; --teal:#5eead4; --red:#fca5a5; --redbg:rgba(248,113,113,.12); --you:rgba(94,234,212,.10); }
+html[data-theme="light"] { --bg:#f4faf9; --panel:#e6f0ee; --line:rgba(10,40,40,.16); --ink:#102a28; --dim:#3f5f5b; --faint:#6b8a86; --teal:#0f766e; --red:#b91c1c; --redbg:rgba(220,38,38,.08); --you:rgba(15,118,110,.08); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; background: var(--bg); color: var(--ink);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+
+#strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px;
+  border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12px; }
+#strip label { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); }
+#strip input, #strip select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; min-width: 0; }
+#strip input:disabled { opacity: .6; }
+#base { width: 15em; } #model { width: 12em; } #key { width: 11em; }
+.btn { border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 3px 8px; }
+.btn:hover { background: var(--you); }
+.btn.warn { color: var(--red); }
+#keystate { color: var(--faint); }
+#keystate.on { color: var(--teal); }
+.grow { flex: 1; }
+
+#pane { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.user { align-self: flex-end; max-width: 85%; background: var(--you); border: 1px solid var(--line); border-radius: 12px 12px 2px 12px; padding: 7px 11px; }
+.msg.assistant { align-self: stretch; }
+.msg.assistant.streaming::after { content: "▍"; color: var(--teal); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.msg .meta { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; white-space: normal; }
+details.think { color: var(--faint); font-size: 12px; white-space: pre-wrap; margin-bottom: 4px; }
+details.think summary { cursor: pointer; }
+.tool { font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--dim); border-left: 3px solid var(--teal); padding: 2px 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.err { color: var(--red); background: var(--redbg); border: 1px solid var(--red); border-radius: 8px; padding: 7px 10px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+
+#composer { display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--line); background: var(--panel); }
+#input { flex: 1; resize: none; min-height: 40px; max-height: 40vh; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+#send, #stop { border: 1px solid var(--line); border-radius: 10px; padding: 0 16px; background: var(--you); }
+#stop { color: var(--red); }
+#outside { margin: auto; max-width: 30em; padding: 24px; text-align: center; color: var(--dim); }
+#outside a { color: var(--teal); }
+#summary { display: none; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+#strip.folded > :not(#fold):not(#summary):not(#new) { display: none; }
+#strip.folded #summary { display: inline; }
+@media (max-width: 560px) { #base, #model, #key { width: 100%; } #strip label { flex: 1 1 100%; } #strip label > input, #strip label > select { flex: 1; } }
+</style>
+</head>
+<body>
+<div id="outside" hidden>Session runs inside Airis OS. <a href="/#app/session" target="_top">Open it there</a>.</div>
+
+<form id="strip" autocomplete="off" aria-label="Session settings">
+  <button class="btn" id="fold" type="button" aria-expanded="true" title="Show or hide settings">⚙</button>
+  <span id="summary"></span>
+  <label>Provider <select id="preset" aria-label="Provider preset"></select></label>
+  <label>Base URL <input id="base" type="text" spellcheck="false" aria-label="Base URL"></label>
+  <label>Model <input id="model" type="text" list="models" spellcheck="false" aria-label="Model"></label>
+  <datalist id="models"></datalist>
+  <label>Key <input id="key" type="password" spellcheck="false" autocomplete="off" placeholder="paste key" aria-label="API key"></label>
+  <button class="btn" id="savekey" type="submit">Save key</button>
+  <button class="btn warn" id="forget" type="button">Forget key</button>
+  <span id="keystate" aria-live="polite">no key</span>
+  <span class="grow"></span>
+  <label title="Lets the agent read the OS state and run OS actions (open, close, theme, install, note). Every call shows here and in the Trail."><input id="act" type="checkbox"> agent can act</label>
+  <button class="btn" id="new" type="button">New session</button>
+</form>
+
+<main id="pane" role="log" aria-live="polite" aria-label="Conversation"></main>
+
+<form id="composer" autocomplete="off">
+  <textarea id="input" rows="1" aria-label="Message" placeholder="Message"></textarea>
+  <button id="send" type="submit">Send</button>
+  <button id="stop" type="button" hidden>Stop</button>
+</form>
+
+<script>
+(function () {
+'use strict';
+var $ = function (id) { return document.getElementById(id); };
+
+/* ── bridge client (contract: bridge) ─────────────────────────────────── */
+var seq = 0, pending = {}, listeners = {};
+window.addEventListener('message', function (e) {
+  if (e.source !== window.parent) return;
+  var m = e.data;
+  if (!m || m.airis !== 1) return;
+  if (m.event) { (listeners[m.event] || []).forEach(function (f) { f(m); }); return; }
+  var p = pending[m.re];
+  if (!p) return;
+  if (Object.prototype.hasOwnProperty.call(m, 'chunk')) { if (p.onChunk) p.onChunk(m.chunk); return; }
+  delete pending[m.re];
+  if (m.ok) p.resolve(m.value); else p.reject(new Error(m.error));
+});
+function call(op, args, onChunk) {
+  var id = ++seq;
+  var pr = new Promise(function (resolve, reject) {
+    pending[id] = { resolve: resolve, reject: reject, onChunk: onChunk };
+    window.parent.postMessage({ airis: 1, id: id, op: op, args: args || {} }, '*');
+  });
+  pr.re = id;
+  return pr;
+}
+function on(ev, f) { (listeners[ev] = listeners[ev] || []).push(f); }
+
+/* ── state ────────────────────────────────────────────────────────────── */
+var presets = [], settings = { presetId: null, base: {}, model: {}, act: false };
+var convo = null;          // { id, createdAt, messages: [...] }
+var busy = null;           // { re, aborted }
+var hasKey = false;
+
+function newId() {
+  var a = new Uint8Array(16); crypto.getRandomValues(a);
+  return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('')
+    .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+}
+function preset() { return presets.filter(function (p) { return p.id === settings.presetId; })[0] || presets[0]; }
+function baseUrl() { var p = preset(); return ((p.editable && settings.base[p.id]) || p.baseUrl || '').replace(/\/+$/, ''); }
+// The model is never chosen for the user: no preset fallback. It is whatever they typed for this preset, kept in this browser only.
+function model() { var m = settings.model[preset().id]; return typeof m === 'string' ? m.trim() : ''; }
+function saveSettings() { return call('storage.set', { key: 'settings', value: settings }); }
+var saveTimer = null;
+function saveConvo(now) {
+  clearTimeout(saveTimer);
+  if (now) return call('storage.set', { key: 'conversation', value: convo });
+  saveTimer = setTimeout(function () { call('storage.set', { key: 'conversation', value: convo }); }, 400);
+}
+
+/* ── rendering ────────────────────────────────────────────────────────── */
+var pane = $('pane');
+function atBottom() { return pane.scrollHeight - pane.scrollTop - pane.clientHeight < 40; }
+function stick(was) { if (was) pane.scrollTop = pane.scrollHeight; }
+function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+
+function renderMsg(m) {
+  if (m.role === 'user') return el('div', 'msg user', m.content);
+  if (m.role === 'error') return el('div', 'err', m.content);
+  if (m.role === 'tool') return el('div', 'tool', '⌁ result ' + truncate(m.content, 600));
+  if (m.role === 'assistant') {
+    var wrap = el('div', 'msg assistant');
+    if (m.reasoning) { var d = el('details', 'think'); d.appendChild(el('summary', null, 'reasoning')); d.appendChild(document.createTextNode(m.reasoning)); wrap.appendChild(d); }
+    wrap.appendChild(el('span', 'body', m.content || ''));
+    (m.tool_calls || []).forEach(function (tc) {
+      wrap.appendChild(el('div', 'tool', '⌁ agent → ' + tc.function.name + ' ' + (tc.function.arguments || '{}')));
+    });
+    if (m.partial) wrap.appendChild(el('span', 'meta', m.stopped ? 'stopped' : 'interrupted — the page closed before the reply finished'));
+    return wrap;
+  }
+  return el('div', 'tool', JSON.stringify(m));
+}
+function truncate(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+function renderAll() {
+  pane.textContent = '';
+  convo.messages.forEach(function (m) { pane.appendChild(renderMsg(m)); });
+  pane.scrollTop = pane.scrollHeight;
+}
+function showError(text) {
+  var was = atBottom();
+  convo.messages.push({ role: 'error', content: text });
+  pane.appendChild(renderMsg(convo.messages[convo.messages.length - 1]));
+  stick(was); saveConvo();
+}
+
+/* ── settings strip ───────────────────────────────────────────────────── */
+function fillStrip() {
+  var sel = $('preset'); sel.textContent = '';
+  presets.forEach(function (p) { var o = el('option', null, p.label); o.value = p.id; sel.appendChild(o); });
+  var p = preset(); sel.value = p.id;
+  $('base').value = baseUrl(); $('base').disabled = !p.editable;
+  $('model').value = model();
+  $('act').checked = !!settings.act;
+  loadModels();
+}
+function keyName() { return 'key.' + preset().id; }
+function refreshKey() {
+  return call('secret.has', { name: keyName() }).then(function (h) {
+    hasKey = !!h;
+    var s = $('keystate'); s.textContent = hasKey ? 'key stored in this browser' : 'no key'; s.classList.toggle('on', hasKey);
+    $('forget').disabled = !hasKey;
+    if (presets.length) setFold($('strip').classList.contains('folded'));
+  });
+}
+function setFold(f) {
+  $('strip').classList.toggle('folded', f);
+  $('fold').setAttribute('aria-expanded', f ? 'false' : 'true');
+  $('summary').textContent = preset().label + ' · ' + (model() || 'no model') + ' · ' + (hasKey ? 'key ✓' : 'no key');
+}
+$('fold').addEventListener('click', function () {
+  settings.fold = !$('strip').classList.contains('folded'); saveSettings(); setFold(settings.fold);
+});
+$('preset').addEventListener('change', function () { settings.presetId = this.value; saveSettings(); fillStrip(); refreshKey(); });
+$('base').addEventListener('change', function () { settings.base[preset().id] = this.value.trim(); saveSettings(); loadModels(); });
+$('model').addEventListener('change', function () { settings.model[preset().id] = this.value.trim(); saveSettings(); });
+$('act').addEventListener('change', function () { settings.act = this.checked; saveSettings(); });
+$('strip').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var v = $('key').value.trim();
+  $('key').value = '';
+  if (!v) { $('key').focus(); return; }
+  call('secret.set', { name: keyName(), value: v }).then(refreshKey).then(loadModels, function (err) { showError('Could not store the key: ' + err.message); });
+});
+$('forget').addEventListener('click', function () { call('secret.forget', { name: keyName() }).then(refreshKey); });
+$('new').addEventListener('click', function () {
+  if (busy) stop();
+  convo = { id: newId(), createdAt: new Date().toISOString(), messages: [] };
+  saveConvo(true); renderAll(); $('input').focus();
+});
+
+function loadModels() {
+  var b = baseUrl(); if (!b) return;
+  var text = '';
+  call('net.stream', { url: b + '/models', method: 'GET', headers: { accept: 'application/json' }, auth: hasKey ? { secret: keyName(), scheme: 'Bearer' } : null },
+    function (c) { text += c; })
+    .then(function (meta) {
+      if (meta.status !== 200) return;
+      var list = (JSON.parse(text).data || []).filter(function (m) {
+        return !m.api || m.api['chat-completions'];   // keep chat-completions models when the list says which
+      });
+      var dl = $('models'); dl.textContent = '';
+      list.forEach(function (m) { var o = el('option'); o.value = m.id; if (m.name) o.label = m.name; dl.appendChild(o); });
+    }).catch(function () {});
+}
+
+/* ── the agent's hands: OS tools (only when "agent can act" is on) ────── */
+var stateCache = null;
+function tools() {
+  var names = (stateCache && stateCache.agentActions) || ['open', 'close', 'focus', 'theme', 'note', 'install', 'trail'];
+  return [
+    { type: 'function', function: { name: 'airis_state', description: 'Read the Airis OS state as JSON: installed apps, open windows, theme, and the recent trail of what the human, agents and apps did.', parameters: { type: 'object', properties: {} } } },
+    { type: 'function', function: { name: 'airis_do', description: 'Run one Airis OS action. It is shown to the human in the Trail. Args by action: open/close/focus/install {id}, theme {value:"dark"|"light"}, note {text}, trail {}.',
+      parameters: { type: 'object', properties: { action: { type: 'string', enum: names }, args: { type: 'object' } }, required: ['action'] } } }
+  ];
+}
+function runTool(tc) {
+  var args = {};
+  try { args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {}; } catch (e) { return Promise.resolve({ error: 'arguments were not valid JSON' }); }
+  if (tc.function.name === 'airis_state') return call('os.state', {}).then(function (s) { stateCache = s; return s; });
+  if (tc.function.name === 'airis_do') return call('os.do', { action: args.action, args: args.args || {} }).then(function (v) { return { ok: true, result: v }; });
+  return Promise.resolve({ error: 'unknown tool ' + tc.function.name });
+}
+
+/* ── send / stream / stop ─────────────────────────────────────────────── */
+function apiMessages() {
+  return convo.messages.filter(function (m) { return m.role === 'user' || m.role === 'assistant' || m.role === 'tool'; })
+    .filter(function (m) { return !(m.role === 'assistant' && !m.content && !(m.tool_calls && m.tool_calls.length)); })
+    .map(function (m) {
+      var o = { role: m.role, content: m.content || '' };
+      if (m.tool_calls && m.tool_calls.length) o.tool_calls = m.tool_calls;
+      if (m.tool_call_id) o.tool_call_id = m.tool_call_id;
+      return o;
+    });
+}
+function setBusy(b) {
+  busy = b;
+  $('send').hidden = !!b; $('stop').hidden = !b;
+}
+function headersFor() {
+  var h = { 'content-type': 'application/json', accept: 'text/event-stream' };
+  var extra = preset().headers || {};
+  Object.keys(extra).forEach(function (k) { h[k] = String(extra[k]).replace(/\{session\}/g, convo.id); });
+  return h;
+}
+function errorText(meta) {
+  var detail = meta.text || '';
+  try { var j = JSON.parse(detail); var e = j.error || j; detail = (e.type ? e.type + ': ' : '') + (e.message || JSON.stringify(j)); } catch (x) {}
+  var hint = meta.status === 401 || meta.status === 403 ? ' — check the key for this provider.' : meta.status === 404 ? ' — check the base URL and model.' : '';
+  return 'HTTP ' + meta.status + ' ' + (meta.statusText || '') + hint + (detail ? '\n' + truncate(detail, 1500) : '');
+}
+
+function turn(round) {
+  if (round > 8) { showError('Stopped after 8 tool rounds.'); return Promise.resolve(); }
+  var body = { model: model(), messages: apiMessages(), stream: true };
+  if (settings.act) body.tools = tools();
+  var msg = { role: 'assistant', content: '' };
+  var node = renderMsg(msg); node.classList.add('streaming'); pane.appendChild(node);
+  msg.partial = true;   // persisted flag: if the page dies mid-stream, reload shows it as interrupted
+  convo.messages.push(msg);
+  var bodyEl = node.querySelector('.body'), thinkEl = null;
+  pane.scrollTop = pane.scrollHeight;
+  var buf = '', calls = [], finish = null;
+
+  function handleLine(line) {
+    if (line.indexOf('data:') !== 0) return;
+    var data = line.slice(5).trim();
+    if (!data || data === '[DONE]') return;
+    var j; try { j = JSON.parse(data); } catch (e) { return; }
+    if (j.error) { throw new Error((j.error.type ? j.error.type + ': ' : '') + (j.error.message || JSON.stringify(j.error))); }
+    var ch = j.choices && j.choices[0]; if (!ch) return;
+    var d = ch.delta || {};
+    var was = atBottom();
+    var think = d.reasoning_content || d.reasoning;
+    if (think) {
+      msg.reasoning = (msg.reasoning || '') + think;
+      if (!thinkEl) { thinkEl = el('details', 'think'); thinkEl.appendChild(el('summary', null, 'reasoning')); thinkEl.appendChild(document.createTextNode('')); node.insertBefore(thinkEl, bodyEl); }
+      thinkEl.lastChild.nodeValue = msg.reasoning;
+    }
+    if (d.content) { msg.content += d.content; bodyEl.textContent = msg.content; }
+    (d.tool_calls || []).forEach(function (t) {
+      var i = t.index || 0;
+      calls[i] = calls[i] || { id: '', type: 'function', function: { name: '', arguments: '' } };
+      if (t.id) calls[i].id = t.id;
+      if (t.function && t.function.name) calls[i].function.name += t.function.name;
+      if (t.function && t.function.arguments) calls[i].function.arguments += t.function.arguments;
+    });
+    if (ch.finish_reason) finish = ch.finish_reason;
+    stick(was);
+    saveConvo();
+  }
+
+  var req = call('net.stream', { url: baseUrl() + '/chat/completions', method: 'POST', headers: headersFor(), body: JSON.stringify(body), auth: { secret: keyName(), scheme: 'Bearer' } },
+    function (chunk) {
+      buf += chunk;
+      var lines = buf.split(/\r?\n/); buf = lines.pop();
+      try { lines.forEach(handleLine); } catch (e) { msg.streamError = e.message; }
+    });
+  setBusy({ re: req.re, aborted: false });
+  return req.then(function (meta) {
+    node.classList.remove('streaming');
+    if (buf) { try { handleLine(buf); } catch (e) { msg.streamError = e.message; } }
+    if (meta.status < 200 || meta.status >= 300) {
+      convo.messages.pop(); node.remove();
+      showError(errorText(meta));
+      return;
+    }
+    if (msg.streamError) { delete msg.partial; var se = msg.streamError; delete msg.streamError; if (!msg.content) { convo.messages.pop(); node.remove(); } showError('The provider sent an error mid-stream: ' + se); return; }
+    delete msg.partial;
+    calls = calls.filter(Boolean);
+    if (calls.length) {
+      msg.tool_calls = calls;
+      node.replaceWith(renderMsg(msg));
+      saveConvo(true);
+      return calls.reduce(function (p, tc) {
+        return p.then(function () {
+          if (busy && busy.aborted) return;
+          return runTool(tc).catch(function (err) { return { error: err.message }; }).then(function (out) {
+            var tm = { role: 'tool', tool_call_id: tc.id, content: JSON.stringify(out) };
+            convo.messages.push(tm); pane.appendChild(renderMsg(tm)); pane.scrollTop = pane.scrollHeight;
+          });
+        });
+      }, Promise.resolve()).then(function () { if (!(busy && busy.aborted)) return turn(round + 1); });
+    }
+    if (!msg.content && !msg.reasoning) { msg.content = ''; node.appendChild(el('span', 'meta', 'empty reply' + (finish ? ' (finish_reason: ' + finish + ')' : ''))); }
+    saveConvo(true);
+  }, function (err) {
+    node.classList.remove('streaming');
+    if (err.message === 'aborted') {
+      msg.stopped = true;
+      if (!msg.content && !msg.reasoning) { convo.messages.pop(); node.remove(); }
+      else node.replaceWith(renderMsg(msg));
+      saveConvo(true);
+      return;
+    }
+    if (!msg.content) { convo.messages.pop(); node.remove(); }
+    showError(/^no key/.test(err.message)
+      ? 'No key stored for ' + preset().label + '. Paste one into the Key field above and press Save key.'
+      : 'Request failed: ' + err.message + (/^\/|^https?:\/\/(localhost|127\.)/.test(baseUrl()) ? '' : '\n(A browser can only reach endpoints that allow cross-origin requests; use a same-origin /api/* route otherwise.)'));
+  });
+}
+function send(text) {
+  convo.messages.push({ role: 'user', content: text });
+  pane.appendChild(renderMsg(convo.messages[convo.messages.length - 1]));
+  pane.scrollTop = pane.scrollHeight;
+  saveConvo(true);
+  if (!model()) { showError('No model set. Type a model id into the Model field in the strip first; none is chosen for you, and it is kept only in this browser.'); return; }
+  var p = settings.act ? call('os.state', {}).then(function (s) { stateCache = s; }, function () {}) : Promise.resolve();
+  p.then(function () { return turn(0); }).then(function () { setBusy(null); $('input').focus(); }, function (e) { setBusy(null); showError(String(e && e.message || e)); });
+}
+function stop() {
+  if (!busy) return;
+  busy.aborted = true;
+  call('net.abort', { re: busy.re });
+}
+$('composer').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var t = $('input').value;
+  if (!t.trim() || busy) return;
+  $('input').value = ''; autosize();
+  send(t);
+});
+$('stop').addEventListener('click', stop);
+var input = $('input');
+function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.4) + 'px'; }
+input.addEventListener('input', autosize);
+input.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('composer').requestSubmit(); }
+  if (e.key === 'Escape' && busy) stop();
+});
+
+/* ── boot ─────────────────────────────────────────────────────────────── */
+function outside() {
+  $('strip').hidden = true; $('pane').hidden = true; $('composer').hidden = true; $('outside').hidden = false;
+}
+if (window.parent === window) { outside(); return; }
+var helloTimer = setTimeout(outside, 4000);
+call('hello').then(function (h) {
+  clearTimeout(helloTimer);
+  document.documentElement.setAttribute('data-theme', h.theme === 'light' ? 'light' : 'dark');
+  on('theme', function (m) { document.documentElement.setAttribute('data-theme', m.theme === 'light' ? 'light' : 'dark'); });
+  presets = (h.entry && h.entry.settings && h.entry.settings.presets) || [];
+  if (!presets.length) presets = [{ id: 'openai-compatible', label: 'OpenAI-compatible endpoint', baseUrl: '', editable: true }];
+  return Promise.all([call('storage.get', { key: 'settings' }), call('storage.get', { key: 'conversation' })]);
+}).then(function (r) {
+  if (r[0] && typeof r[0] === 'object') { settings = Object.assign(settings, r[0]); settings.base = settings.base || {}; settings.model = settings.model || {}; }
+  if (!presets.some(function (p) { return p.id === settings.presetId; })) settings.presetId = presets[0].id;
+  convo = r[1] && Array.isArray(r[1].messages) ? r[1] : { id: newId(), createdAt: new Date().toISOString(), messages: [] };
+  if (!convo.id) convo.id = newId();
+  renderAll();
+  return refreshKey().then(fillStrip).then(function () {
+    setFold(typeof settings.fold === 'boolean' ? settings.fold : hasKey && window.innerWidth < 560);
+  });
+}).catch(function (err) {
+  clearTimeout(helloTimer);
+  pane.appendChild(el('div', 'err', 'Session could not reach the Airis shell: ' + err.message));
+});
+})();
+</script>
+</body>
+</html>
