@@ -242,9 +242,10 @@
   "worker": {
     "entry": "worker.js",
     "config": "wrangler.jsonc",
-    "runWorkerFirst": ["/api/*", "/diagnostic"],
+    "runWorkerFirst": ["/api/*", "/", "/diagnostic"],
     "routes": [
-      { "match": "/diagnostic", "to": "shell with diagnostic report, Cache-Control: no-store" },
+      { "match": "/", "to": "index.html with #build-stamp set from CF_VERSION_METADATA.tag (UNBUILT if untagged), Cache-Control: no-cache, X-Airis-Build header" },
+      { "match": "/diagnostic", "to": "same shell and stamp, Cache-Control: no-store, X-Airis-Build header" },
       { "match": "/api/<upstream>/<path>", "to": "worker.upstreams[<upstream>]", "doc": "same-origin passthrough. Only (method, path) pairs in that upstream's allow list. Anything else under /api: 404 JSON. Wrong method: 405. Cross-origin Origin header: 403. Query strings dropped." },
       { "match": "redirects[]", "to": "301 to the listed path", "doc": "only reached when no static asset matches" },
       { "match": "everything else", "to": "static asset from the repo root (assets.directory '.', html_handling auto-trailing-slash: /page.html 307s to /page which serves page.html - same as Pages did)", "notFound": "404" }
@@ -279,7 +280,7 @@
     "wrangler": "npx wrangler dev        # http://localhost:8787 (needs wrangler; nothing to npm install in this repo)",
     "node": "node scripts/dev.mjs       # http://localhost:8788 - static + the same lib/router.js; no dependencies",
     "stubUpstream": "UPSTREAM_GO=http://127.0.0.1:9999 node scripts/dev.mjs   # point /api/go at a local stub",
-    "deploy": "push to main; never deploy manually"
+    "deploy": "node scripts/deploy.mjs   # clean tree at origin/main only; tags the Worker version with the commit. Nothing deploys on push."
   },
 
   "tests": {

@@ -2,15 +2,15 @@
 {
   "name": "jaxah",
   "main": "worker.js",
-  "build": { "command": "node scripts/stamp-build.mjs" },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none",
-    // /api/* must reach the Worker even if a file of that name existed.
-    "run_worker_first": ["/api/*", "/diagnostic"]
+    // / and /diagnostic go through the Worker so it can stamp the build.
+    "run_worker_first": ["/api/*", "/", "/diagnostic"]
   },
   "routes": [
     { "pattern": "jaxah.com/*", "zone_name": "jaxah.com" }

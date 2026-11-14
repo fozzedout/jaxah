@@ -14,7 +14,7 @@
 <meta name="description" content="Airis OS — a shared room for a human and an agent. Bring your own key; open Session.">
 <link rel="describedby" href="./airis.contract.json" type="application/json">
 <!--
-  Airis OS. The build stamps this shell with its git identity.
+  Airis OS. No build step. The Worker stamps #build-stamp with its deployed version tag.
   AGENTS: every rule (manifest schema, app conventions, sandbox, CSP, install
   records, Worker routes, tests) is in /airis.contract.json. Read that first.
   Shell / manifest / record / app: shell.js runs the install records made from
@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="./shell.css">
 </head>
 <body class="term">
-  <span id="build-stamp" aria-label="Build">12815d1</span>
+  <span id="build-stamp" aria-label="Build">UNBUILT</span>
   <!-- Status-bar tint strip. Safari 26 samples the background-color of a fixed element at the top of the viewport (>=80% wide, more than 4px tall; 4px drops out on scroll, so 11px) to colour its bar. On phone it also grows to cover the top inset with solid colour so no blurred glass sits under the status bar. Styles: #status-tint in shell.css. -->
   <div id="status-tint" aria-hidden="true"></div>
 
