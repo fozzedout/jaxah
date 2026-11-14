@@ -1408,15 +1408,32 @@ var OPS = {
     return fsLib().then(function () { if (watches[id]) watches[id] = watches[id].filter(function (w) { return w.ws !== a.ws; }); return true; });
   },
   'fs.usage': function () { return fsLib().then(function (fs) { return fs.usage(); }); },
-  'fs.export': function (id, a) { fsRequire(a.ws, id); return fsLib().then(function (fs) { return fs.exportBundle(a); }).then(function (res) {
-    if (res.ok === false) return res;
-    return new Response(res.stream).blob().then(function (blob) {
-      return { ok: true, filename: res.filename, type: res.type, exportedAt: res.exportedAt, blob: blob.slice(0, blob.size, 'application/zip') };
-    });
-  }); },
   'fs.import': function (id, a) { return fsRefusal(id, a, 'fs.import', function () { return fsLib().then(function (fs) { return fsImport(fs, id, a); }); }); }
 };
 function reply(win, msg) { msg.airis = 1; try { win.postMessage(msg, '*'); } catch (e) {} }
+function fsExportStream(id, win, re, a) {
+  fsRequire(a.ws, id);
+  var reader, aborted = false;
+  var ctrl = { abort: function () {
+    aborted = true;
+    if (reader) reader.cancel().catch(function () {});
+  } };
+  streams[id + ':' + re] = ctrl;
+  return fsLib().then(function (fs) { return fs.exportBundle(a); }).then(function (res) {
+    if (res.ok === false) return res;
+    reader = res.stream.getReader();
+    if (aborted) { reader.cancel().catch(function () {}); throw new Error('aborted'); }
+    function pump() {
+      return reader.read().then(function (r) {
+        if (aborted) throw new Error('aborted');
+        if (r.done) return { ok: true, filename: res.filename, type: res.type, exportedAt: res.exportedAt };
+        reply(win, { re: re, chunk: r.value });
+        return pump();
+      });
+    }
+    return pump();
+  }).finally(function () { if (streams[id + ':' + re] === ctrl) delete streams[id + ':' + re]; });
+}
 function netStream(id, win, re, a) {
   var url = netUrl(a.url);
   var headers = {}, authHeader = a.auth ? (a.auth.header == null ? 'Authorization' : a.auth.header) : null;
@@ -1473,6 +1490,7 @@ window.addEventListener('message', function (e) {
     trailAdd('app:' + id, m.op, 'refused: needs capability ' + spec.cap);
     p = Promise.reject(new Error(m.op + ' needs capability ' + spec.cap));
   } else if (m.op === 'net.stream') p = Promise.resolve().then(function () { return netStream(id, win, m.id, args); });
+  else if (m.op === 'fs.export') p = Promise.resolve().then(function () { return fsExportStream(id, win, m.id, args); });
   else if (m.op === 'net.abort') { var c = streams[id + ':' + args.re]; if (c) c.abort(); p = Promise.resolve(!!c); }
   else p = Promise.resolve().then(function () { return OPS[m.op](id, args); });
   p.then(function (v) { reply(win, { re: m.id, ok: true, value: v === undefined ? null : v }); },

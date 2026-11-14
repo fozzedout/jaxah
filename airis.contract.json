@@ -147,7 +147,7 @@
       "fs.watch": { "cap": "fs", "args": "{ ws, path? }", "doc": "Subscribe to workspace changes." },
       "fs.unwatch": { "cap": "fs", "args": "{ ws }", "doc": "Remove workspace subscriptions." },
       "fs.usage": { "cap": "fs", "args": "{}", "doc": "Browser storage estimate." },
-      "fs.export": { "cap": "fs", "args": "{ ws }", "doc": "Returns {ok, filename, type, exportedAt, blob}: a zip with manifest.json and blobs/<sha>." },
+      "fs.export": { "cap": "fs", "args": "{ ws }", "doc": "Streams a zip (manifest.json and blobs/<sha>) as ordered Uint8Array chunk messages {re, chunk} to the caller's chunk handler. Final reply value: {ok:true, filename, type, exportedAt}; on refusal: {ok:false,...} with no chunks. net.abort {re} (needs the net capability) or frame unload cancels the export." },
       "fs.import": { "cap": "fs", "args": "{ text?, blob?, as? }", "doc": "Import workspace records without overwriting and grant caller access." }
     }
   },
