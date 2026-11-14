@@ -1430,15 +1430,16 @@ function fsExportStream(id, win, re, a) {
     if (res.ok === false) return res;
     reader = res.stream.getReader();
     if (aborted) { reader.cancel().catch(function () {}); throw new Error('aborted'); }
-    function pump() {
-      return reader.read().then(function (r) {
-        if (aborted || frameGen[id] !== gen) throw new Error('aborted');
-        if (r.done) return { ok: true, filename: res.filename, type: res.type, exportedAt: res.exportedAt };
-        reply(win, { re: re, chunk: r.value });
-        return pump();
-      });
-    }
-    return pump();
+    return new Promise(function (resolve, reject) {   // one promise for the whole stream, not a chain per chunk
+      (function pump() {
+        reader.read().then(function (r) {
+          if (aborted || frameGen[id] !== gen) throw new Error('aborted');
+          if (r.done) return resolve({ ok: true, filename: res.filename, type: res.type, exportedAt: res.exportedAt });
+          reply(win, { re: re, chunk: r.value });
+          pump();
+        }).catch(reject);
+      })();
+    });
   }).finally(function () { if (streams[id + ':' + re] === ctrl) delete streams[id + ':' + re]; });
 }
 function netStream(id, win, re, a) {
