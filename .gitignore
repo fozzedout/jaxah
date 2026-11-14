@@ -3,3 +3,6 @@
 .wrangler/
 .dev.vars
 .dev.vars.*
+
+# local scratch/eval artefacts (ai-work tool-use eval)
+scratch/
