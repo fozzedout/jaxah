@@ -382,6 +382,11 @@ function openApp(id) {
   else frame.src = app.url;
   el.appendChild(frame);
   frameIds.set(frame, id);
+  var frameLoaded = false;   // the first load is the app's own first document: nothing to cancel, generation unchanged
+  frame.addEventListener('load', function () {
+    if (frameLoaded) { frameGen[id] = (frameGen[id] || 0) + 1; abortStreamsFor(id); }
+    frameLoaded = true;
+  });
 
   // Edge/corner resize handles (desktop only; hidden on phone sheets).
   ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function (dir) {
@@ -910,6 +915,7 @@ var CONTRACT = null;     // airis.contract.json, loaded at boot
 var CATALOGUE = [];      // validated manifest entries
 var catById = {};
 var frameIds = new WeakMap();   // iframe element -> app id (bridge identity)
+var frameGen = {};   // app id -> count of frame reloads/navigations; replies to an older document are dropped
 
 /* ── contract validation (appEntry) ─────────────────────────────────── */
 function isLocalUrl(u) {
@@ -1412,9 +1418,10 @@ var OPS = {
 };
 function reply(win, msg) { msg.airis = 1; try { win.postMessage(msg, '*'); } catch (e) {} }
 function fsExportStream(id, win, re, a) {
+  var gen = frameGen[id];
   fsRequire(a.ws, id);
   var reader, aborted = false;
-  var ctrl = { abort: function () {
+  var ctrl = { fs: true, abort: function () {
     aborted = true;
     if (reader) reader.cancel().catch(function () {});
   } };
@@ -1425,7 +1432,7 @@ function fsExportStream(id, win, re, a) {
     if (aborted) { reader.cancel().catch(function () {}); throw new Error('aborted'); }
     function pump() {
       return reader.read().then(function (r) {
-        if (aborted) throw new Error('aborted');
+        if (aborted || frameGen[id] !== gen) throw new Error('aborted');
         if (r.done) return { ok: true, filename: res.filename, type: res.type, exportedAt: res.exportedAt };
         reply(win, { re: re, chunk: r.value });
         return pump();
@@ -1481,6 +1488,7 @@ window.addEventListener('message', function (e) {
   var m = e.data;
   if (!m || m.airis !== 1 || typeof m.op !== 'string' || !CONTRACT) return;
   var id = appIdForSource(e.source);
+  var gen = frameGen[id];
   if (!id || !byId[id]) return;             // not one of our frames
   var win = e.source, spec = CONTRACT.bridge.ops[m.op], caps = byId[id].capabilities || [];
   var args = m.args && typeof m.args === 'object' ? m.args : {};
@@ -1492,9 +1500,10 @@ window.addEventListener('message', function (e) {
   } else if (m.op === 'net.stream') p = Promise.resolve().then(function () { return netStream(id, win, m.id, args); });
   else if (m.op === 'fs.export') p = Promise.resolve().then(function () { return fsExportStream(id, win, m.id, args); });
   else if (m.op === 'net.abort') { var c = streams[id + ':' + args.re]; if (c) c.abort(); p = Promise.resolve(!!c); }
+  else if (m.op === 'fs.abort') { var fc = streams[id + ':' + args.re]; if (fc && fc.fs) fc.abort(); p = Promise.resolve(!!(fc && fc.fs)); }
   else p = Promise.resolve().then(function () { return OPS[m.op](id, args); });
-  p.then(function (v) { reply(win, { re: m.id, ok: true, value: v === undefined ? null : v }); },
-         function (err) { reply(win, { re: m.id, ok: false, error: String(err && err.message || err) }); });
+  p.then(function (v) { if (frameGen[id] === gen) reply(win, { re: m.id, ok: true, value: v === undefined ? null : v }); },
+         function (err) { if (frameGen[id] === gen) reply(win, { re: m.id, ok: false, error: String(err && err.message || err) }); });
 });
 
 /* One command grammar for the palette, the terminal and the console:
