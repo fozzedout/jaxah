@@ -203,6 +203,8 @@ try { pwa = JSON.parse(read('site.webmanifest')); } catch {}
 ok(!!pwa, 'site.webmanifest parses as JSON');
 ok(pwa?.display === 'standalone', 'PWA display is standalone');
 ok(pwa?.start_url === '/', 'PWA starts at root');
+ok(pwa?.theme_color === rootBg && pwa?.background_color === rootBg, 'site.webmanifest theme_color and background_color match dark --bg0');
+ok(/@media\s*\(max-width:\s*767\.98px\)\s*\{[\s\S]*?#status-tint\s*\{[^}]*height:\s*max\(11px,\s*var\(--sat,\s*0px\),\s*env\(safe-area-inset-top,\s*0px\)\)/.test(css), 'phone status tint height takes max of --sat and live env()');
 const icons = Array.isArray(pwa?.icons) ? pwa.icons : [];
 ok(icons.some((i) => i.sizes === '192x192'), 'PWA has a 192px icon');
 ok(icons.some((i) => i.sizes === '512x512'), 'PWA has a 512px icon');

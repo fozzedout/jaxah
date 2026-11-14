@@ -39,6 +39,7 @@
     ".assetsignore": "files never uploaded as assets.",
     "scripts/dev.mjs": "dependency-free Node dev server: static files + same router. node scripts/dev.mjs [port]",
     "scripts/check.mjs": "contract checker. node scripts/check.mjs [--live http://localhost:8788]",
+    "scripts/check-paint.mjs": "rendered paint check for the phone status strip. needs playwright-core; exit 2 = skipped",
     "AGENTS.md": "pointer to this file for agents that look there first; holds no rules.",
     "*.html at root, art/": "pre-existing standalone pages. Their URLs are permanent (see tests.legacyUrls)."
   },
@@ -284,6 +285,7 @@
     "unit": "node --test lib/*.test.mjs   # registry + agent loop, no network, no key",
     "check": "node scripts/check.mjs                              # offline: manifest/contract/files/CSP",
     "live": "node scripts/check.mjs --live http://localhost:8788  # also: every legacy URL resolves, /api allowlist refuses the rest",
+    "paint": "PLAYWRIGHT_CORE=/path/to/node_modules/playwright-core node scripts/check-paint.mjs http://localhost:8788  # rendered: phone status strip is the topmost opaque paint over the top inset (exit 2 = skipped)",
     "legacyUrls": [
       "/", "/index.html", "/repo.html", "/lexfall.html", "/lsb-coding.html", "/lsb-pwman.html", "/fuel-calc-uk.html",
       "/trie-test.html", "/trie-test.html?dataset=words", "/idb-test.html", "/reveal.html", "/rustys-commands.html",
