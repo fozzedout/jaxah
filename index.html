@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Airis OS">
-<meta name="theme-color" content="#070d12">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/icons/icon-512.png">
@@ -27,7 +25,7 @@
 </head>
 <body class="term">
   <span id="build-stamp" aria-label="Build">UNBUILT</span>
-  <!-- Status-bar tint strip. Safari 26 samples the background-color of a fixed element at the top of the viewport (>=80% wide, more than 4px tall; 4px drops out on scroll, so 11px) to colour its bar. On phone it also grows to cover the top inset with solid colour so no blurred glass sits under the status bar. Styles: #status-tint in shell.css. -->
+  <!-- Fixed opaque status-bar tint strip; styles are in shell.css. -->
   <div id="status-tint" aria-hidden="true"></div>
 
   <!-- ══ TERMINAL FLOOR ══

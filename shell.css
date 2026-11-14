@@ -48,10 +48,12 @@ button { font: inherit; color: inherit; }
 
 /* ── Stage ──────────────────────────────────────────────────────────── */
 #os { position: fixed; inset: 0; z-index: 1; }
-/* Status-bar tint strip (see index.html). Safari samples it even when
-   visibility is hidden, so on desktop it tints without painting a band. */
+/* Status-bar tint strip (see index.html). A real fixed opaque element over the
+   top inset is the only thing iOS 26+ honours to drop the status-bar blur.
+   Hidden on desktop (inset 0 would paint a 6px band); the phone and touch
+   landscape queries below make it visible. env() with a 6px floor cannot go stale. */
 #status-tint {
-  position: fixed; top: 0; left: 0; right: 0; height: 11px; z-index: 2;
+  position: fixed; top: 0; left: 0; right: 0; height: max(env(safe-area-inset-top), 6px); z-index: 2;
   background-color: var(--bg0); pointer-events: none; visibility: hidden;
 }
 body.term #status-tint { background-color: #020604; } /* terminal floor background */
@@ -210,16 +212,14 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
 
 /* ── Phone (<768px): home-screen grid, one app at a time ─────────────── */
 @media (max-width: 767.98px) {
-  /* Phone: paint it and cover the whole top inset, so the strip under the
-     status bar is solid colour, never the blurred sheet glass.
-     Height takes the larger of measured --sat and live env(): a stale --sat (inset arrived after the last re-measure, no resize) must not shrink the strip. */
-  #status-tint { visibility: visible; height: max(11px, var(--sat, 0px), env(safe-area-inset-top, 0px)); }
+  /* Phone: paint the strip over the whole top inset (opaque, fixed, above #os). */
+  #status-tint { visibility: visible; }
   #stage { inset: 0; }
   #statusbar {
     display: flex; align-items: center; justify-content: space-between;
     position: absolute; top: 0; left: 0; right: 0; z-index: 10;
     padding: calc(8px + var(--sat, env(safe-area-inset-top))) 16px 8px;
-    font-size: 13px; color: var(--dim);
+    font-size: 13px; color: var(--dim); background: var(--bg0);
   }
   #sb-time { font-variant-numeric: tabular-nums; min-width: 44px; }
   #sb-theme { border: none; background: none; font-size: 15px; min-width: 44px; min-height: 44px; }
@@ -239,10 +239,12 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
     position: absolute; inset: 0 !important; width: auto !important; height: auto !important;
     border-radius: 0; border: none; padding-bottom: var(--sab, env(safe-area-inset-bottom));
     min-width: 0; min-height: 0;
+    /* The sheet is the whole screen: no glass. Opaque, unblurred, same colour as the strip. */
+    background: var(--bg0); backdrop-filter: none; -webkit-backdrop-filter: none;
   }
   .window.max { inset: 0 !important; }
   /* 56px of controls plus the top inset; border-box would otherwise squeeze controls under the status bar. */
-  .w-title { height: calc(56px + var(--sat, env(safe-area-inset-top))); cursor: default; padding-top: var(--sat, env(safe-area-inset-top)); }
+  .w-title { height: calc(56px + var(--sat, env(safe-area-inset-top))); cursor: default; padding-top: var(--sat, env(safe-area-inset-top)); background: var(--bg0); }
   .w-btns button, .w-btns a.w-ext { min-width: 48px; min-height: 48px; }
   /* .w-btns prefix: must outrank `.w-btns button { display: inline-grid }` above. */
   .w-btns .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */
@@ -282,8 +284,8 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
 
 /* iOS touch landscape has a top dead zone even when its inset is zero. */
 @media (orientation: landscape) and (hover: none) and (pointer: coarse) {
-  /* Touch landscape: cover the documented top dead zone too. */
-  #status-tint { visibility: visible; height: max(20px, var(--sat, 0px), env(safe-area-inset-top, 0px)); }
+  /* Touch landscape: paint the strip and cover the documented top dead zone too. */
+  #status-tint { visibility: visible; height: max(20px, env(safe-area-inset-top)); }
   @media (min-width: 768px) {
     #stage {
       inset: max(20px, var(--sat, env(safe-area-inset-top))) var(--sar, env(safe-area-inset-right))

@@ -59,7 +59,17 @@ async function assertOpaqueTop(label, page, x, y, expectHeightAtLeast) {
   ok(top.rect && top.rect.bottom >= expectHeightAtLeast, label + ': strip covers the inset band (bottom ' + top.rect?.bottom + ' >= ' + expectHeightAtLeast + ')');
   ok(!top.backdrop || top.backdrop === 'none', label + ': strip has no backdrop-filter');
   console.log(`  info: ${label}: bg ${top.bg}, inset ${t.inset}, stack ${t.stack.map((e) => (e.id ? '#' + e.id : e.tag) + ' ' + e.bg).join(' | ')}`);
-  return top;
+  return { ...top, stack: t.stack };
+}
+
+// Under the strip, the first painted (non-transparent) element must be the same opaque colour,
+// and nothing in the top-inset stack may carry a backdrop-filter.
+function assertSameUnder(label, top, expectCls) {
+  const under = top.stack.slice(1).find((e) => alpha(e.bg) > 0) || {};
+  const desc = under.id ? '#' + under.id : (under.tag || '(none)') + (under.cls ? '.' + under.cls.split(' ')[0] : '');
+  ok(expectCls.test(under.cls || under.id || ''), `${label}: first painted element under the strip is ${expectCls}, got ${desc}`);
+  ok(alpha(under.bg) === 1 && under.bg === top.bg, `${label}: element under the strip is the same opaque ${top.bg}, got ${under.bg}`);
+  ok(top.stack.every((e) => !e.backdrop || e.backdrop === 'none'), `${label}: no backdrop-filter in the top-inset stack, got ${top.stack.map((e) => e.backdrop).join(',')}`);
 }
 
 let browser;
@@ -86,9 +96,12 @@ try {
     await scenario(theme, 47, {}, async (page) => {
       const top = await assertOpaqueTop(theme, page, 195, 10, 47);
       ok(top.bg === colour, `${theme}: strip colour is ${colour}, got ${top.bg}`);
+      assertSameUnder(theme + ' home', top, /statusbar/);
       await openTile(page, theme + ' sheet open');
-      await assertOpaqueTop(theme + ' sheet open y=10', page, 195, 10, 47);
-      await assertOpaqueTop(theme + ' sheet open y=40', page, 195, 40, 47);
+      const s10 = await assertOpaqueTop(theme + ' sheet open y=10', page, 195, 10, 47);
+      assertSameUnder(theme + ' sheet open y=10', s10, /w-title/);
+      const s40 = await assertOpaqueTop(theme + ' sheet open y=40', page, 195, 40, 47);
+      assertSameUnder(theme + ' sheet open y=40', s40, /w-title/);
     });
   }
   await scenario('dark', 0, {}, async (page, cdp) => {
@@ -96,6 +109,10 @@ try {
     await page.waitForTimeout(300);
     await openTile(page, 'stale inset sheet open');
     await assertOpaqueTop('stale inset sheet open', page, 195, 40, 47);
+  });
+  await scenario('dark', 0, { viewport: { width: 1280, height: 800 } }, async (page) => {
+    const vis = await page.evaluate(() => getComputedStyle(document.getElementById('status-tint')).visibility);
+    ok(vis === 'hidden', 'desktop: status tint is hidden (no 6px band), got ' + vis);
   });
   await scenario('dark', 0, { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
     await assertOpaqueTop('landscape touch', page, 195, 10, 20);
