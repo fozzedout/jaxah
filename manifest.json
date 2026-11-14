@@ -40,6 +40,7 @@
             "upstream": "https://opencode.ai/zen/go/v1",
             "editable": false,
             "note": "relayed by this site at /api/go: opencode.ai blocks browser cross-origin calls, so the endpoint is fixed",
+            "hint": "Relayed by this site — no setup needed",
             "headers": {
               "x-opencode-session": "{session}"
             }
@@ -49,11 +50,12 @@
             "label": "OpenRouter",
             "transport": "direct",
             "baseUrl": "https://openrouter.ai/api/v1",
-            "editable": true
+            "editable": false,
+            "hint": "Calls the provider directly from this browser"
           },
           {
             "id": "openai-compatible",
-            "label": "OpenAI-compatible endpoint",
+            "label": "Custom endpoint",
             "transport": "direct",
             "baseUrl": "http://localhost:1234/v1",
             "editable": true

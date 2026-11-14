@@ -187,12 +187,13 @@
     "fields": {
       "id": "string",
       "label": "string shown in the strip",
-      "transport": "'proxy' | 'direct'. proxy: the provider refuses browser CORS, so the browser calls this site's same-origin relay. baseUrl must be exactly /api/<name> for a key <name> of worker.upstreams, editable must be false, and the strip shows no Base URL box, only the provider host (from upstream) and note, read-only. direct: the provider allows browser CORS; baseUrl is the provider's own absolute http(s) base, never under /api/, and editable is true. Adding a direct preset needs no Worker change; adding a proxy preset needs a worker.upstreams entry first.",
+      "transport": "'proxy' | 'direct'. proxy: the provider refuses browser CORS, so the browser calls this site's same-origin relay. baseUrl must be exactly /api/<name> for a key <name> of worker.upstreams, editable must be false, and the strip shows no Base URL box. direct: the provider allows browser CORS; baseUrl is the provider's own absolute http(s) base, never under /api/; editable is true only for the user's own custom endpoint. Adding a direct preset needs no Worker change; adding a proxy preset needs a worker.upstreams entry first.",
       "baseUrl": "the URL the app actually calls: <baseUrl>/chat/completions and <baseUrl>/models. proxy: /api/go (our route, not the provider's API). direct: e.g. https://openrouter.ai/api/v1 or http://localhost:1234/v1.",
-      "upstream": "proxy only, required: the real provider base, shown to the user read-only. Must equal worker.upstreams[<name>].base so the label never lies about where the relay goes.",
-      "note": "optional short sentence shown beside a proxy preset saying why its endpoint is fixed",
+      "upstream": "proxy only, required: the real provider base, never rendered in the UI. Must equal worker.upstreams[<name>].base so the label never lies about where the relay goes.",
+      "note": "optional maintainer note on a proxy preset (why its endpoint is fixed); never rendered in the UI",
       "model": "NOT a preset field: presets carry no model and there is no default. The user types the model id in the strip (the GET <baseUrl>/models list is only a suggestion datalist and never auto-fills it); it is stored per preset in this browser only, via storage.set key 'settings' (site-origin localStorage), and never stored by the Worker. Sending is refused until it is filled in.",
-      "editable": "boolean: base URL may be edited in the strip",
+      "hint": "optional plain-language line shown beside a named (non-editable) preset, e.g. \"Relayed by this site — no setup needed\". Must contain no URL, hostname or path; check.mjs enforces it. The strip never renders baseUrl, upstream or note for a named preset.",
+      "editable": "boolean: true only for the custom preset, whose Base URL box is the only place the strip shows an address; false presets ignore any saved base override",
       "headers": "optional extra request headers; the literal {session} is replaced with the conversation id. Never Authorization: the key goes only through net.stream auth (Bearer), which the shell attaches from the secret store."
     },
     "why": {

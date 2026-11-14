@@ -12,9 +12,10 @@
   once and never comes back to this code; the shell attaches it to requests for
   the configured endpoint only. Presets are data (manifest settings.presets).
   A preset is transport "direct" (the browser calls the provider, which must
-  allow CORS; the user may edit the base URL) or "proxy" (baseUrl is this
-  site's same-origin /api/<upstream> relay, fixed; "upstream" names the real
-  provider endpoint and is shown read-only). Why opencode is proxied and
+  allow CORS) or "proxy" (baseUrl is this site's same-origin /api/<upstream>
+  relay, fixed; "upstream" names the real provider endpoint for check.mjs).
+  The strip never renders a URL for a named preset: only the editable custom
+  preset shows the Base URL box; the others show their plain "hint" text. Why opencode is proxied and
   OpenRouter is not: airis.contract.json -> sessionPreset.why.
 -->
 <style>
@@ -36,7 +37,7 @@ button { cursor: pointer; }
 #strip input:disabled { opacity: .6; }
 #base { width: 15em; }
 #via { color: var(--dim); max-width: 100%; }
-#via b { color: var(--ink); font-weight: 600; } #model { width: 12em; } #key { width: 11em; }
+#model { width: 12em; } #key { width: 11em; }
 .btn { border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 3px 8px; }
 .btn:hover { background: var(--you); }
 .btn.warn { color: var(--red); }
@@ -140,7 +141,6 @@ function preset() { return presets.filter(function (p) { return p.id === setting
 function isProxy(p) { return p.transport === 'proxy'; }
 // A proxy preset's baseUrl is this site's fixed relay route; only a direct, editable preset takes the user's override.
 function baseUrl() { var p = preset(); return ((!isProxy(p) && p.editable && settings.base[p.id]) || p.baseUrl || '').replace(/\/+$/, ''); }
-function hostOf(u) { try { return new URL(u).host; } catch (e) { return u || ''; } }
 // The model is never chosen for the user: no preset fallback. It is whatever they typed for this preset, kept in this browser only.
 function model() { var m = settings.model[preset().id]; return typeof m === 'string' ? m.trim() : ''; }
 function saveSettings() { return call('storage.set', { key: 'settings', value: settings }); }
@@ -191,17 +191,12 @@ function fillStrip() {
   var sel = $('preset'); sel.textContent = '';
   presets.forEach(function (p) { var o = el('option', null, p.label); o.value = p.id; sel.appendChild(o); });
   var p = preset(); sel.value = p.id;
-  // Proxy: no Base URL box at all (the wire value is our own route, not the provider's API);
-  // say plainly who the provider is and why the endpoint can't be changed.
-  var via = $('via'), proxy = isProxy(p);
-  $('baselabel').hidden = proxy; via.hidden = !proxy; via.textContent = '';
-  if (proxy) {
-    via.appendChild(document.createTextNode('Endpoint '));
-    via.appendChild(el('b', null, hostOf(p.upstream)));
-    via.appendChild(document.createTextNode(' — ' + (p.note || 'relayed by this site at ' + p.baseUrl)));
-    via.title = (p.upstream || '') + ' via ' + p.baseUrl;
-  }
-  $('base').value = baseUrl(); $('base').disabled = !p.editable;
+  // The provider is a name, not an address: only the custom (editable) preset shows a Base URL box.
+  // Named presets show at most a plain-language hint (p.hint) and never a URL, host or path.
+  var via = $('via'), custom = !isProxy(p) && !!p.editable;
+  $('baselabel').hidden = !custom;
+  via.textContent = custom ? '' : (p.hint || ''); via.hidden = !via.textContent; via.removeAttribute('title');
+  $('base').value = custom ? baseUrl() : ''; $('base').disabled = !custom;
   $('model').value = model();
   $('act').checked = !!settings.act;
   loadModels();
@@ -432,7 +427,7 @@ call('hello').then(function (h) {
   document.documentElement.setAttribute('data-theme', h.theme === 'light' ? 'light' : 'dark');
   on('theme', function (m) { document.documentElement.setAttribute('data-theme', m.theme === 'light' ? 'light' : 'dark'); });
   presets = (h.entry && h.entry.settings && h.entry.settings.presets) || [];
-  if (!presets.length) presets = [{ id: 'openai-compatible', label: 'OpenAI-compatible endpoint', transport: 'direct', baseUrl: '', editable: true }];
+  if (!presets.length) presets = [{ id: 'openai-compatible', label: 'Custom endpoint', transport: 'direct', baseUrl: '', editable: true }];
   return Promise.all([call('storage.get', { key: 'settings' }), call('storage.get', { key: 'conversation' })]);
 }).then(function (r) {
   if (r[0] && typeof r[0] === 'object') { settings = Object.assign(settings, r[0]); settings.base = settings.base || {}; settings.model = settings.model || {}; }

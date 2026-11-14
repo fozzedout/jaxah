@@ -51,6 +51,8 @@ for (const p of session?.settings?.presets || []) {
   for (const k of ['id', 'label', 'baseUrl']) ok(typeof p[k] === 'string', `preset ${p.id}: ${k}`);
   ok(!('model' in p), `preset ${p.id}: carries no model (there is no default model)`);
   ok(!Object.keys(p.headers || {}).some((h) => /^authorization$/i.test(h)), `preset ${p.id}: no Authorization in headers`);
+  // contract.sessionPreset.hint: shown in the strip, so it must not leak a URL, host or path
+  ok(!('hint' in p) || (typeof p.hint === 'string' && !/:\/\/|\/|\b[a-z0-9-]+\.[a-z]{2,}\b/i.test(p.hint)), `preset ${p.id}: hint has no URL/host/path`);
   // contract.sessionPreset.transport (+ .why: opencode answers no CORS preflight, OpenRouter does)
   if (!ok(p.transport === 'proxy' || p.transport === 'direct', `preset ${p.id}: transport is proxy|direct`)) continue;
   if (p.transport === 'proxy') {
@@ -61,9 +63,13 @@ for (const p of session?.settings?.presets || []) {
     ok(up && p.upstream === up.base, `preset ${p.id}: upstream ${p.upstream} equals worker.upstreams.${name}.base`);
   } else {
     ok(/^https?:\/\/[^/]/.test(p.baseUrl), `preset ${p.id}: direct baseUrl is an absolute http(s) URL`);
-    ok(p.editable === true, `preset ${p.id}: direct is editable`);
+    ok(typeof p.editable === 'boolean', `preset ${p.id}: direct editable is a boolean`);
     ok(!('upstream' in p), `preset ${p.id}: direct has no upstream field`);
   }
+}
+{ // the strip renders no provider URL: only p.hint, and the Base URL box only for the editable custom preset
+  const src = read('apps/session.html');
+  ok(!/p\.upstream|p\.note|via\.title/.test(src), 'session.html strip never renders upstream/note/title URLs');
 }
 for (const id of Object.keys(C.sessionPreset.why).filter((k) => k !== 'doc')) ok(session?.settings?.presets?.some((p) => p.id === id), `contract sessionPreset.why.${id} names a real preset`);
 
