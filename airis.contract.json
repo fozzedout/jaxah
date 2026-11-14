@@ -31,7 +31,7 @@
     "manifest.json": "the catalogue. What exists. Not what runs - an install record is what runs.",
     "apps/": "first-party apps (session, store, persona, todo, desk, house). apps/<id>.html.",
     "worker.js": "Worker entry. Thin: imports this file and lib/router.js.",
-    "lib/router.js": "route table implementation shared by worker.js and scripts/dev.mjs (pure fetch API, no Worker or Node specifics).",
+    "lib/router.js": "route table implementation shared by worker.js and scripts/dev.mjs (pure fetch API, no Worker or Node specifics). Server-side only: listed in .assetsignore, never served.",
     "wrangler.jsonc": "Worker config. assets.directory = '.' (the repo root IS the site).",
     ".assetsignore": "files never uploaded as assets.",
     "scripts/dev.mjs": "dependency-free Node dev server: static files + same router. node scripts/dev.mjs [port]",

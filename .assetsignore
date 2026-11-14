@@ -9,6 +9,8 @@ node_modules
 wrangler.jsonc
 worker.js
 lib/*.test.mjs
+# the Worker's route table: server-side only (worker.js, scripts/dev.mjs import it)
+lib/router.js
 scripts
 docs
 scratch
