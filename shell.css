@@ -243,8 +243,9 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
   /* 56px of controls plus the top inset; border-box would otherwise squeeze controls under the status bar. */
   .w-title { height: calc(56px + var(--sat, env(safe-area-inset-top))); cursor: default; padding-top: var(--sat, env(safe-area-inset-top)); }
   .w-btns button, .w-btns a.w-ext { min-width: 48px; min-height: 48px; }
-  .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */
-  .w-max { display: none; } /* no maximise on phone: sheets are already full */
+  /* .w-btns prefix: must outrank `.w-btns button { display: inline-grid }` above. */
+  .w-btns .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */
+  .w-btns .w-max { display: none; } /* no maximise on phone: sheets are already full */
   .rz { display: none; } /* no drag-resize on phone sheets */
 
   #whisper { top: calc(46px + var(--sat, env(safe-area-inset-top))); bottom: auto; }

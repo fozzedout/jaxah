@@ -168,6 +168,28 @@ ok(themeColor === '#070d12' && themeColor === rootBg, 'theme-color matches dark 
 ok(['position: fixed', 'top: 0', 'left: 0', 'right: 0', 'pointer-events: none', 'background-color: var(--bg0)'].every((declaration) => tintRule.includes(declaration)) && Number(tintHeight) >= 11, 'status tint is fixed, full-width, non-interactive and at least 11px high');
 ok([rootBg, lightBg].every((value) => /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value || '')), 'dark and light root backgrounds are opaque hex colours');
 ok(/@media\s*\(max-width:\s*767\.98px\)\s*\{[\s\S]*?\.w-title\s*\{[^}]*height:\s*calc\(56px\s*\+/.test(css), 'phone window title includes 56px plus inset');
+// Phone hides minimise/maximise: the hiding rule must outrank the base `.w-btns button` display rule.
+const spec = (sel) => {
+  const s = sel.replace(/::?[\w-]+(\([^)]*\))?/g, (m) => (m.startsWith('::') ? ' E' : ' .c'));
+  return [(s.match(/#[\w-]+/g) || []).length, (s.match(/\.[\w-]+|\[[^\]]*\]/g) || []).length, (s.replace(/[#.][\w-]+|\[[^\]]*\]/g, ' ').match(/[a-z][\w-]*/gi) || []).length];
+};
+const specGte = (a, b) => a[0] !== b[0] ? a[0] > b[0] : a[1] !== b[1] ? a[1] > b[1] : a[2] >= b[2];
+const phoneBlock = (() => {
+  const at = css.search(/@media\s*\(max-width:\s*767\.98px\)\s*\{/); if (at < 0) return '';
+  let i = css.indexOf('{', at) + 1, depth = 1; const start = i;
+  for (; i < css.length && depth; i++) { if (css[i] === '{') depth++; else if (css[i] === '}') depth--; }
+  return css.slice(start, i - 1);
+})();
+const baseBtnDisplay = [...css.slice(0, css.search(/@media/)).matchAll(/([^{}]+)\{([^}]*)\}/g)]
+  .filter((m) => /(?:^|;)\s*display\s*:\s*(?!none)/.test(m[2]))
+  .flatMap((m) => m[1].split(',').map((x) => x.trim())).filter((sel) => /\.w-btns\b/.test(sel) && /\bbutton\b/.test(sel));
+const phoneHides = (cls) => [...phoneBlock.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+  .filter((m) => /(?:^|;)\s*display\s*:\s*none\s*(?:;|$)/.test(m[2].trim()))
+  .flatMap((m) => m[1].split(',').map((x) => x.trim())).filter((sel) => new RegExp('\\.' + cls + '$').test(sel));
+for (const cls of ['w-min', 'w-max']) {
+  const hiders = phoneHides(cls);
+  ok(baseBtnDisplay.length > 0 && hiders.some((h) => baseBtnDisplay.every((b) => specGte(spec(h), spec(b)))), `phone title bar hides .${cls} over the base .w-btns button display rule`);
+}
 const setThemeSrc = shell.slice(shell.indexOf('function setTheme(t)'), shell.indexOf('function toggleTheme()'));
 ok(/querySelector\(['"]meta\[name="theme-color"\]['"]\)/.test(setThemeSrc) && /tc\.setAttribute\('content',\s*bg\)/.test(setThemeSrc), 'setTheme updates theme-color meta');
 ok(/apple-mobile-web-app-capable/i.test(idx), 'Apple standalone meta exists');
