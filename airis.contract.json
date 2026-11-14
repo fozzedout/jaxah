@@ -33,6 +33,7 @@
     "assets/icons/*": "PWA and home-screen icons.",
     "apps/": "first-party apps (session, store, persona, todo, desk, house). apps/<id>.html.",
     "worker.js": "Worker entry. Thin: imports this file and lib/router.js.",
+    "lib/fs.js": "shell-owned IndexedDB workspace filesystem, loaded lazily by the bridge.",
     "lib/router.js": "route table implementation shared by worker.js and scripts/dev.mjs (pure fetch API, no Worker or Node specifics). Server-side only: listed in .assetsignore, never served.",
     "wrangler.jsonc": "Worker config. assets.directory = '.' (the repo root IS the site).",
     ".assetsignore": "files never uploaded as assets.",
@@ -68,7 +69,7 @@
       "phone": { "type": "object", "doc": "{ slot: 'sheet' }" },
       "pinned": { "type": "boolean", "doc": "shown in the phone dock" },
       "hidden": { "type": "boolean", "doc": "not on the desktop grid; still in terminal ls, Store, and #app/<id>" },
-      "capabilities": { "type": "array", "items": { "enum": ["storage", "secrets", "net", "actions", "store"] }, "doc": "bridge ops the app may call; anything not listed is refused" },
+      "capabilities": { "type": "array", "items": { "enum": ["storage", "secrets", "net", "actions", "store", "fs"] }, "doc": "bridge ops the app may call; anything not listed is refused" },
       "settings": { "type": "object", "doc": "free-form data handed to the app in the bridge hello reply (e.g. Session presets)" },
       "legacyUrls": { "type": "array", "items": { "type": "string" }, "doc": "old public URLs of this app; each must resolve (file or redirect)" }
     },
@@ -108,7 +109,7 @@
     "request": { "airis": 1, "id": "number, unique per app", "op": "string from ops", "args": "object" },
     "reply": { "airis": 1, "re": "request id", "ok": "boolean", "value": "any (when ok)", "error": "string (when !ok)" },
     "streamChunk": { "airis": 1, "re": "request id", "chunk": "text" },
-    "event": { "airis": 1, "event": "theme | trail", "...": "payload" },
+    "event": { "airis": 1, "event": "theme | trail | fs", "...": "payload; fs: {airis:1, event:'fs', ws, path, ver, actor}" },
     "ops": {
       "hello": { "cap": null, "returns": "{ appId, entry, theme, capabilities, contract }" },
       "trail.note": { "cap": null, "args": "{ text }", "doc": "app writes one line to the shared trail as actor app:<id>" },
@@ -127,7 +128,27 @@
       "store.install": { "cap": "store", "args": "{ id }" },
       "store.uninstall": { "cap": "store", "args": "{ id }" },
       "store.export": { "cap": "store", "doc": "shell downloads the bundle" },
-      "store.import": { "cap": "store", "args": "{ text }" }
+      "store.import": { "cap": "store", "args": "{ text }" },
+      "fs.workspaces": { "cap": "fs", "args": "{}", "doc": "List granted workspaces." },
+      "fs.create": { "cap": "fs", "args": "{ ws, name }", "doc": "Create and grant caller access." },
+      "fs.list": { "cap": "fs", "args": "{ ws, path?, depth? }", "doc": "List files." },
+      "fs.read": { "cap": "fs", "args": "{ ws, path, from?, to? }", "doc": "Read lines." },
+      "fs.stat": { "cap": "fs", "args": "{ ws, path }", "doc": "File metadata." },
+      "fs.write": { "cap": "fs", "args": "{ ws, path, content, base, actor?, runId?, callId? }", "doc": "Write with compare-and-swap. Conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
+      "fs.edit": { "cap": "fs", "args": "{ ws, path, old, new, base, actor?, runId?, callId? }", "doc": "Edit with compare-and-swap; conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
+      "fs.delete": { "cap": "fs", "args": "{ ws, path, base, actor?, runId?, callId? }", "doc": "Delete with compare-and-swap; conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
+      "fs.move": { "cap": "fs", "args": "{ ws, from, to, base, actor?, runId?, callId? }", "doc": "Move with compare-and-swap; conflicts return value {ok:false,error:'conflict',current,actor,diff}, never an overwrite." },
+      "fs.diff": { "cap": "fs", "args": "{ ws, path, from, to? }", "doc": "Compare versions." },
+      "fs.history": { "cap": "fs", "args": "{ ws, path?, callId?, runId? }", "doc": "Operation history." },
+      "fs.versions": { "cap": "fs", "args": "{ ws, path }", "doc": "Version ancestry." },
+      "fs.revert": { "cap": "fs", "args": "{ ws, runId }", "doc": "Revert a run without overwriting conflicting changes." },
+      "fs.lock": { "cap": "fs", "args": "{ ws }", "doc": "Only one tab drives a run for a workspace; held until fs.unlock or the window closes." },
+      "fs.unlock": { "cap": "fs", "args": "{ ws }", "doc": "Release the caller's workspace run lock." },
+      "fs.watch": { "cap": "fs", "args": "{ ws, path? }", "doc": "Subscribe to workspace changes." },
+      "fs.unwatch": { "cap": "fs", "args": "{ ws }", "doc": "Remove workspace subscriptions." },
+      "fs.usage": { "cap": "fs", "args": "{}", "doc": "Browser storage estimate." },
+      "fs.export": { "cap": "fs", "args": "{ ws }", "doc": "Export airis.bundle/1 JSON text." },
+      "fs.import": { "cap": "fs", "args": "{ text, as? }", "doc": "Import workspace records without overwriting and grant caller access." }
     }
   },
 
@@ -141,6 +162,8 @@
       "note":      { "args": { "text": "string" }, "agent": true, "doc": "write a line to the trail" },
       "install":   { "args": { "id": "catalogue app id" }, "agent": true },
       "uninstall": { "args": { "id": "app id" }, "agent": false },
+      "grant":     { "args": { "ws": "workspace id", "id": "app id" }, "agent": false, "doc": "Grant an installed app access to a workspace." },
+      "revoke":    { "args": { "ws": "workspace id", "id": "app id" }, "agent": false, "doc": "Revoke workspace access." },
       "export":    { "args": {}, "agent": false },
       "import":    { "args": { "text": "bundle JSON" }, "agent": false },
       "terminal":  { "args": {}, "agent": false },
@@ -150,8 +173,9 @@
   },
 
   "storage": {
-    "where": "browser localStorage of the site origin only. Nothing is stored server-side; the Worker has no KV, D1, R2 or Durable Object bindings.",
+    "where": "Browser localStorage plus IndexedDB database 'airis.fs': blobs keyed by hash, versions by [ws,path,ver], heads by [ws,path], ops by [ws,seq], and workspaces by ws. Ops entries carry runId and callId when given, enabling revert by runId. Versions and ops are never removed in v1. Nothing is stored server-side; the Worker has no KV, D1, R2 or Durable Object bindings.",
     "keys": {
+      "airis.fs.grants.v1": "{ <ws>: [appId] }",
       "airis.installs.v1": "{ records: { <id>: installRecord } }",
       "airis.trail.v1": "array of trailEvent, newest last, capped at trail.max",
       "airis.app.<id>.<key>": "app storage (bridge storage.*)",
@@ -187,7 +211,8 @@
 
   "bundle": {
     "schema": "airis.bundle/1",
-    "shape": { "schema": "airis.bundle/1", "exportedAt": "ISO time", "records": "[installRecord]" },
+    "shape": { "schema": "airis.bundle/1", "exportedAt": "ISO time", "records": "[installRecord or workspaceRecord]" },
+    "workspaceRecord": "{schema:'airis.workspace/1', ws, name, exportedAt, heads, versions, ops, blobs}; distinguished by schema and imported via fs, never overwriting an existing workspace.",
     "excludes": "secrets, app storage, trail, window layout",
     "import": "each record is validated against installRecord + appEntry. A record identical to the installed one (version, entry, code) is left untouched. Other valid ones are stored with source:'import' (replacing same id; an open window of that app restarts). Invalid ones are reported and skipped."
   },

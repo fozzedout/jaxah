@@ -568,6 +568,10 @@ function closeApp(id) {
   var el = openWins[id];
   if (!el) return;
   abortStreamsFor(id);
+  delete watches[id];
+  Object.keys(runLocks).forEach(function (ws) {
+    if (runLocks[ws].id === id) { runLocks[ws].fs.releaseRun(ws); delete runLocks[ws]; }
+  });
   el.remove();
   delete openWins[id];
   focusOrder = focusOrder.filter(function (k) { return k !== id; });
@@ -1093,8 +1097,15 @@ function importBundle(text) {
   var b;
   try { b = JSON.parse(text); } catch (e) { throw new Error('not JSON: ' + e.message); }
   if (!b || b.schema !== CONTRACT.bundle.schema || !Array.isArray(b.records)) throw new Error('not an ' + CONTRACT.bundle.schema + ' bundle');
-  var imported = [], unchanged = [], skipped = [];
+  var imported = [], unchanged = [], skipped = [], queued = [];
   b.records.forEach(function (r) {
+    if (r && r.schema === 'airis.workspace/1') {
+      queued.push(r.ws);
+      fsLib().then(function (fs) { return fs.importWorkspace(r, {}); }).then(function (res) {
+        fsTrail('system', 'fs.import', r.ws, '', res);
+      }, function (err) { trailAdd('system', 'fs.import', r.ws + ': → ' + err.message); });
+      return;
+    }
     var errs = validRecord(r);
     if (errs.length) { skipped.push({ id: r && r.id, reason: errs.join('; ') }); return; }
     var cur = installs.records[r.id];
@@ -1110,7 +1121,7 @@ function importBundle(text) {
   imported.forEach(closeApp);   // a replaced app restarts from its new record
   if (!saveInstalls()) throw new Error('browser storage is full or blocked');
   rebuildApps();
-  return { imported: imported, unchanged: unchanged, skipped: skipped };
+  return { imported: imported, unchanged: unchanged, skipped: skipped, queued: queued };
 }
 
 /* ── state: the whole OS as plain data (no secret values, ever) ─────── */
@@ -1150,6 +1161,8 @@ var ACTIONS = {
   note: function (a) { return String(a.text || '').slice(0, 240); },
   install: function (a) { return installFromCatalogue(a.id, null); },
   uninstall: function (a) { return uninstall(a.id); },
+  grant: function (a) { need(a.id); fsGrant(a.ws, a.id); return 'granted'; },
+  revoke: function (a) { need(a.id); fsRevoke(a.ws, a.id); return 'revoked'; },
   'export': function () { return exportBundle(); },
   'import': function (a) { return importBundle(String(a.text || '')); },
   terminal: function () { floor.show(); return 'terminal'; },
@@ -1180,6 +1193,96 @@ function act(name, args, actor) {
 
 /* ── the bridge: app frames ⇄ shell, capability-checked ─────────────── */
 var streams = {};   // appId + ':' + re -> AbortController
+var watches = Object.create(null), runLocks = Object.create(null), fsPromise, fsWatching = false;
+function fsLib() {
+  if (!fsPromise) fsPromise = import('./lib/fs.js').then(function (lib) { return lib.openFs(); });
+  return fsPromise;
+}
+function validWorkspace(ws) {
+  if (typeof ws !== 'string' || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(ws)) throw new Error('invalid workspace');
+  return ws;
+}
+function fsGrants() {
+  var grants;
+  try { grants = JSON.parse(localStorage.getItem('airis.fs.grants.v1') || '{}'); } catch (e) { grants = {}; }
+  return grants && typeof grants === 'object' && !Array.isArray(grants) ? grants : {};
+}
+function fsGranted(ws, id) {
+  var grants = fsGrants();
+  return Array.isArray(grants[ws]) && grants[ws].indexOf(id) !== -1;
+}
+function fsGrant(ws, id) {
+  validWorkspace(ws);
+  var grants = fsGrants(), ids = Array.isArray(grants[ws]) ? grants[ws] : [];
+  if (ids.indexOf(id) === -1) ids.push(id);
+  grants[ws] = ids;
+  localStorage.setItem('airis.fs.grants.v1', JSON.stringify(grants));
+}
+function fsRevoke(ws, id) {
+  validWorkspace(ws);
+  var grants = fsGrants(), ids = Array.isArray(grants[ws]) ? grants[ws] : [];
+  grants[ws] = ids.filter(function (x) { return x !== id; });
+  localStorage.setItem('airis.fs.grants.v1', JSON.stringify(grants));
+  if (watches[id]) watches[id] = watches[id].filter(function (w) { return w.ws !== ws; });
+}
+function fsRequire(ws, id) { if (!fsGranted(ws, id)) throw new Error('workspace not granted: ' + ws); }
+function fsActor(id, a) { return (a.actor === 'agent' ? 'agent:' : 'app:') + id; }
+function fsContext(id, a) {
+  var ctx = { actor: fsActor(id, a) };
+  if (a.runId !== undefined) ctx.runId = a.runId;
+  if (a.callId !== undefined) ctx.callId = a.callId;
+  return ctx;
+}
+function fsTrail(actor, op, ws, path, res) {
+  var detail = 'ok';
+  if (res && res.ok === false) {
+    detail = res.error;
+    if (res.error === 'conflict' && res.current != null) detail += ' (current v' + res.current + (res.actor ? ' by ' + res.actor : '') + ')';
+  } else if (res && res.deleted) detail = 'deleted';
+  else if (res && res.ver != null) detail = 'v' + res.ver;
+  else if (res && Array.isArray(res.restored)) detail = 'restored ' + res.restored.length + ' file(s)';
+  trailAdd(actor, op, ws + ':' + (path || '') + ' → ' + detail);
+  return res;
+}
+function fsRefusal(id, a, op, fn) {
+  return Promise.resolve().then(fn).catch(function (err) {
+    trailAdd(op === 'fs.lock' || op === 'fs.unlock' ? 'app:' + id : fsActor(id, a), op, (a.ws || a.as || '') + ':' + (a.path || a.to || a.from || '') + ' → refused: ' + (err.message || String(err)));
+    throw err;
+  });
+}
+function fsCall(id, a, op, method, mutation) {
+  var call = function () {
+    fsRequire(a.ws, id);
+    return fsLib().then(function (fs) { return fs[method](a, fsContext(id, a)); }).then(function (res) {
+      return mutation ? fsTrail(fsActor(id, a), op, a.ws, res.path || a.path || a.to || '', res) : res;
+    });
+  };
+  return mutation ? fsRefusal(id, a, op, call) : Promise.resolve().then(call);
+}
+function fsChanges(event) {
+  Object.keys(watches).forEach(function (id) {
+    var win = openWins[id], fr = win && win.querySelector('iframe');
+    if (!fr || !fr.contentWindow || !fsGranted(event.ws, id)) return;
+    if (watches[id].some(function (w) {
+      return w.ws === event.ws && (!w.path || event.path === w.path || event.path.indexOf(w.path + '/') === 0);
+    })) reply(fr.contentWindow, { event: 'fs', ws: event.ws, path: event.path, ver: event.ver, actor: event.actor });
+  });
+}
+function fsImport(fs, id, a) {
+  var bundle = JSON.parse(a.text), records;
+  if (bundle && bundle.schema === 'airis.workspace/1') records = [bundle];
+  else if (bundle && bundle.schema === 'airis.bundle/1' && Array.isArray(bundle.records)) {
+    records = bundle.records.filter(function (r) { return r && r.schema === 'airis.workspace/1'; });
+  } else throw new Error('not a workspace or bundle');
+  var results = [];
+  return records.reduce(function (p, record) {
+    return p.then(function () { return fs.importWorkspace(record, { as: a.as }); }).then(function (res) {
+      if (res.ok) fsGrant(res.ws, id);
+      fsTrail(fsActor(id, a), 'fs.import', res.ws || a.as || record.ws, '', res);
+      results.push(res);
+    });
+  }, Promise.resolve()).then(function () { return results; });
+}
 function broadcast(msg, cap) {
   msg.airis = 1;
   Object.keys(openWins).forEach(function (id) {
@@ -1247,7 +1350,61 @@ var OPS = {
   'store.install': function (id, a) { return act('install', { id: a.id }, 'human'); },
   'store.uninstall': function (id, a) { return act('uninstall', { id: a.id }, 'human'); },
   'store.export': function () { return act('export', {}, 'human'); },
-  'store.import': function (id, a) { return act('import', { text: a.text }, 'human'); }
+  'store.import': function (id, a) { return act('import', { text: a.text }, 'human'); },
+  'fs.workspaces': function (id) { return fsLib().then(function (fs) { return fs.listWorkspaces(); }).then(function (list) { return list.filter(function (w) { return fsGranted(w.ws, id); }); }); },
+  'fs.create': function (id, a) { return fsRefusal(id, a, 'fs.create', function () { return fsLib().then(function (fs) { return fs.createWorkspace(a); }).then(function (res) { if (res.ok) fsGrant(res.ws, id); return fsTrail(fsActor(id, a), 'fs.create', a.ws, '', res); }); }); },
+  'fs.list': function (id, a) { return fsCall(id, a, 'fs.list', 'list'); },
+  'fs.read': function (id, a) { return fsCall(id, a, 'fs.read', 'read'); },
+  'fs.stat': function (id, a) { return fsCall(id, a, 'fs.stat', 'stat'); },
+  'fs.write': function (id, a) { return fsCall(id, a, 'fs.write', 'write', true); },
+  'fs.edit': function (id, a) { return fsCall(id, a, 'fs.edit', 'edit', true); },
+  'fs.delete': function (id, a) { return fsCall(id, a, 'fs.delete', 'delete', true); },
+  'fs.move': function (id, a) { return fsCall(id, a, 'fs.move', 'move', true); },
+  'fs.diff': function (id, a) { return fsCall(id, a, 'fs.diff', 'diff'); },
+  'fs.history': function (id, a) { return fsCall(id, a, 'fs.history', 'history'); },
+  'fs.versions': function (id, a) { return fsCall(id, a, 'fs.versions', 'versions'); },
+  'fs.revert': function (id, a) { return fsCall(id, a, 'fs.revert', 'revertRun', true); },
+  'fs.lock': function (id, a) {
+    return fsRefusal(id, a, 'fs.lock', function () {
+      fsRequire(a.ws, id);
+      var win = openWins[id];
+      return fsLib().then(function (fs) {
+        return fs.acquireRun(a.ws, id).then(function (res) {
+          if (res.held && (openWins[id] !== win || !win || !fsGranted(a.ws, id))) { fs.releaseRun(a.ws); res.held = false; }
+          if (res.held) runLocks[a.ws] = { id: id, fs: fs };
+          fsTrail('app:' + id, 'fs.lock', a.ws, '', res);
+          return { held: res.held };
+        });
+      });
+    });
+  },
+  'fs.unlock': function (id, a) {
+    return fsRefusal(id, a, 'fs.unlock', function () {
+      fsRequire(a.ws, id);
+      var held = runLocks[a.ws];
+      if (held && held.id === id) { held.fs.releaseRun(a.ws); delete runLocks[a.ws]; }
+      fsTrail('app:' + id, 'fs.unlock', a.ws, '', { ok: true });
+      return true;
+    });
+  },
+  'fs.watch': function (id, a) {
+    fsRequire(a.ws, id);
+    var win = openWins[id];
+    return fsLib().then(function (fs) {
+      if (!fsWatching) { fs.onChange(fsChanges); fsWatching = true; }
+      if (!win || openWins[id] !== win || !fsGranted(a.ws, id)) return false;
+      if (!watches[id]) watches[id] = [];
+      watches[id].push({ ws: a.ws, path: a.path });
+      return true;
+    });
+  },
+  'fs.unwatch': function (id, a) {
+    fsRequire(a.ws, id);
+    return fsLib().then(function () { if (watches[id]) watches[id] = watches[id].filter(function (w) { return w.ws !== a.ws; }); return true; });
+  },
+  'fs.usage': function () { return fsLib().then(function (fs) { return fs.usage(); }); },
+  'fs.export': function (id, a) { fsRequire(a.ws, id); return fsLib().then(function (fs) { return fs.exportBundle(a); }).then(function (res) { return res.ok === false ? res : JSON.stringify(res, null, 2); }); },
+  'fs.import': function (id, a) { return fsRefusal(id, a, 'fs.import', function () { return fsLib().then(function (fs) { return fsImport(fs, id, a); }); }); }
 };
 function reply(win, msg) { msg.airis = 1; try { win.postMessage(msg, '*'); } catch (e) {} }
 function netStream(id, win, re, a) {
