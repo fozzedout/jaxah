@@ -212,7 +212,7 @@
   "bundle": {
     "schema": "airis.bundle/1",
     "shape": { "schema": "airis.bundle/1", "exportedAt": "ISO time", "records": "[installRecord or workspaceRecord]" },
-    "workspaceRecord": "{schema:'airis.workspace/1', ws, name, exportedAt, heads, versions, ops, blobs}; distinguished by schema and imported via fs, never overwriting an existing workspace. Inline JSON with blobs: {sha: text} remains supported; zip manifests use blobs: {sha: {codec, size}}, with codec 0 raw / 1 deflate-raw.",
+    "workspaceRecord": "{schema:'airis.workspace/1', ws, name?, exportedAt, heads, versions, ops, blobs}; distinguished by schema and imported via fs, never overwriting an existing workspace. Inline JSON with blobs: {sha: text} remains supported; zip manifests use blobs: {sha: {codec, size}}, with codec 0 raw / 1 deflate-raw.",
     "excludes": "secrets, app storage, trail, window layout",
     "import": "each record is validated against installRecord + appEntry. A record identical to the installed one (version, entry, code) is left untouched. Other valid ones are stored with source:'import' (replacing same id; an open window of that app restarts). Invalid ones are reported and skipped."
   },
