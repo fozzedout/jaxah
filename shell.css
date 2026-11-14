@@ -48,6 +48,13 @@ button { font: inherit; color: inherit; }
 
 /* ── Stage ──────────────────────────────────────────────────────────── */
 #os { position: fixed; inset: 0; z-index: 1; }
+/* Status-bar tint strip (see index.html). Safari samples it even when
+   visibility is hidden, so on desktop it tints without painting a band. */
+#status-tint {
+  position: fixed; top: 0; left: 0; right: 0; height: 11px; z-index: 2;
+  background-color: var(--bg0); pointer-events: none; visibility: hidden;
+}
+body.term #status-tint { background-color: #020604; } /* terminal floor background */
 #stage { position: absolute; inset: 0 0 var(--taskbar-h); }
 #statusbar { display: none; }
 #dock { display: none; }
@@ -203,6 +210,9 @@ button { font: inherit; color: inherit; }
 
 /* ── Phone (<768px): home-screen grid, one app at a time ─────────────── */
 @media (max-width: 767.98px) {
+  /* Phone: paint it and cover the whole top inset, so the strip under the
+     status bar is solid colour, never the blurred sheet glass. */
+  #status-tint { visibility: visible; height: max(11px, var(--sat, env(safe-area-inset-top))); }
   #stage { inset: 0; }
   #statusbar {
     display: flex; align-items: center; justify-content: space-between;
@@ -270,6 +280,8 @@ button { font: inherit; color: inherit; }
 
 /* iOS touch landscape has a top dead zone even when its inset is zero. */
 @media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  /* Touch landscape: cover the documented top dead zone too. */
+  #status-tint { visibility: visible; height: max(20px, var(--sat, env(safe-area-inset-top))); }
   @media (min-width: 768px) {
     #stage {
       inset: max(20px, var(--sat, env(safe-area-inset-top))) var(--sar, env(safe-area-inset-right))
