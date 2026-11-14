@@ -1,6 +1,7 @@
 # Airis OS: workspace storage policy, design study
 
 > Amended 2026-11-14: workspace budget set to 100–200 MB by Paul (§0.4, §4).
+> Amended 2026-11-14 (later): assets live in the workspace on every browser; Chrome/Edge may optionally reference a local file instead (§7). Not yet implemented, see §7.5.
 
 *Status: study, 2026-11-14. Pressure-tests the unbounded-versioning store in `docs/bench-design.md` §3 against real browser storage limits. No implementation code was written. `lib/fs.js` is being built separately, so this document recommends and does not prescribe line-level changes.*
 
@@ -179,6 +180,8 @@ L = min(estimate().quota, BUDGET)
 
 The original 1 GiB reasoning (pre-17 Safari prompt boundary and in-memory export) is superseded; export is now a streamed zip, so export size no longer drives the budget.
 
+**Assets count against the budget (2026-11-14).** Assets stored inside the workspace count against the 100–200 MB budget, and every export carries them. Streamed zip export still means export size does not drive the budget through memory, but the budget must account for asset bytes. Binaries are not compressed (PNG measured 0.996, §2), so an asset costs roughly its full size once per distinct version: content addressing stores identical bytes once.
+
 The percentage shown is `estimate().usage / L`, refreshed after each run and every 5 minutes while Bench is open. Chromium's `usage` is approximate (§1), so the thresholds carry slack.
 
 ### The ladder
@@ -236,3 +239,38 @@ Two modes:
 - **Above ~20 KB/step**, it holds under ~54,000 at 1 GiB, or under ~10,000 at 200 MB. Run-aware squash plus cold delta packing (C + E) move from optional to required.
 
 U5 measures it on the first real Bench runs.
+
+---
+
+## 7. Assets (ruling 2026-11-14)
+
+Paul first proposed that assets could live outside the workspace, on the user's own computer, referenced rather than stored. He reversed that the same day: "we've got to allow for assets to be in the file system ... All you get is if you're using Chrome, you've got the option of having it in the file system or on your disk."
+
+### 7.1 Default: a copy in the workspace, every browser
+
+- A copy of the bytes is stored as a Blob in the filesystem's IndexedDB `blobs` store, keyed by SHA-256. This is the default and the only path that works everywhere.
+- What `lib/fs.js` does today (verified at b49db97): `fs.write` accepts a string, Blob, ArrayBuffer or typed array (`isContent`); `prepare()` reads the bytes, hashes them, and stores `new Blob([codecTag, bytes])`. Binary content is never compressed (only text >= 256 B is deflated); the version row records `binary: true`, `size`, `type`. `exportArchive()` writes each blob as a real binary zip member `blobs/<sha>`.
+- `prepare()` reads the whole Blob into an ArrayBuffer to hash it, so one asset's full bytes are in memory during a write. Fine at the budget's asset sizes; it is a reason assets must stay small.
+
+### 7.2 Optional on Chrome/Edge: a reference to a file on the user's disk
+
+- Uses a File System Access API handle (`FileSystemFileHandle` via `showOpenFilePicker` or drag-and-drop), not a `file://` path: pages served over https cannot read `file://` URLs.
+- The handle is per file, granted by an explicit user gesture. Permission is not durable: after a reload it must be granted again (`queryPermission` / `requestPermission`, which needs a gesture). A handle reference is a soft reference that can fail.
+- An asset referenced this way may be unavailable on a future load: permission not re-granted, file moved, renamed or deleted, or a different machine. The workspace must surface it as missing, by path, with a "re-grant" or "replace" action. It must never silently render blank.
+- An export cannot carry a referenced file's bytes unless it reads them at export time. Recommendation: read the file if permission is held; otherwise record the asset as missing in the manifest and tell the user.
+- Opera and other Chromium-derived browsers: treat as unknown. Feature-detect (`'showOpenFilePicker' in window`), never assume from the user agent.
+
+### 7.3 Firefox and Safari: copy only
+
+No local disk handles at all. There is no fallback reference path; the copy is the only path.
+
+### 7.4 No Base64 in storage
+
+Base64 inflates stored bytes by about 33% and forces both the encoded string and the decoded bytes into the heap at once. Storage keeps real bytes in Blobs. Base64 belongs only at the export boundary, and only if a future consumer demands JSON. The current export is a zip of real binary and does not need it. `lib/fs.js` contains no Base64 today.
+
+### 7.5 Not yet implemented
+
+- (a) Nothing in the UI lets a user attach or drop a local file into a workspace. The `fs.write` bridge op accepts a Blob, so an app holding the `fs` cap could pass one, but no shell or app UI does this today.
+- (b) The optional Chrome/Edge handle-reference path does not exist in `lib/fs.js`. Every write stores a copy. There is no record shape for a reference.
+- (c) There is no missing-asset surfacing, because there is no handle reference that could fail.
+- (d) The budget ladder in §4 does not exist in code yet either, so nothing yet counts asset bytes against it.
