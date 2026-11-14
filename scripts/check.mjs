@@ -162,7 +162,7 @@ const rootBg = css.match(/:root\s*\{[^}]*--bg0\s*:\s*([^;}]*)/i)?.[1].trim();
 const lightBg = css.match(/html\[data-theme="light"\]\s*\{[^}]*--bg0\s*:\s*([^;}]*)/i)?.[1].trim();
 const tintRule = css.match(/(?:^|})\s*#status-tint\s*\{([^}]*)\}/)?.[1] || '';
 ok(/<div\s+id="status-tint"\s+aria-hidden="true"\s*>/i.test(idx), 'status tint strip exists');
-ok(!/<meta\s+name="theme-color"/i.test(idx) && !/apple-mobile-web-app-status-bar-style/i.test(idx), 'no theme-color or status-bar-style meta (dead on iOS 26+)');
+ok(!/<meta\s+name="theme-color"/i.test(idx) && /<meta\s+name="apple-mobile-web-app-status-bar-style"\s+content="black-translucent"\s*>/i.test(idx), 'no theme-color meta; black-translucent status bar so standalone content extends under the status bar');
 ok(['position: fixed', 'top: 0', 'left: 0', 'right: 0', 'pointer-events: none', 'background-color: var(--bg0)', 'height: max(env(safe-area-inset-top), 6px)', 'visibility: hidden'].every((declaration) => tintRule.includes(declaration)) && !/--sat/.test(tintRule), 'status tint is fixed, full-width, non-interactive, max(env, 6px) high, hidden by default, no --sat');
 ok([rootBg, lightBg].every((value) => /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value || '')), 'dark and light root backgrounds are opaque hex colours');
 ok(/@media\s*\(max-width:\s*767\.98px\)\s*\{[\s\S]*?\.w-title\s*\{[^}]*height:\s*calc\(56px\s*\+/.test(css), 'phone window title includes 56px plus inset');

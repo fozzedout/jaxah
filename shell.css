@@ -50,6 +50,7 @@ button { font: inherit; color: inherit; }
 #os { position: fixed; inset: 0; z-index: 1; }
 /* Status-bar tint strip (see index.html). A real fixed opaque element over the
    top inset is the only thing iOS 26+ honours to drop the status-bar blur.
+   Relies on the black-translucent meta in standalone mode.
    Hidden on desktop (inset 0 would paint a 6px band); the phone and touch
    landscape queries below make it visible. env() with a 6px floor cannot go stale. */
 #status-tint {
