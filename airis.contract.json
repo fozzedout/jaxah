@@ -237,6 +237,7 @@
   },
 
   "tests": {
+    "unit": "node --test lib/*.test.mjs   # registry + agent loop, no network, no key",
     "check": "node scripts/check.mjs                              # offline: manifest/contract/files/CSP",
     "live": "node scripts/check.mjs --live http://localhost:8788  # also: every legacy URL resolves, /api allowlist refuses the rest",
     "legacyUrls": [

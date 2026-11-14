@@ -8,7 +8,8 @@
 node_modules
 wrangler.jsonc
 worker.js
-lib
+lib/*.test.mjs
 scripts
 docs
+scratch
 AGENTS.md
