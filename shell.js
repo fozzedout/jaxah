@@ -33,6 +33,86 @@ var openWins = {};      // id -> .window element
 var zTop = 10, cascade = 0;
 var booted = false;
 
+/* Probe env() directly: the CSS-variable bridge has WebKit bugs 274773 / 191872
+   and can return stale or zero values. This optional block must never break boot. */
+(function () {
+  try {
+    var lastInsets = {}, resizePending = false, settleTimer = null;
+    function measureEnv(prop) {
+      var probe;
+      try {
+        probe = document.createElement('div');
+        probe.style.cssText = 'position:fixed;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:env(' + prop + ', 0px)';
+        (document.documentElement || document.body).appendChild(probe);
+        return probe.offsetHeight;
+      } catch (e) { return 0; }
+      finally { try { if (probe && probe.parentNode) probe.parentNode.removeChild(probe); } catch (e) {} }
+    }
+    function updateInsets(reason) {
+      try {
+        var next = { reason: reason };
+        ['top', 'right', 'bottom', 'left'].forEach(function (side) {
+          try {
+            var value = measureEnv('safe-area-inset-' + side);
+            next[side] = value;
+            document.documentElement.style.setProperty('--sa' + side.charAt(0), value + 'px');
+          } catch (e) {}
+        });
+        lastInsets = next;
+      } catch (e) {}
+    }
+    updateInsets('init');
+    [100, 500, 1000].forEach(function (delay) {
+      try { setTimeout(function () { try { updateInsets('init-' + delay); } catch (e) {} }, delay); } catch (e) {}
+    });
+    window.addEventListener('resize', function () {
+      try {
+        if (resizePending) return;
+        resizePending = true;
+        requestAnimationFrame(function () {
+          try {
+            resizePending = false;
+            updateInsets('resize'); // window re-clamping is the stage ResizeObserver's job
+          } catch (e) { resizePending = false; }
+        });
+      } catch (e) { resizePending = false; }
+    });
+    window.addEventListener('orientationchange', function () {
+      try {
+        setTimeout(function () { try { updateInsets('orientationchange'); } catch (e) {} }, 300);
+        if (settleTimer) clearInterval(settleTimer);
+        var started = Date.now();
+        settleTimer = setInterval(function () {
+          try {
+            var orientation = window.screen && window.screen.orientation;
+            var landscape = orientation && orientation.type ? orientation.type.indexOf('landscape') === 0 : Math.abs(window.orientation) === 90;
+            if ((window.innerWidth > window.innerHeight) === landscape || Date.now() - started >= 2000) {
+              clearInterval(settleTimer); settleTimer = null;
+              updateInsets('orientation-settled');
+            }
+          } catch (e) { try { clearInterval(settleTimer); settleTimer = null; } catch (ignored) {} }
+        }, 100);
+      } catch (e) {}
+    });
+    if (window.navigator.standalone === true) {
+      var viewport = document.querySelector('meta[name="viewport"]');
+      if (viewport) {
+        var original = viewport.getAttribute('content'), scheduled = false;
+        try {
+          viewport.setAttribute('content', original.replace('viewport-fit=cover', 'viewport-fit=auto'));
+          requestAnimationFrame(function () {
+            try {
+              try { viewport.setAttribute('content', original); }
+              finally { requestAnimationFrame(function () { try { updateInsets('standalone-cold-start'); } catch (e) {} }); }
+            } catch (e) { try { viewport.setAttribute('content', original); } catch (ignored) {} }
+          });
+          scheduled = true;
+        } finally { if (!scheduled) viewport.setAttribute('content', original); }
+      }
+    }
+  } catch (e) {}
+})();
+
 /* The shell enforces a default layout per app, so an app can't forget a
    mode: whatever the manifest omits, normaliseApp() fills in. */
 function normaliseApp(a) {
@@ -1172,15 +1252,16 @@ var OPS = {
 function reply(win, msg) { msg.airis = 1; try { win.postMessage(msg, '*'); } catch (e) {} }
 function netStream(id, win, re, a) {
   var url = netUrl(a.url);
-  var headers = {};
+  var headers = {}, authHeader = a.auth ? (a.auth.header == null ? 'Authorization' : a.auth.header) : null;
+  if (a.auth && (typeof authHeader !== 'string' || !/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(authHeader))) throw new Error('bad auth header');
   Object.keys(a.headers || {}).forEach(function (k) {
-    if (/^authorization$/i.test(k)) return;       // auth only via the secret store
+    if (/^authorization$/i.test(k) || (authHeader && k.toLowerCase() === authHeader.toLowerCase())) return; // auth only via the secret store
     headers[k] = String(a.headers[k]);
   });
   if (a.auth && a.auth.secret) {
     var v = localStorage.getItem(secretKey(id, a.auth.secret));
     if (!v) throw new Error('no ' + a.auth.secret + ' stored');
-    headers.Authorization = (a.auth.scheme || 'Bearer') + ' ' + v;
+    headers[authHeader] = /^authorization$/i.test(authHeader) ? (a.auth.scheme || 'Bearer') + ' ' + v : (a.auth.scheme ? a.auth.scheme + ' ' : '') + v;
   }
   var ctrl = new AbortController();
   streams[id + ':' + re] = ctrl;

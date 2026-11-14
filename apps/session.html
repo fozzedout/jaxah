@@ -15,8 +15,9 @@
   allow CORS) or "proxy" (baseUrl is this site's same-origin /api/<upstream>
   relay, fixed; "upstream" names the real provider endpoint for check.mjs).
   The strip never renders a URL for a named preset: only the editable custom
-  preset shows the Base URL box; the others show their plain "hint" text. Why opencode is proxied and
-  OpenRouter is not: airis.contract.json -> sessionPreset.why.
+  preset shows the Endpoint URL box; known chat paths determine the dialect,
+  while other paths require a style selection. Named presets retain their fixed
+  roots and plain hints. See airis.contract.json -> sessionPreset.why.
 -->
 <style>
 :root { --bg:#0a1418; --panel:#0f1f25; --line:rgba(255,255,255,.12); --ink:#e8f1f0; --dim:#9fb8b4; --faint:#6f8783; --teal:#5eead4; --red:#fca5a5; --redbg:rgba(248,113,113,.12); --you:rgba(94,234,212,.10); }
@@ -76,8 +77,15 @@ details.think summary { cursor: pointer; }
   <button class="btn" id="fold" type="button" aria-expanded="true" title="Show or hide settings">⚙</button>
   <span id="summary"></span>
   <label>Provider <select id="preset" aria-label="Provider preset"></select></label>
-  <label id="baselabel">Base URL <input id="base" type="text" spellcheck="false" aria-label="Base URL"></label>
-  <span id="via" hidden></span>
+  <label id="baselabel">Endpoint URL <input id="base" type="text" spellcheck="false" aria-label="Endpoint URL" placeholder="https://host/v1/chat/completions"></label>
+  <label id="stylelabel" hidden>Endpoint style <select id="style" aria-label="Endpoint style">
+    <option value="">Choose a style</option>
+    <option value="openai">OpenAI-style — provider's base URL</option>
+    <option value="anthropic">Anthropic-style — provider's base URL</option>
+    <option value="custom">Custom path — I'll enter the full URL</option>
+  </select></label>
+  <button class="btn" id="test" type="button" hidden>Test</button>
+  <span id="via" hidden></span><span id="teststatus" aria-live="polite" hidden></span>
   <label>Model <input id="model" type="text" list="models" spellcheck="false" aria-label="Model"></label>
   <datalist id="models"></datalist>
   <label>Key <input id="key" type="password" spellcheck="false" autocomplete="off" placeholder="paste key" aria-label="API key"></label>
@@ -127,7 +135,8 @@ function call(op, args, onChunk) {
 function on(ev, f) { (listeners[ev] = listeners[ev] || []).push(f); }
 
 /* ── state ────────────────────────────────────────────────────────────── */
-var presets = [], settings = { presetId: null, base: {}, model: {}, act: false };
+var presets = [], settings = { presetId: null, base: {}, style: {}, model: {}, act: false };
+var legacyBase = {};
 var convo = null;          // { id, createdAt, messages: [...] }
 var busy = null;           // { re, aborted }
 var hasKey = false;
@@ -139,8 +148,33 @@ function newId() {
 }
 function preset() { return presets.filter(function (p) { return p.id === settings.presetId; })[0] || presets[0]; }
 function isProxy(p) { return p.transport === 'proxy'; }
-// A proxy preset's baseUrl is this site's fixed relay route; only a direct, editable preset takes the user's override.
-function baseUrl() { var p = preset(); return ((!isProxy(p) && p.editable && settings.base[p.id]) || p.baseUrl || '').replace(/\/+$/, ''); }
+function endpointShape(input) {
+  var value = String(input || '').trim().replace(/\/+$/, ''), u;
+  try { u = new URL(value); } catch (e) { return { error: 'Enter a valid HTTP or HTTPS endpoint URL.' }; }
+  if (!/^https?:$/.test(u.protocol) || u.search || u.hash || u.username || u.password) return { error: 'Enter a valid HTTP or HTTPS endpoint URL without credentials, query or fragment.' };
+  var path = u.pathname.replace(/\/+$/, ''), root = value;
+  // OpenAI chat completions API path.
+  if (/\/chat\/completions$/.test(path)) return { root: root.slice(0, -17), chatPath: '/chat/completions', dialect: 'openai', listUrl: root.slice(0, -17) + '/models' };
+  // Anthropic Messages API /v1/messages; also DeepSeek's Anthropic base https://api.deepseek.com/anthropic + /v1/messages.
+  if (/\/v1\/messages$/.test(path)) return { root: root.slice(0, -12), chatPath: '/v1/messages', dialect: 'anthropic', listUrl: null };
+  // Anthropic Messages API /messages relative to an already versioned base; DeepSeek's Anthropic base uses /v1/messages.
+  if (/\/messages$/.test(path)) return { root: root.slice(0, -9), chatPath: '/messages', dialect: 'anthropic', listUrl: null };
+  return { ambiguous: true, root: root, path: path };
+}
+function shape() {
+  var p = preset(), s;
+  if (!p.editable || isProxy(p)) {
+    var root = (p.baseUrl || '').replace(/\/+$/, '');
+    return { root: root, chatPath: '/chat/completions', dialect: 'openai', listUrl: root + '/models' };
+  }
+  s = endpointShape(settings.base[p.id] || '');
+  if (!s.ambiguous) return s;
+  var style = $('style').value;
+  if (!style) return s;
+  return { root: s.root, chatPath: style === 'openai' ? '/chat/completions' : style === 'anthropic' ? '/v1/messages' : '', dialect: style === 'anthropic' ? 'anthropic' : 'openai', listUrl: style === 'openai' ? s.root + '/models' : null, customPath: style === 'custom' };
+}
+function chatUrl() { var s = shape(); return s.error || s.ambiguous ? '' : s.root + s.chatPath; }
+function listUrl() { var s = shape(); return s.error || s.ambiguous ? null : s.listUrl; }
 // The model is never chosen for the user: no preset fallback. It is whatever they typed for this preset, kept in this browser only.
 function model() { var m = settings.model[preset().id]; return typeof m === 'string' ? m.trim() : ''; }
 function saveSettings() { return call('storage.set', { key: 'settings', value: settings }); }
@@ -191,19 +225,39 @@ function fillStrip() {
   var sel = $('preset'); sel.textContent = '';
   presets.forEach(function (p) { var o = el('option', null, p.label); o.value = p.id; sel.appendChild(o); });
   var p = preset(); sel.value = p.id;
-  // The provider is a name, not an address: only the custom (editable) preset shows a Base URL box.
+  // The provider is a name, not an address: only the custom preset shows an endpoint box.
   // Named presets show at most a plain-language hint (p.hint) and never a URL, host or path.
   var via = $('via'), custom = !isProxy(p) && !!p.editable;
   $('baselabel').hidden = !custom;
-  via.textContent = custom ? '' : (p.hint || ''); via.hidden = !via.textContent; via.removeAttribute('title');
-  $('base').value = custom ? baseUrl() : ''; $('base').disabled = !custom;
+  $('base').value = custom ? (settings.base[p.id] || '') : ''; $('base').disabled = !custom;
+  $('test').hidden = !custom; $('teststatus').hidden = !custom; $('teststatus').textContent = '';
+  updateEndpoint();
   $('model').value = model();
   $('act').checked = !!settings.act;
   loadModels();
 }
+function updateEndpoint() {
+  var p = preset(), custom = !isProxy(p) && !!p.editable, raw = custom ? endpointShape(settings.base[p.id] || '') : null;
+  $('stylelabel').hidden = !(custom && raw.ambiguous);
+  if (custom && raw.ambiguous) $('style').value = Object.prototype.hasOwnProperty.call(settings.style, p.id) ? settings.style[p.id] : (/anthropic/i.test(raw.path) ? 'anthropic' : legacyBase[p.id] ? 'openai' : '');
+  else $('style').value = '';
+  var s = custom ? shape() : null;
+  var hint = custom ? (s.error || (s.ambiguous ? 'Choose an endpoint style.' : (s.customPath ? 'Sending to the URL as entered' : 'Sending to ' + s.chatPath) + (s.listUrl === null ? ' — no model list at this endpoint' : ''))) : (p.hint || '');
+  $('via').textContent = hint; $('via').hidden = !hint; $('via').removeAttribute('title');
+}
 function keyName() { return 'key.' + preset().id; }
+function authFor(dialect) {
+  return dialect === 'anthropic' ? { secret: keyName(), header: 'x-api-key', scheme: '' } : { secret: keyName(), scheme: 'Bearer' };
+}
+function requestHeaders(h, dialect, transport) {
+  Object.keys(h).forEach(function (k) { if (k.toLowerCase() === 'anthropic-dangerous-direct-browser-access') delete h[k]; });
+  if (transport === 'direct' && dialect === 'anthropic') h['anthropic-dangerous-direct-browser-access'] = 'true';
+  return h;
+}
 function refreshKey() {
-  return call('secret.has', { name: keyName() }).then(function (h) {
+  var name = keyName(); hasKey = false;
+  return call('secret.has', { name: name }).then(function (h) {
+    if (name !== keyName()) return;
     hasKey = !!h;
     var s = $('keystate'); s.textContent = hasKey ? 'key stored in this browser' : 'no key'; s.classList.toggle('on', hasKey);
     $('forget').disabled = !hasKey;
@@ -219,7 +273,9 @@ $('fold').addEventListener('click', function () {
   settings.fold = !$('strip').classList.contains('folded'); saveSettings(); setFold(settings.fold);
 });
 $('preset').addEventListener('change', function () { settings.presetId = this.value; saveSettings(); fillStrip(); refreshKey(); });
-$('base').addEventListener('change', function () { settings.base[preset().id] = this.value.trim(); saveSettings(); loadModels(); });
+$('base').addEventListener('input', function () { settings.base[preset().id] = this.value; delete legacyBase[preset().id]; updateEndpoint(); });
+$('base').addEventListener('change', function () { saveSettings(); loadModels(); });
+$('style').addEventListener('change', function () { settings.style[preset().id] = this.value; delete legacyBase[preset().id]; saveSettings(); updateEndpoint(); loadModels(); });
 $('model').addEventListener('change', function () { settings.model[preset().id] = this.value.trim(); saveSettings(); });
 $('act').addEventListener('change', function () { settings.act = this.checked; saveSettings(); });
 $('strip').addEventListener('submit', function (e) {
@@ -237,12 +293,12 @@ $('new').addEventListener('click', function () {
 });
 
 function loadModels() {
-  var b = baseUrl(); if (!b) return;
+  var url = listUrl(); $('models').textContent = ''; if (!url) return;
   var text = '';
-  call('net.stream', { url: b + '/models', method: 'GET', headers: { accept: 'application/json' }, auth: hasKey ? { secret: keyName(), scheme: 'Bearer' } : null },
+  call('net.stream', { url: url, method: 'GET', headers: requestHeaders({ accept: 'application/json' }, shape().dialect, preset().transport), auth: hasKey ? authFor(shape().dialect) : null },
     function (c) { text += c; })
     .then(function (meta) {
-      if (meta.status !== 200) return;
+      if (meta.status !== 200 || listUrl() !== url) return;
       // Measured, not assumed: all 30 catalogue models answered /chat/completions on 2026-11-14,
       // including the 11 whose api block only declares 'responses', so we do not filter on api
       // (it describes a vendor SDK, not what our relay serves). Keep every chat entry with an id.
@@ -253,6 +309,34 @@ function loadModels() {
       list.forEach(function (m) { var o = el('option'); o.value = m.id; if (m.name) o.label = m.name; dl.appendChild(o); });
     }).catch(function () {});
 }
+
+function errorDialect(text) {
+  var body;
+  try { body = JSON.parse(text); } catch (e) { return ''; }
+  if (!body || typeof body !== 'object' || !('error' in body)) return '';
+  return body.type === 'error' ? 'anthropic' : 'openai';
+}
+
+$('test').addEventListener('click', function () {
+  var status = $('teststatus'), s = shape(), url = listUrl(), button = this;
+  status.textContent = '';
+  if (!hasKey) { status.textContent = 'No key stored for this provider.'; return; }
+  if (s.error || s.ambiguous) { status.textContent = s.error || 'Choose an endpoint style first.'; return; }
+  if (!url && !model()) { status.textContent = 'Enter a model first.'; return; }
+  var args = { url: url || chatUrl(), method: url ? 'GET' : 'POST', headers: url ? requestHeaders({ accept: 'application/json' }, s.dialect, preset().transport) : headersFor(), auth: authFor(s.dialect) };
+  if (!url) args.body = JSON.stringify({ model: model(), max_tokens: 1, messages: [{ role: 'user', content: 'Hi' }], stream: false });
+  button.disabled = true;
+  call('net.stream', args).then(function (meta) {
+    status.textContent = 'HTTP ' + meta.status + (meta.status < 200 || meta.status >= 300 ? (meta.text ? ' — ' + truncate(meta.text, 300) : '') : '');
+    if (meta.status < 200 || meta.status >= 300) {
+      var dialect = errorDialect(meta.text);
+      if (dialect) {
+        status.textContent += ' — error body is ' + (dialect === 'anthropic' ? 'Anthropic' : 'OpenAI') + '-shaped';
+        if (dialect !== s.dialect) status.textContent += ' (endpoint is set to ' + (s.dialect === 'anthropic' ? 'Anthropic' : 'OpenAI') + ' style)';
+      }
+    }
+  }, function (err) { status.textContent = 'No HTTP response: ' + truncate(err && err.message || 'request failed', 300); }).then(function () { button.disabled = false; });
+});
 
 /* ── the agent's hands: OS tools (only when "agent can act" is on) ────── */
 var stateCache = null;
@@ -289,9 +373,10 @@ function setBusy(b) {
 }
 function headersFor() {
   var h = { 'content-type': 'application/json', accept: 'text/event-stream' };
+  if (shape().dialect === 'anthropic') h['anthropic-version'] = '2023-06-01';
   var extra = preset().headers || {};
   Object.keys(extra).forEach(function (k) { h[k] = String(extra[k]).replace(/\{session\}/g, convo.id); });
-  return h;
+  return requestHeaders(h, shape().dialect, preset().transport);
 }
 function errorText(meta) {
   var detail = meta.text || '';
@@ -302,8 +387,10 @@ function errorText(meta) {
 
 function turn(round) {
   if (round > 8) { showError('Stopped after 8 tool rounds.'); return Promise.resolve(); }
+  var dialect = shape().dialect;
   var body = { model: model(), messages: apiMessages(), stream: true };
-  if (settings.act) body.tools = tools();
+  if (dialect === 'anthropic') { body.max_tokens = 1024; body.messages = body.messages.filter(function (m) { return m.role === 'user' || m.role === 'assistant'; }).map(function (m) { return { role: m.role, content: m.content }; }); }
+  else if (settings.act) body.tools = tools();
   var msg = { role: 'assistant', content: '' };
   var node = renderMsg(msg); node.classList.add('streaming'); pane.appendChild(node);
   msg.partial = true;   // persisted flag: if the page dies mid-stream, reload shows it as interrupted
@@ -318,6 +405,10 @@ function turn(round) {
     if (!data || data === '[DONE]') return;
     var j; try { j = JSON.parse(data); } catch (e) { return; }
     if (j.error) { throw new Error((j.error.type ? j.error.type + ': ' : '') + (j.error.message || JSON.stringify(j.error))); }
+    if (dialect === 'anthropic') {
+      if (j.type === 'content_block_delta' && j.delta && j.delta.type === 'text_delta') { var wasAnthropic = atBottom(); msg.content += j.delta.text || ''; bodyEl.textContent = msg.content; stick(wasAnthropic); saveConvo(); }
+      return;
+    }
     var ch = j.choices && j.choices[0]; if (!ch) return;
     var d = ch.delta || {};
     var was = atBottom();
@@ -342,7 +433,7 @@ function turn(round) {
     saveConvo();
   }
 
-  var req = call('net.stream', { url: baseUrl() + '/chat/completions', method: 'POST', headers: headersFor(), body: JSON.stringify(body), auth: { secret: keyName(), scheme: 'Bearer' } },
+  var req = call('net.stream', { url: chatUrl(), method: 'POST', headers: headersFor(), body: JSON.stringify(body), auth: authFor(shape().dialect) },
     function (chunk) {
       buf += chunk;
       var lines = buf.split(/\r?\n/); buf = lines.pop();
@@ -388,10 +479,13 @@ function turn(round) {
     if (!msg.content) { convo.messages.pop(); node.remove(); }
     showError(/^no key/.test(err.message)
       ? 'No key stored for ' + preset().label + '. Paste one into the Key field above and press Save key.'
-      : 'Request failed: ' + err.message + (/^\/|^https?:\/\/(localhost|127\.)/.test(baseUrl()) ? '' : '\n(A browser can only reach endpoints that allow cross-origin requests; use a same-origin /api/* route otherwise.)'));
+      : 'Request failed: ' + err.message + (/^\/|^https?:\/\/(localhost|127\.)/.test(chatUrl()) ? '' : '\n(A browser can only reach endpoints that allow cross-origin requests; use a same-origin /api/* route otherwise.)'));
   });
 }
 function send(text) {
+  var s = shape();
+  if (s.error || s.ambiguous) { showError(s.error || 'Choose an endpoint style first.'); return; }
+  if (s.dialect === 'anthropic' && settings.act) { showError('Agent actions are not supported for Anthropic-style endpoints.'); return; }
   convo.messages.push({ role: 'user', content: text });
   pane.appendChild(renderMsg(convo.messages[convo.messages.length - 1]));
   pane.scrollTop = pane.scrollHeight;
@@ -435,7 +529,10 @@ call('hello').then(function (h) {
   if (!presets.length) presets = [{ id: 'openai-compatible', label: 'Custom endpoint', transport: 'direct', baseUrl: '', editable: true }];
   return Promise.all([call('storage.get', { key: 'settings' }), call('storage.get', { key: 'conversation' })]);
 }).then(function (r) {
-  if (r[0] && typeof r[0] === 'object') { settings = Object.assign(settings, r[0]); settings.base = settings.base || {}; settings.model = settings.model || {}; }
+  if (r[0] && typeof r[0] === 'object') {
+    settings = Object.assign(settings, r[0]); settings.base = settings.base || {}; settings.style = settings.style || {}; settings.model = settings.model || {};
+    Object.keys(settings.base).forEach(function (id) { if (!settings.style[id] && endpointShape(settings.base[id]).ambiguous) legacyBase[id] = true; });
+  }
   if (!presets.some(function (p) { return p.id === settings.presetId; })) settings.presetId = presets[0].id;
   convo = r[1] && Array.isArray(r[1].messages) ? r[1] : { id: newId(), createdAt: new Date().toISOString(), messages: [] };
   if (!convo.id) convo.id = newId();

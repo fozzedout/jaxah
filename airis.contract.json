@@ -28,7 +28,9 @@
     "index.html": "the OS shell page (served at /). Terminal floor markup first, OS chrome hidden until boot succeeds.",
     "terminal.js / terminal.css": "the floor. No dependency on shell, manifest, contract, storage or network. Must keep working if everything else fails.",
     "shell.js / shell.css": "window manager, bridge host, action registry, event trail, install records. Reads manifest.json and this file.",
-    "manifest.json": "the catalogue. What exists. Not what runs - an install record is what runs.",
+    "manifest.json": "the app catalogue, never the PWA manifest. What exists. Not what runs - an install record is what runs.",
+    "site.webmanifest": "the PWA manifest for the shell and home screen.",
+    "assets/icons/*": "PWA and home-screen icons.",
     "apps/": "first-party apps (session, store, persona, todo, desk, house). apps/<id>.html.",
     "worker.js": "Worker entry. Thin: imports this file and lib/router.js.",
     "lib/router.js": "route table implementation shared by worker.js and scripts/dev.mjs (pure fetch API, no Worker or Node specifics). Server-side only: listed in .assetsignore, never served.",
@@ -38,6 +40,13 @@
     "scripts/check.mjs": "contract checker. node scripts/check.mjs [--live http://localhost:8788]",
     "AGENTS.md": "pointer to this file for agents that look there first; holds no rules.",
     "*.html at root, art/": "pre-existing standalone pages. Their URLs are permanent (see tests.legacyUrls)."
+  },
+
+  "pwa": {
+    "height": "html/body use 100vh, never 100% (iOS falls back to non-cover layout) or 100dvh (PWA cold-start values are wrong until rotation).",
+    "insets": "JS probes safe-area insets into --sat/--sar/--sab/--sal at 0/100/500/1000ms, on resize and orientationchange, and toggles viewport-fit on standalone cold start; the CSS env() variable bridge is unreliable.",
+    "landscape": "Touch landscape has an unreported top dead zone; use max(20px, safe-area-inset-top) as the floor, and inset the desktop stage and taskbar.",
+    "zoom": "Keep pinch zoom: no maximum-scale or user-scalable=no; use touch-action: manipulation on shell chrome instead."
   },
 
   "appEntry": {
@@ -110,7 +119,7 @@
       "secret.has": { "cap": "secrets", "args": "{ name }", "doc": "there is deliberately no secret.get: the value never returns to app code" },
       "secret.set": { "cap": "secrets", "args": "{ name, value }" },
       "secret.forget": { "cap": "secrets", "args": "{ name }" },
-      "net.stream": { "cap": "net", "args": "{ url, method, headers, body, auth: { secret, scheme } }", "doc": "shell fetches; streams text chunks; final reply value { status, statusText, contentType, text? }. auth injects 'Authorization: <scheme> <secret value>' from this app's secret store - and only to the url of this call." },
+      "net.stream": { "cap": "net", "args": "{ url, method, headers, body, auth: { secret, scheme, header } }", "doc": "shell fetches; streams text chunks; final reply value { status, statusText, contentType, text? }. auth header defaults to 'Authorization': its value is '<scheme default Bearer> <secret>'; for another header (e.g. 'x-api-key') it is '[<scheme> ]<secret>'. Caller-supplied authorization and headers matching the auth header are dropped. The value comes only from this app's secret store and only goes to this call's url." },
       "net.abort": { "cap": "net", "args": "{ re }" },
       "os.state": { "cap": "actions", "args": "{}", "returns": "the same object window.airis.state() returns" },
       "os.do": { "cap": "actions", "args": "{ action, args, actor }", "doc": "runs a registered action whose agent flag is true; actor is logged as agent:<app id>" },
@@ -194,7 +203,7 @@
       "model": "NOT a preset field: presets carry no model and there is no default. The user types the model id in the strip (the GET <baseUrl>/models list is only a suggestion datalist and never auto-fills it); it is stored per preset in this browser only, via storage.set key 'settings' (site-origin localStorage), and never stored by the Worker. Sending is refused until it is filled in.",
       "hint": "optional plain-language line shown beside a named (non-editable) preset, e.g. \"Relayed by this site — no setup needed\". Must contain no URL, hostname or path; check.mjs enforces it. The strip never renders baseUrl, upstream or note for a named preset.",
       "editable": "boolean: true only for the custom preset, whose Base URL box is the only place the strip shows an address; false presets ignore any saved base override",
-      "headers": "optional extra request headers; the literal {session} is replaced with the conversation id. Never Authorization: the key goes only through net.stream auth (Bearer), which the shell attaches from the secret store."
+      "headers": "optional extra request headers; the literal {session} is replaced with the conversation id. The key goes only through net.stream auth, which the shell attaches from the secret store: Anthropic dialect uses raw x-api-key; OpenAI/chat-completions uses Authorization Bearer. Every direct Anthropic request also sends anthropic-dangerous-direct-browser-access: true; proxy and OpenAI requests never send it."
     },
     "why": {
       "doc": "Measured 2026-11-14 with Origin: https://jaxah.com. Re-measure before changing a preset's transport; check.mjs enforces the shape.",

@@ -146,9 +146,69 @@ if (live !== -1) {
     await res.arrayBuffer().catch(() => {});
   }
   const r = await fetch(base + '/airis.contract.json'); ok(r.ok, 'live contract is served at /airis.contract.json');
+  for (const u of ['/site.webmanifest', '/assets/icons/icon-192.png']) {
+    const asset = await fetch(base + u); ok(asset.ok, `live ${u} is served (${asset.status})`);
+    await asset.arrayBuffer().catch(() => {});
+  }
   for (const hidden of ['/worker.js', '/lib/router.js', '/wrangler.jsonc', '/.git/HEAD', '/scripts/dev.mjs']) {
     const h = await fetch(base + hidden, { redirect: 'manual' }); ok(h.status === 404, `live ${hidden} is not served (${h.status})`);
   }
+}
+
+// ── PWA shell and catalogue (offline)
+ok(/<meta\s+name="viewport"[^>]*content="[^"]*viewport-fit=cover/i.test(idx), 'viewport fits cover');
+ok(/apple-mobile-web-app-capable/i.test(idx), 'Apple standalone meta exists');
+ok(/black-translucent/i.test(idx), 'Apple translucent status bar exists');
+ok(/<link\s+rel="manifest"[^>]*href="\/site\.webmanifest"/i.test(idx), 'PWA manifest linked');
+const touchIcon = idx.match(/<link\s+rel="apple-touch-icon"[^>]*href="([^"]+)"/i);
+ok(!!touchIcon, 'Apple touch icon linked');
+ok(!!touchIcon && exists(touchIcon[1].replace(/^\//, '')), 'Apple touch icon exists');
+let pwa;
+try { pwa = JSON.parse(read('site.webmanifest')); } catch {}
+ok(!!pwa, 'site.webmanifest parses as JSON');
+ok(pwa?.display === 'standalone', 'PWA display is standalone');
+ok(pwa?.start_url === '/', 'PWA starts at root');
+const icons = Array.isArray(pwa?.icons) ? pwa.icons : [];
+ok(icons.some((i) => i.sizes === '192x192'), 'PWA has a 192px icon');
+ok(icons.some((i) => i.sizes === '512x512'), 'PWA has a 512px icon');
+ok(icons.some((i) => typeof i.purpose === 'string' && i.purpose.split(/\s+/).includes('maskable')), 'PWA has a maskable icon');
+for (const icon of icons) ok(typeof icon.src === 'string' && exists(icon.src.replace(/^\//, '')), `PWA icon ${icon.src} exists`);
+const css = read('shell.css').replace(/\/\*[\s\S]*?\*\//g, '');
+const combinedRoot = css.match(/html\s*,\s*body\s*\{[^}]*\}/g) || [];
+const singleRoot = [...css.matchAll(/(?:^|(?<=\}))\s*(?:html|body)\s*\{[^}]*\}/g)].map((m) => m[0]);
+ok(combinedRoot.some((rule) => /\bheight\s*:\s*100vh\s*[;}]/.test(rule)), 'html, body height is 100vh');
+ok([...combinedRoot, ...singleRoot].every((rule) => !/\bheight\s*:\s*(?:100%|100dvh)\s*[;}]/.test(rule)), 'root height is not 100% or 100dvh');
+ok(Array.isArray(M.apps), 'manifest.json remains the app catalogue');
+
+// ── endpoint shape + bridge auth header (offline)
+{
+  const src = read('apps/session.html');
+  const endpointSrc = src.slice(src.indexOf('function endpointShape('), src.indexOf('function shape()'));
+  const shapeSrc = src.slice(src.indexOf('function shape()'), src.indexOf('function chatUrl()'));
+  const errorSrc = src.slice(src.indexOf('function errorDialect('), src.indexOf("$('test').addEventListener"));
+  ok(shapeSrc.includes("style === 'anthropic' ? '/v1/messages'") && !shapeSrc.includes("style === 'anthropic' ? '/messages'"), 'ambiguous Anthropic base uses /v1/messages');
+  ok(endpointSrc.includes('/\\/v1\\/messages$/') && endpointSrc.includes('/\\/messages$/'), 'endpointShape retains both Messages suffix branches');
+  const endpointShape = new Function(endpointSrc + '; return endpointShape;')();
+  ok(endpointShape('https://api.deepseek.com/anthropic/v1/messages').chatPath === '/v1/messages', 'explicit v1 Messages path');
+  ok(endpointShape('https://api.deepseek.com/anthropic/messages').chatPath === '/messages', 'explicit Messages path');
+  ok(endpointShape('https://api.deepseek.com/anthropic').ambiguous === true, 'Anthropic base is ambiguous');
+  ok(errorSrc.includes('function errorDialect(') && errorSrc.includes("type === 'error'"), 'errorDialect checks Anthropic error type');
+  const errorDialect = new Function(errorSrc + '; return errorDialect;')();
+  ok(errorDialect('{"type":"error","error":{}}') === 'anthropic' && errorDialect('{"error":{}}') === 'openai' && errorDialect('not JSON') === '', 'errorDialect classifies error bodies');
+  const netSrc = shell.slice(shell.indexOf('function netStream('), shell.indexOf("window.addEventListener('message'"));
+  ok(netSrc.includes('/^authorization$/i') && netSrc.includes('a.auth.header') && netSrc.includes("'Authorization'"), 'netStream protects authorization and defaults auth header');
+  ok(netSrc.includes("/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/"), 'netStream validates auth header token');
+  ok(C.bridge.ops['net.stream'].args.includes('header'), 'contract documents auth header argument');
+  const authSrc = src.slice(src.indexOf('function authFor('), src.indexOf('function refreshKey()'));
+  const { authFor, requestHeaders } = new Function('keyName', authSrc + '; return { authFor, requestHeaders };')(() => 'key.test');
+  const anthropicAuth = authFor('anthropic'), openaiAuth = authFor('openai');
+  ok(anthropicAuth.secret === 'key.test' && anthropicAuth.header === 'x-api-key' && anthropicAuth.scheme === '', 'Anthropic auth uses raw x-api-key from secret store');
+  ok(openaiAuth.secret === 'key.test' && !('header' in openaiAuth) && openaiAuth.scheme === 'Bearer', 'OpenAI auth uses default Bearer header');
+  const browserHeader = 'anthropic-dangerous-direct-browser-access';
+  ok(requestHeaders({}, 'anthropic', 'direct')[browserHeader] === 'true', 'direct Anthropic sends browser access header');
+  ok(!(browserHeader in requestHeaders({}, 'anthropic', 'proxy')), 'proxy Anthropic omits browser access header');
+  ok(!(browserHeader in requestHeaders({}, 'openai', 'direct')), 'direct OpenAI omits browser access header');
+  ok(session?.version === '1.2.1', 'session version is 1.2.1');
 }
 
 console.log(`${fails ? 'FAILED' : 'OK'}: ${passes} passed, ${fails} failed`);

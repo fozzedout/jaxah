@@ -1,6 +1,8 @@
 // Airis OS - the one Worker. Serves the repo root as static assets
 // (wrangler.jsonc -> assets.directory ".") and routes /api/*.
 // All routing rules are data in airis.contract.json -> worker.
+// Static assets are served by the platform before this Worker runs; site.webmanifest's
+// Content-Type comes from Cloudflare's extension table. Verify after deploy with curl -I; don't assume it.
 import contract from './airis.contract.json';
 import { handleApi, redirectFor } from './lib/router.js';
 

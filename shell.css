@@ -29,7 +29,9 @@ html[data-theme="light"] {
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { height: 100%; }
+/* 100% loses iOS cover layout behind the Dynamic Island; 100dvh is wrong on
+   PWA cold start until rotation. Do not change back. */
+html, body { height: 100vh; }
 body {
   margin: 0; color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -41,6 +43,7 @@ body {
   overflow: hidden;
 }
 button { font: inherit; color: inherit; }
+#taskbar, #dock, #statusbar, .w-title, .w-btns button, .tile, #whisper, #summon-box { touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
 /* ── Stage ──────────────────────────────────────────────────────────── */
@@ -204,7 +207,7 @@ button { font: inherit; color: inherit; }
   #statusbar {
     display: flex; align-items: center; justify-content: space-between;
     position: absolute; top: 0; left: 0; right: 0; z-index: 10;
-    padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
+    padding: calc(8px + var(--sat, env(safe-area-inset-top))) 16px 8px;
     font-size: 13px; color: var(--dim);
   }
   #sb-time { font-variant-numeric: tabular-nums; min-width: 44px; }
@@ -215,7 +218,7 @@ button { font: inherit; color: inherit; }
     top: 0; left: 0; right: 0; bottom: 0; max-height: none;
     flex-direction: row; align-content: flex-start; justify-content: flex-start;
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
-    padding: calc(52px + env(safe-area-inset-top)) 12px 110px; overflow-y: auto;
+    padding: calc(52px + var(--sat, env(safe-area-inset-top))) 12px 110px; overflow-y: auto;
   }
   .tile { width: auto; padding: 10px 2px 8px; }
   .tile .t-icon { width: 56px; height: 56px; font-size: 27px; }
@@ -223,24 +226,24 @@ button { font: inherit; color: inherit; }
   /* One app at a time: window becomes a full-screen sheet */
   .window {
     position: absolute; inset: 0 !important; width: auto !important; height: auto !important;
-    border-radius: 0; border: none; padding-bottom: env(safe-area-inset-bottom);
+    border-radius: 0; border: none; padding-bottom: var(--sab, env(safe-area-inset-bottom));
     min-width: 0; min-height: 0;
   }
   .window.max { inset: 0 !important; }
-  .w-title { height: 56px; cursor: default; padding-top: env(safe-area-inset-top); }
+  .w-title { height: 56px; cursor: default; padding-top: var(--sat, env(safe-area-inset-top)); }
   .w-btns button, .w-btns a.w-ext { min-width: 48px; min-height: 48px; }
   .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */
   .w-max { display: none; } /* no maximise on phone: sheets are already full */
   .rz { display: none; } /* no drag-resize on phone sheets */
 
-  #whisper { top: calc(46px + env(safe-area-inset-top)); bottom: auto; }
+  #whisper { top: calc(46px + var(--sat, env(safe-area-inset-top))); bottom: auto; }
 
   /* Corner presences sit above the dock, never under it. */
   #presence-portrait { bottom: 118px; }
   #presence-orb { bottom: 118px; }
   #dock {
     display: flex; align-items: center; gap: 4px;
-    position: absolute; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom));
+    position: absolute; left: 10px; right: 10px; bottom: calc(10px + var(--sab, env(safe-area-inset-bottom)));
     z-index: 10; padding: 8px 10px; border-radius: 22px;
     background: var(--glass); border: 1px solid var(--tile-border);
     backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -258,10 +261,33 @@ button { font: inherit; color: inherit; }
   #summon-box {
     margin-top: 0; width: 100%; border-radius: 22px 22px 0 0;
     max-height: 82vh; display: flex; flex-direction: column;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--sab, env(safe-area-inset-bottom));
   }
   #summon-out { max-height: 60vh; }
   .sr { padding: 15px 14px; font-size: 16px; }
+}
+
+/* iOS touch landscape has a top dead zone even when its inset is zero. */
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  @media (min-width: 768px) {
+    #stage {
+      inset: max(20px, var(--sat, env(safe-area-inset-top))) var(--sar, env(safe-area-inset-right))
+        calc(var(--taskbar-h) + var(--sab, env(safe-area-inset-bottom))) var(--sal, env(safe-area-inset-left));
+    }
+    #taskbar {
+      height: calc(var(--taskbar-h) + var(--sab, env(safe-area-inset-bottom)));
+      padding-left: calc(12px + var(--sal, env(safe-area-inset-left)));
+      padding-right: calc(12px + var(--sar, env(safe-area-inset-right)));
+      padding-bottom: var(--sab, env(safe-area-inset-bottom));
+    }
+    #whisper { bottom: calc(var(--taskbar-h) + 12px + var(--sab, env(safe-area-inset-bottom))); }
+  }
+  @media (max-width: 767.98px) {
+    #statusbar { padding-top: calc(8px + max(20px, var(--sat, env(safe-area-inset-top)))); }
+    #icon-grid { padding-top: calc(52px + max(20px, var(--sat, env(safe-area-inset-top)))); }
+    .w-title { padding-top: max(20px, var(--sat, env(safe-area-inset-top))); }
+    #whisper { top: calc(46px + max(20px, var(--sat, env(safe-area-inset-top)))); }
+  }
 }
 
 /* Secondary widening: roomier summon on large screens */
