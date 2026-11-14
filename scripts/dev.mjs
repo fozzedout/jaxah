@@ -66,7 +66,7 @@ const server = http.createServer(async (req, res) => {
       done(response.status);
       return sendResponse(res, response);
     }
-    const file = fileFor(url.pathname);
+    const file = fileFor(url.pathname === '/diagnostic' ? '/' : url.pathname);
     if (file) {
       const type = TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream';
       res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });

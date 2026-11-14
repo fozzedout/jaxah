@@ -2,6 +2,7 @@
 {
   "name": "jaxah",
   "main": "worker.js",
+  "build": { "command": "node scripts/stamp-build.mjs" },
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": ".",
@@ -9,7 +10,7 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none",
     // /api/* must reach the Worker even if a file of that name existed.
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/diagnostic"]
   },
   "routes": [
     { "pattern": "jaxah.com/*", "zone_name": "jaxah.com" }
