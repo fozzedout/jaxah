@@ -27,9 +27,11 @@
 <!-- Paul's device test (15 Nov): the iOS status-bar blur goes away only when a
      real element of non-zero height with an opaque background sits at the top
      edge. A zero-height env(safe-area-inset-top) strip does not work; a hard
-     6px floor does. #4a2f2c is sampled from the wallpaper's top rows. -->
+     6px floor does. The strip paints the wallpaper's top slice at the root's
+     exact scale, under the same three body gradients (sized to
+     the body box), with #4a2f2c only as a fallback colour. -->
 <style>:root { --sai-top: 6px; --sai-bottom: 0px; --sai-left: 0px; --sai-right: 0px; }
-#status-tint { position: fixed; top: 0; left: 0; right: 0; width: 100%; height: var(--sai-top, 6px); background-color: #4a2f2c; pointer-events: none; z-index: 21; margin: 0; padding: 0; border: 0; }</style>
+#status-tint { position: fixed; top: 0; left: 0; right: 0; width: 100%; height: var(--sai-top, 6px); background: radial-gradient(90% 60% at 15% 0%, rgba(94, 234, 212, .14) 0%, transparent 60%) center top / 100% 100vh no-repeat, radial-gradient(80% 60% at 90% 10%, rgba(129, 140, 248, .16) 0%, transparent 55%) center top / 100% 100vh no-repeat, radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%) center top / 100% 100vh no-repeat, url(/assets/wallpaper.webp) center top / max(100%, calc(100vh * 1376 / 1600)) auto no-repeat #4a2f2c; pointer-events: none; z-index: 21; margin: 0; padding: 0; border: 0; }</style>
 </head>
 <body class="term"><div id="status-tint" aria-hidden="true"></div>
   <span id="build-stamp" aria-label="Build">UNBUILT</span>

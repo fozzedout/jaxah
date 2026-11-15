@@ -168,7 +168,7 @@ const lightBg = css.match(/html\[data-theme="light"\]\s*\{[^}]*--bg0\s*:\s*([^;}
 const rootBand = css.match(/:root\s*\{[^}]*--band\s*:\s*([^;}]*)/i)?.[1].trim();
 const lightBand = css.match(/html\[data-theme="light"\]\s*\{[^}]*--band\s*:\s*([^;}]*)/i)?.[1].trim();
 ok(/<body\b[^>]*>\s*<div id="status-tint"/i.test(idx), 'status-tint is the first child of body');
-ok(/<style>:root\s*\{[^}]*--sai-top:\s*6px;[^}]*\}\s*#status-tint\s*\{[^}]*position:\s*fixed;[^}]*height:\s*var\(--sai-top,\s*6px\);[^}]*background-color:\s*#4a2f2c;[^}]*z-index:\s*21;/i.test(idx), 'status-tint rule is inline in the head');
+ok(/<style>:root\s*\{[^}]*--sai-top:\s*6px;[^}]*\}\s*#status-tint\s*\{[^}]*position:\s*fixed;[^}]*height:\s*var\(--sai-top,\s*6px\);[^}]*background:[^;]*url\(\/assets\/wallpaper\.webp\)\s+center\s+top\s*\/\s*max\(100%,\s*calc\(100vh\s*\*\s*1376\s*\/\s*1600\)\)\s+auto\s+no-repeat\b[^;]*;[^}]*z-index:\s*21;/i.test(idx), 'status-tint rule is inline in the head');
 ok(!/#status-tint\b/.test(css), 'no status-tint rule in shell.css');
 const htmlRule = css.match(/(?:^|})\s*html\s*\{([^}]*)\}/)?.[1] || '';
 ok(/background\s*:[^;]*url\(\s*['"]?\/assets\/wallpaper\.webp['"]?\s*\)[^;]*\bcover\b/i.test(htmlRule), 'root background uses wallpaper with cover');

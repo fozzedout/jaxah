@@ -39,12 +39,34 @@ async function homeTop(page, label, phone) {
     ok(header.bg === 'rgba(0, 0, 0, 0)' && header.image === 'none' && (!header.backdrop || header.backdrop === 'none') && header.position === 'fixed', `${label}: fixed statusbar is transparent: ${JSON.stringify(header)}`);
   }
   const png = (await page.screenshot({ clip: { x: 0, y: 0, width: await page.evaluate(() => innerWidth), height: 10 } })).toString('base64');
-  const rows = await page.evaluate(async (src) => {
+  const visibility = await page.evaluate(() => {
+    const style = document.getElementById('status-tint').style;
+    const previous = { value: style.getPropertyValue('visibility'), priority: style.getPropertyPriority('visibility') };
+    style.setProperty('visibility', 'hidden');
+    return previous;
+  });
+  let hiddenPng;
+  try {
+    hiddenPng = (await page.screenshot({ clip: { x: 0, y: 0, width: await page.evaluate(() => innerWidth), height: 10 } })).toString('base64');
+  } finally {
+    await page.evaluate(({ value, priority }) => {
+      document.getElementById('status-tint').style.setProperty('visibility', value, priority);
+    }, visibility);
+  }
+  const { rows, meanDiff } = await page.evaluate(async ([src, hiddenSrc]) => {
     const img = new Image(); img.src = 'data:image/png;base64,' + src; await img.decode();
     const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
     const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
     const data = ctx.getImageData(0, 0, img.width, img.height).data;
-    return Array.from({ length: img.height }, (_, y) => {
+    const hidden = new Image(); hidden.src = 'data:image/png;base64,' + hiddenSrc; await hidden.decode();
+    ctx.drawImage(hidden, 0, 0);
+    const hiddenData = ctx.getImageData(0, 0, img.width, img.height).data;
+    let diff = 0;
+    for (let i = 0; i < img.width * 6 * 4; i += 4) {
+      for (let c = 0; c < 3; c++) diff += Math.abs(data[i + c] - hiddenData[i + c]);
+    }
+    const meanDiff = diff / (img.width * 6 * 3);
+    const rows = Array.from({ length: img.height }, (_, y) => {
       let sum = 0, sum2 = 0; const colors = new Set();
       for (let x = 0; x < img.width; x++) {
         const i = (y * img.width + x) * 4, l = .2126 * data[i] + .7152 * data[i + 1] + .0722 * data[i + 2];
@@ -52,9 +74,10 @@ async function homeTop(page, label, phone) {
       }
       return { sd: Math.sqrt(Math.max(0, sum2 / img.width - (sum / img.width) ** 2)), colors: colors.size, rgb: [...colors][0] };
     });
-  }, png);
-  // Rows 0-5 are the hard 6px #status-tint strip (#4a2f2c); the wallpaper shows from row 6.
-  ok(rows.length === 10 && rows.slice(0, 6).every((r) => r.colors === 1 && r.rgb === '74,47,44'), `${label}: rows 0-5 are the solid #4a2f2c status-tint: ${JSON.stringify(rows.slice(0, 6))}`);
+    return { rows, meanDiff };
+  }, [png, hiddenPng]);
+  // Rows 0-5 paint the same wallpaper pixels as the root beneath the strip.
+  ok(rows.length === 10 && meanDiff <= 2, `${label}: rows 0-5 match the wallpaper with status-tint hidden (mean channel difference ${meanDiff})`);
   ok(rows.slice(6).every((r) => r.sd > 5 && r.colors > 1), `${label}: rows 6-9 have image detail: ${JSON.stringify(rows.slice(6))}`);
   console.log(`  info: ${label}: top row luminance std-dev ${rows.map((r) => r.sd.toFixed(1)).join(', ')}`);
 }
