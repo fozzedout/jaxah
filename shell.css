@@ -34,15 +34,14 @@ html[data-theme="light"] {
 /* 100% loses iOS cover layout behind the Dynamic Island; 100dvh is wrong on
    PWA cold start until rotation. Do not change back. */
 html, body { height: 100vh; }
-html { background-color: var(--bg0); }
+html { background: url(/assets/wallpaper.webp) center top / cover no-repeat var(--bg0); }
 body {
   margin: 0; color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background:
     radial-gradient(90% 60% at 15% 0%, rgba(94, 234, 212, .14) 0%, transparent 60%),
     radial-gradient(80% 60% at 90% 10%, rgba(129, 140, 248, .16) 0%, transparent 55%),
-    radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%),
-    linear-gradient(180deg, var(--bg1), var(--bg0));
+    radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%);
   overflow: hidden;
 }
 button { font: inherit; color: inherit; }
@@ -51,15 +50,7 @@ button { font: inherit; color: inherit; }
 
 /* ── Stage ──────────────────────────────────────────────────────────── */
 #os { position: fixed; inset: 0; z-index: 1; }
-/* The strip, #statusbar and .w-title share flat opaque --band (dark #0e1f26,
-   the measured composite of the old --glass header over the page). No fade,
-   rgba or backdrop-filter at the top. Hidden on desktop; shown on phones and
-   touch landscape. */
-#status-tint {
-  position: fixed; top: 0; left: 0; right: 0; height: max(env(safe-area-inset-top), 6px); z-index: 2;
-  background-color: var(--band); pointer-events: none; visibility: hidden;
-}
-body.term #status-tint { background-color: #020604; } /* terminal floor background */
+/* No top strip: the root image extends under the viewport inset. */
 #stage { position: absolute; inset: 0 0 var(--taskbar-h); }
 #statusbar { display: none; }
 #dock { display: none; }
@@ -221,24 +212,21 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
 
 /* ── Phone (<768px): home-screen grid, one app at a time ─────────────── */
 @media (max-width: 767.98px) {
-  /* The strip and top bars share flat opaque --band; no fade, rgba or
-     backdrop-filter at the top. */
-  #status-tint { visibility: visible; }
+  /* The home header is transparent over the image; sheet titles remain opaque. */
   #stage { inset: 0; }
-  /* The fixed header uses the same flat opaque --band as the strip and title. */
   :root { --sb-h: calc(60px + env(safe-area-inset-top)); }
   body {
     background:
       radial-gradient(90% 60% at 15% 0%, rgba(94, 234, 212, .14) 0%, transparent 60%),
       radial-gradient(80% 60% at 90% 10%, rgba(129, 140, 248, .16) 0%, transparent 55%),
-      radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%),
-      linear-gradient(180deg, var(--bg1), var(--bg0));
+      radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%);
   }
   #statusbar {
     display: flex; align-items: center; justify-content: space-between;
     position: fixed; top: 0; left: 0; right: 0; z-index: 10; height: var(--sb-h);
     padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
-    font-size: 13px; color: var(--dim); background: var(--band);
+    font-size: 13px; color: var(--dim); background: transparent;
+    text-shadow: 0 1px 3px rgba(0,0,0,.8);
   }
   #sb-time { font-variant-numeric: tabular-nums; min-width: 44px; }
   #sb-theme { border: none; background: none; font-size: 15px; min-width: 44px; min-height: 44px; }
@@ -304,8 +292,7 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
 
 /* iOS touch landscape has a top dead zone even when its inset is zero. */
 @media (orientation: landscape) and (hover: none) and (pointer: coarse) {
-  /* Touch landscape: paint the strip and cover the documented top dead zone too. */
-  #status-tint { visibility: visible; height: max(20px, env(safe-area-inset-top)); }
+  /* The image remains visible in the top dead zone. */
   @media (min-width: 768px) {
     #stage {
       inset: max(20px, env(safe-area-inset-top)) env(safe-area-inset-right)

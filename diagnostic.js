@@ -35,7 +35,6 @@
         try { return 'env=' + probe.getBoundingClientRect().height + 'px'; }
         finally { probe.remove(); }
       });
-      measure('TINT', () => { const el = required('status-tint'), rect = el.getBoundingClientRect(); return 'top=' + rect.top + ' height=' + rect.height + ' background=' + style(el).backgroundColor + ' visibility=' + style(el).visibility; });
       measure('STATUSBAR', () => { const el = required('statusbar'), rect = el.getBoundingClientRect(), css = style(el); return 'top=' + rect.top + ' height=' + rect.height + ' background=' + css.backgroundColor + ' backdrop=' + css.backdropFilter + ' webkit=' + css.getPropertyValue('-webkit-backdrop-filter'); });
       measure('ATTOP', () => [4, 10, 20].map(y => { const el = document.elementFromPoint(innerWidth / 2, y); return y + ':' + (el ? fullName(el) + ' bg=' + style(el).backgroundColor : 'NULL'); }).join(' | '));
       measure('STACK', () => { let el = document.elementFromPoint(innerWidth / 2, 10); const stack = []; while (el) { const css = style(el); stack.push(name(el) + ' bg=' + css.backgroundColor + ' z=' + css.zIndex + ' backdrop=' + (css.backdropFilter || css.getPropertyValue('-webkit-backdrop-filter'))); if (el === document.body) break; el = el.parentElement; } return stack.join(' > ') || 'NULL'; });

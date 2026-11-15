@@ -49,6 +49,7 @@
     "manifest.json": "the app catalogue, never the PWA manifest. What exists. Not what runs - an install record is what runs.",
     "site.webmanifest": "the PWA manifest for the shell and home screen.",
     "assets/icons/*": "PWA and home-screen icons.",
+    "assets/wallpaper.webp": "full-bleed root background image (from her-face.jpg)",
     "apps/": "first-party apps (session, store, persona, todo, desk, house). apps/<id>.html.",
     "worker.js": "Worker entry. Thin: imports this file and lib/router.js.",
     "lib/fs.js": "shell-owned IndexedDB workspace filesystem, loaded lazily by the bridge.",
@@ -57,14 +58,14 @@
     ".assetsignore": "files never uploaded as assets.",
     "scripts/dev.mjs": "dependency-free Node dev server: static files + same router. node scripts/dev.mjs [port]",
     "scripts/check.mjs": "contract checker. node scripts/check.mjs [--live http://localhost:8788]",
-    "scripts/check-paint.mjs": "rendered paint check for the phone status strip. needs playwright-core; exit 2 = skipped",
+    "scripts/check-paint.mjs": "rendered paint check for the full-bleed image, transparent home top and opaque app sheet titles. needs playwright-core; exit 2 = skipped",
     "AGENTS.md": "pointer to this file for agents that look there first; holds no rules.",
     "*.html at root, art/": "pre-existing standalone pages. Their URLs are permanent (see tests.legacyUrls)."
   },
 
   "pwa": {
     "height": "html/body use 100vh, never 100% (iOS falls back to non-cover layout) or 100dvh (PWA cold-start values are wrong until rotation).",
-    "insets": "CSS reads env(safe-area-inset-*) directly; no JS mirrors or fakes the insets. No apple-mobile-web-app-status-bar-style meta (black-translucent brought back the iOS 26 blur on device); viewport-fit=cover kept. On the installed iPhone PWA env(safe-area-inset-top) may read 0. The strip #status-tint and phone top bars (#statusbar, .w-title) share a flat opaque --band (dark #0e1f26, the measured composite of the old --glass header over the page; light = --bg0). Phone #statusbar is fixed at --sb-h (60px + inset); there is no band fade, rgba or backdrop-filter at the top.",
+    "insets": "CSS reads env(safe-area-inset-*) directly; no JS mirrors or fakes the insets. No apple-mobile-web-app-status-bar-style meta; viewport-fit=cover kept. On the installed iPhone PWA env(safe-area-inset-top) may read 0. There is no #status-tint strip: the root background is the full-bleed image assets/wallpaper.webp (cover, centre top), running under the top inset so an iOS status-bar blur, if painted, is visible. Phone #statusbar is fixed at --sb-h (60px + inset) and transparent, with no fill or backdrop-filter. Open-app .w-title remains opaque --band.",
     "landscape": "Touch landscape has an unreported top dead zone; use max(20px, safe-area-inset-top) as the floor, and inset the desktop stage and taskbar.",
     "zoom": "Keep pinch zoom: no maximum-scale or user-scalable=no; use touch-action: manipulation on shell chrome instead."
   },
@@ -326,7 +327,7 @@
     "unit": "node --test lib/*.test.mjs   # registry + agent loop, no network, no key",
     "check": "node scripts/check.mjs                              # offline: manifest/contract/files/CSP",
     "live": "node scripts/check.mjs --live http://localhost:8788  # also: every legacy URL resolves, /api allowlist refuses the rest",
-    "paint": "PLAYWRIGHT_CORE=/path/to/node_modules/playwright-core node scripts/check-paint.mjs http://localhost:8788  # rendered: phone status strip is the topmost opaque paint over the top inset (exit 2 = skipped)",
+    "paint": "PLAYWRIGHT_CORE=/path/to/node_modules/playwright-core node scripts/check-paint.mjs http://localhost:8788  # rendered: full-bleed image detail and transparent home top on phone, desktop and touch landscape; opaque phone sheet titles (exit 2 = skipped)",
     "benchDev": "PLAYWRIGHT_CORE=/path/to/node_modules/playwright-core node scripts/check-bench-dev.mjs http://localhost:8788  # rendered: dev files pre-seeded in home/dev never become apps/records; Bench lists them and runs CAS rename/delete; a plain boot leaves airis.installs.v1 byte-identical (exit 2 = skipped)",
     "legacyUrls": [
       "/", "/index.html", "/repo.html", "/lexfall.html", "/lsb-coding.html", "/lsb-pwman.html", "/fuel-calc-uk.html",
