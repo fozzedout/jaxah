@@ -36,6 +36,27 @@ async function topAt(page, x, y) {
   }, { x, y });
 }
 
+async function glassTopBand(page, label) {
+  const result = await page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;height:env(safe-area-inset-top, 0px)';
+    document.body.appendChild(probe);
+    const inset = probe.getBoundingClientRect().height;
+    probe.remove();
+    return Array.from(document.querySelectorAll('*')).flatMap((el) => {
+      const c = getComputedStyle(el);
+      if (![c.backdropFilter, c.webkitBackdropFilter, c.getPropertyValue('-webkit-backdrop-filter')].some((v) => v && v !== 'none')) return [];
+      const r = el.getBoundingClientRect(), round = (n) => Math.round(n * 10) / 10;
+      const name = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.getAttribute('class')?.trim() ? '.' + el.getAttribute('class').trim().split(/\s+/).join('.') : '');
+      return [{ description: `${name} rect ${round(r.top)}/${round(r.bottom)}/${round(r.left)}/${round(r.right)}`, top: r.top < inset + 8 && r.bottom > 0 && r.width > 0 && r.height > 0 }];
+    });
+  });
+  const top = result.filter((el) => el.top);
+  for (const el of top) ok(false, `${label}: backdrop-filter element in top band: ${el.description}`);
+  if (!top.length) ok(true, `${label}: no backdrop-filter elements in top band`);
+  console.log(`  info: ${label}: glass elements ${result.length}, in top band ${top.length}${result.length ? ': ' + result.map((el) => el.description).join(' | ') : ''}`);
+}
+
 function alpha(rgb) {
   if (rgb === 'transparent') return 0;
   const match = /^rgba?\(([^)]+)\)$/.exec(rgb || '');
@@ -92,19 +113,22 @@ try {
     ok(await page.locator('.window').count() > 0, label + ': window exists');
   }
   for (const [theme, colour] of [['dark', 'rgb(7, 13, 18)'], ['light', 'rgb(223, 233, 231)']]) {
-    await scenario(theme, 47, {}, async (page) => {
+    for (const inset of [47, 59]) await scenario(theme, inset, {}, async (page) => {
+      const home = `${theme} home @${inset}`, sheetLabel = `${theme} sheet @${inset}`;
       const hit = await page.evaluate(() => document.elementFromPoint(195, 4)?.id || '');
-      ok(hit === 'statusbar', `${theme} home: unmodified hit at (195,4) is #statusbar, got ${hit || '(none)'}`);
-      for (const y of [4, 10, 40]) await assertPhoneHeader(theme + ' home', page, y, '#statusbar', colour);
+      ok(hit === 'statusbar', `${home}: unmodified hit at (195,4) is #statusbar, got ${hit || '(none)'}`);
+      for (const y of [4, 10, 40]) await assertPhoneHeader(home, page, y, '#statusbar', colour);
+      await glassTopBand(page, home);
       const grid = await page.evaluate(() => ({ header: document.querySelector('#statusbar').getBoundingClientRect().bottom, icon: document.querySelector('.tile .t-icon').getBoundingClientRect().top }));
-      ok(grid.icon >= grid.header, `${theme}: first row icons start below header (${grid.icon} >= ${grid.header})`);
-      await openTile(page, theme + ' sheet open');
+      ok(grid.icon >= grid.header, `${home}: first row icons start below header (${grid.icon} >= ${grid.header})`);
+      await openTile(page, sheetLabel + ' open');
       const sheetHit = await page.evaluate(() => document.elementFromPoint(195, 4)?.classList.contains('w-title'));
-      ok(sheetHit, `${theme} sheet: unmodified hit at (195,4) is .w-title`);
-      for (const y of [4, 10, 40]) await assertPhoneHeader(theme + ' sheet', page, y, '.w-title', colour);
+      ok(sheetHit, `${sheetLabel}: unmodified hit at (195,4) is .w-title`);
+      for (const y of [4, 10, 40]) await assertPhoneHeader(sheetLabel, page, y, '.w-title', colour);
+      await glassTopBand(page, sheetLabel);
       const sheet = await page.evaluate(() => { const w = document.querySelector('.window'), c = getComputedStyle(w); return { title: w.querySelector('.w-title').getBoundingClientRect().bottom, frame: w.querySelector('iframe').getBoundingClientRect().top, backdrop: c.backdropFilter || c.webkitBackdropFilter, transform: c.transform, filter: c.filter }; });
-      ok(Math.abs(sheet.title - sheet.frame) < 0.1, `${theme}: iframe starts at title bottom without gap or overlap (${sheet.frame} vs ${sheet.title})`);
-      ok([sheet.backdrop, sheet.transform, sheet.filter].every((v) => !v || v === 'none'), `${theme}: window has no fixed-child containing-block effects`);
+      ok(Math.abs(sheet.title - sheet.frame) < 0.1, `${sheetLabel}: iframe starts at title bottom without gap or overlap (${sheet.frame} vs ${sheet.title})`);
+      ok([sheet.backdrop, sheet.transform, sheet.filter].every((v) => !v || v === 'none'), `${sheetLabel}: window has no fixed-child containing-block effects`);
     });
   }
   await scenario('dark', 0, {}, async (page, cdp) => {
