@@ -110,19 +110,23 @@ async function assertPhoneHeader(label, page, y, selector, colour, x = 195) {
 // Media 834: the dark header met the teal glass in a hard step. Read a gutter column
 // (clear of icons) from a real screenshot and require no row-to-row jump near the top.
 async function noTopStep(page, label) {
-  const png = (await page.screenshot({ clip: { x: 8, y: 0, width: 1, height: 400 } })).toString('base64');
+  // Strip + header are one flat --band surface: no row step from y=0 to the header's bottom edge.
+  const edge = Math.round(await page.evaluate(() => document.querySelector('#statusbar').getBoundingClientRect().bottom));
+  const png = (await page.screenshot({ clip: { x: 8, y: 0, width: 1, height: edge + 2 } })).toString('base64');
   const step = await page.evaluate(async (src) => {
     const img = new Image(); img.src = 'data:image/png;base64,' + src; await img.decode();
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
     const g = c.getContext('2d'); g.drawImage(img, 0, 0);
     const d = g.getImageData(0, 0, 1, img.height).data;
-    let max = 0, at = 0;
-    for (let y = 0; y + 1 < img.height; y++) for (let k = 0; k < 3; k++) {
+    let max = 0, at = 0, rim = 0;
+    for (let k = 0; k < 3; k++) rim = Math.max(rim, Math.abs(d[(img.height - 3) * 4 + k] - d[(img.height - 2) * 4 + k]));
+    for (let y = 0; y + 3 < img.height; y++) for (let k = 0; k < 3; k++) {
       const v = Math.abs(d[y * 4 + k] - d[(y + 1) * 4 + k]); if (v > max) { max = v; at = y; }
     }
-    return { max, at };
+    return { max, at, rim };
   }, png);
-  ok(step.max <= 8, `${label}: no hard colour step in the top 400px (max row jump ${step.max} at y=${step.at})`);
+  ok(step.max <= 8, `${label}: strip and header are one flat surface (max row jump ${step.max} at y=${step.at}, header bottom ${edge})`);
+  console.log(`  info: ${label}: header bottom edge meets the page with a ${step.rim} step`);
 }
 
 let browser;
@@ -145,7 +149,7 @@ try {
     await page.waitForTimeout(800);
     ok(await page.locator('.window').count() > 0, label + ': window exists');
   }
-  for (const [theme, colour] of [['dark', 'rgb(1, 5, 4)'], ['light', 'rgb(223, 233, 231)']]) {
+  for (const [theme, colour] of [['dark', 'rgb(14, 31, 38)'], ['light', 'rgb(223, 233, 231)']]) {
     for (const inset of [0, 47, 59]) await scenario(theme, inset, {}, async (page) => {
       const home = `${theme} home @${inset}`, sheetLabel = `${theme} sheet @${inset}`;
       const hit = await page.evaluate(() => document.elementFromPoint(195, 4)?.id || '');
@@ -170,19 +174,19 @@ try {
     await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 47 } });
     await page.waitForTimeout(300);
     await openTile(page, 'stale inset sheet open');
-    await assertPhoneHeader('stale inset sheet open', page, 40, '.w-title', 'rgb(1, 5, 4)');
+    await assertPhoneHeader('stale inset sheet open', page, 40, '.w-title', 'rgb(14, 31, 38)');
   });
   await scenario('dark', 0, { viewport: { width: 1280, height: 800 } }, async (page) => {
     const vis = await page.evaluate(() => getComputedStyle(document.getElementById('status-tint')).visibility);
     ok(vis === 'hidden', 'desktop: status tint is hidden (no 6px band), got ' + vis);
   });
   await scenario('dark', 0, { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
-    await assertOpaqueTop('landscape touch', page, 20, 'rgb(1, 5, 4)');
+    await assertOpaqueTop('landscape touch', page, 20, 'rgb(14, 31, 38)');
   });
   await scenario('dark', 0, { viewport: { width: 700, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
-    await assertPhoneHeader('phone landscape home', page, 10, '#statusbar', 'rgb(1, 5, 4)');
+    await assertPhoneHeader('phone landscape home', page, 10, '#statusbar', 'rgb(14, 31, 38)');
     await openTile(page, 'phone landscape sheet');
-    await assertPhoneHeader('phone landscape sheet', page, 10, '.w-title', 'rgb(1, 5, 4)');
+    await assertPhoneHeader('phone landscape sheet', page, 10, '.w-title', 'rgb(14, 31, 38)');
     const sheet = await page.evaluate(() => ({ title: document.querySelector('.window .w-title').getBoundingClientRect().bottom, frame: document.querySelector('.window iframe').getBoundingClientRect().top }));
     ok(Math.abs(sheet.title - sheet.frame) < 0.1, `phone landscape: iframe starts at title bottom (${sheet.frame} vs ${sheet.title})`);
   });

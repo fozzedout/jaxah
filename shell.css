@@ -4,7 +4,7 @@
 
 :root {
   --bg0: #070d12;
-  --band: #010504;
+  --band: #0e1f26;
   --bg1: #0b1e24;
   --glass: rgba(13, 28, 34, .78);
   --tile: rgba(255, 255, 255, .06);
@@ -51,10 +51,10 @@ button { font: inherit; color: inherit; }
 
 /* ── Stage ──────────────────────────────────────────────────────────── */
 #os { position: fixed; inset: 0; z-index: 1; }
-/* No status-bar style meta: iOS paints its own band, and env(safe-area-inset-top)
-   may read 0. The opaque strip and phone top bars use --band (dark #010504,
-   measured on device) to meet it without a step. Never rgba or backdrop-filter
-   at the top. Hidden on desktop; shown on phones and touch landscape. */
+/* The strip, #statusbar and .w-title share flat opaque --band (dark #0e1f26,
+   the measured composite of the old --glass header over the page). No fade,
+   rgba or backdrop-filter at the top. Hidden on desktop; shown on phones and
+   touch landscape. */
 #status-tint {
   position: fixed; top: 0; left: 0; right: 0; height: max(env(safe-area-inset-top), 6px); z-index: 2;
   background-color: var(--band); pointer-events: none; visibility: hidden;
@@ -215,18 +215,14 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
 
 /* ── Phone (<768px): home-screen grid, one app at a time ─────────────── */
 @media (max-width: 767.98px) {
-  /* iOS paints its own band without the status-bar meta; env() may be 0.
-     The strip and top bars use opaque --band (dark #010504 measured) to avoid a step;
-     never rgba or backdrop-filter at the top. */
+  /* The strip and top bars share flat opaque --band; no fade, rgba or
+     backdrop-filter at the top. */
   #status-tint { visibility: visible; }
   #stage { inset: 0; }
-  /* The header is a fixed --sb-h tall, and the body's top layer holds --band solid to
-     exactly that edge, then fades it out over 160px: no hard step from the dark band
-     into the teal glass (media 834). Behind the icons; opaque at the header edge. */
+  /* The fixed header uses the same flat opaque --band as the strip and title. */
   :root { --sb-h: calc(60px + env(safe-area-inset-top)); }
   body {
     background:
-      linear-gradient(180deg, var(--band) 0, var(--band) var(--sb-h), transparent calc(var(--sb-h) + 160px)),
       radial-gradient(90% 60% at 15% 0%, rgba(94, 234, 212, .14) 0%, transparent 60%),
       radial-gradient(80% 60% at 90% 10%, rgba(129, 140, 248, .16) 0%, transparent 55%),
       radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%),

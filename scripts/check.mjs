@@ -168,7 +168,7 @@ ok(!/<meta\b[^>]*\bname\s*=\s*["']apple-mobile-web-app-status-bar-style["']/i.te
 ok(!/--sa[tblr]\b/.test(css) && !/--sa[tblr]\b/.test(shell) && !/safe-area-inset/.test(shell), 'no JS mirrors or fakes the safe-area insets: CSS reads env() directly');
 ok(['position: fixed', 'top: 0', 'left: 0', 'right: 0', 'pointer-events: none', 'background-color: var(--band)', 'height: max(env(safe-area-inset-top), 6px)', 'visibility: hidden'].every((declaration) => tintRule.includes(declaration)) && !/rgba|backdrop-filter|--sat/.test(tintRule), 'status tint is fixed, full-width, pointer-events none, opaque --band (no rgba/backdrop-filter), max(env, 6px) high, hidden on desktop');
 ok(rootBg === '#070d12' && lightBg === '#dfe9e7', 'dark and light --bg0 values are unchanged');
-ok(rootBand === '#010504' && lightBand === 'var(--bg0)', 'dark --band matches the measured iOS band; light --band uses --bg0');
+ok(rootBand === '#0e1f26' && lightBand === 'var(--bg0)', 'dark --band is the measured header composite; light --band uses --bg0');
 ok(/@media\s*\(max-width:\s*767\.98px\)\s*\{[\s\S]*?\.w-title\s*\{[^}]*height:\s*calc\(56px\s*\+/.test(css), 'phone window title includes 56px plus inset');
 // Phone hides minimise/maximise: the hiding rule must outrank the base `.w-btns button` display rule.
 const spec = (sel) => {
@@ -206,6 +206,9 @@ ok(pwa?.display === 'standalone', 'PWA display is standalone');
 ok(pwa?.start_url === '/', 'PWA starts at root');
 ok(pwa?.theme_color === rootBg && pwa?.background_color === rootBg, 'site.webmanifest theme_color and background_color match dark --bg0');
 ok(/#status-tint\s*\{\s*visibility:\s*visible;\s*\}/.test(phoneBlock) && !/#status-tint\s*\{[^}]*visibility:\s*hidden/.test(phoneBlock), 'phone shows the opaque status tint at the viewport top');
+const phoneBody = phoneBlock.match(/(?:^|})\s*body\s*\{([^}]*)\}/)?.[1] || '';
+const phoneBackground = phoneBody.match(/(?:^|;)\s*background\s*:\s*([^;]*)/i)?.[1];
+ok(!!phoneBackground && !/var\(\s*--band\s*\)/i.test(phoneBackground), 'phone body background has no --band gradient or fade');
 ok(/#statusbar\s*\{[^}]*background:\s*var\(--band\)/.test(phoneBlock) && !/#statusbar\s*\{[^}]*(?:rgba|backdrop-filter)/.test(phoneBlock), 'phone status bar header is opaque --band, same colour as the tint');
 ok(/#statusbar\s*\{[^}]*position:\s*fixed/.test(phoneBlock) && /\.w-title\s*\{[^}]*position:\s*fixed/.test(phoneBlock), 'phone headers are fixed');
 ok(/\.window\s*\{[^}]*background:\s*var\(--bg0\);[^}]*backdrop-filter:\s*none/.test(phoneBlock), 'phone sheet is opaque --bg0 with no backdrop-filter');
