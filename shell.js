@@ -243,6 +243,15 @@ new ResizeObserver(function () {
   Object.keys(openWins).forEach(function (id) { clampWin(openWins[id]); });
 }).observe(wins);
 
+/* Phone sheets: html[data-app-open] tells shell.css to paint #status-tint in the band colour
+   while any non-minimised window is open. Set on every viewport; the CSS rule is phone-scoped,
+   so desktop paint is unaffected and a resize across 768px needs no listener. */
+function syncAppOpen() {
+  var any = Object.keys(openWins).some(function (k) { return !openWins[k].classList.contains('min'); });
+  if (any) document.documentElement.setAttribute('data-app-open', '');
+  else document.documentElement.removeAttribute('data-app-open');
+}
+
 function focusWin(id) {
   focusOrder = focusOrder.filter(function (k) { return k !== id && !!openWins[k]; });
   if (openWins[id]) focusOrder.push(id);
@@ -542,6 +551,7 @@ function renderGrid() {
 }
 
 function refreshTasks() {
+  syncAppOpen();
   taskApps.innerHTML = '';
   Object.keys(openWins).forEach(function (id) {
     var app = byId[id];

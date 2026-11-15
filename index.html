@@ -29,9 +29,11 @@
      edge. A zero-height env(safe-area-inset-top) strip does not work; a hard
      6px floor does. The strip paints the wallpaper's top slice at the root's
      exact scale, under the same three body gradients (sized to
-     the body box), with #4a2f2c only as a fallback colour. -->
+     the body box), with #4a2f2c only as a fallback colour. On phone, while an app sheet is open (shell.js sets html[data-app-open]), the strip paints the sheet header's --band instead, so the header reads flush to the top edge; the selector outranks #status-tint, so order does not matter. -->
 <style>:root { --sai-top: 6px; --sai-bottom: 0px; --sai-left: 0px; --sai-right: 0px; }
-#status-tint { position: fixed; top: 0; left: 0; right: 0; width: 100%; height: var(--sai-top, 6px); background: radial-gradient(90% 60% at 15% 0%, rgba(94, 234, 212, .14) 0%, transparent 60%) center top / 100% 100vh no-repeat, radial-gradient(80% 60% at 90% 10%, rgba(129, 140, 248, .16) 0%, transparent 55%) center top / 100% 100vh no-repeat, radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%) center top / 100% 100vh no-repeat, url(/assets/wallpaper.webp) center top / max(100%, calc(100vh * 1376 / 1600)) auto no-repeat #4a2f2c; pointer-events: none; z-index: 21; margin: 0; padding: 0; border: 0; }</style>
+#status-tint { position: fixed; top: 0; left: 0; right: 0; width: 100%; height: var(--sai-top, 6px); background: radial-gradient(90% 60% at 15% 0%, rgba(94, 234, 212, .14) 0%, transparent 60%) center top / 100% 100vh no-repeat, radial-gradient(80% 60% at 90% 10%, rgba(129, 140, 248, .16) 0%, transparent 55%) center top / 100% 100vh no-repeat, radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%) center top / 100% 100vh no-repeat, url(/assets/wallpaper.webp) center top / max(100%, calc(100vh * 1376 / 1600)) auto no-repeat #4a2f2c; pointer-events: none; z-index: 21; margin: 0; padding: 0; border: 0; }
+@media (max-width: 767.98px) { html[data-app-open] #status-tint { background: var(--band); } }
+</style>
 </head>
 <body class="term"><div id="status-tint" aria-hidden="true"></div>
   <span id="build-stamp" aria-label="Build">UNBUILT</span>
