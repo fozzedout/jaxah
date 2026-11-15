@@ -102,6 +102,11 @@ const shell = read('shell.js');
 ok(/setAttribute\('sandbox', CONTRACT\.sandbox\.iframe\)/.test(shell), 'shell.js takes the sandbox attribute from the contract');
 ok(!/allow-same-origin['"]/.test(shell), 'shell.js never sets allow-same-origin');
 for (const op of Object.keys(C.bridge.ops)) ok(shell.includes(`'${op}'`), `bridge op ${op} implemented in shell.js`);
+for (const [op, cap] of Object.entries({ 'app.publish': null, 'app.selection': null, 'app.state': 'actions', 'app.act': 'actions', 'app.reply': null })) {
+  ok(Object.hasOwn(C.bridge.ops, op) && C.bridge.ops[op].cap === cap, `bridge ${op} exists with cap ${cap}`);
+}
+ok(C.bridge.event.event.split(/\s*\|\s*/).includes('act'), 'bridge events include act');
+ok(read('apps/todo.html').includes('app.publish'), 'todo publishes app state');
 for (const a of Object.keys(C.actions.list)) ok(new RegExp(`(^|\\s|')${a}'?: function`, 'm').test(shell), `action ${a} implemented in shell.js`);
 const wr = JSON.parse(read('wrangler.jsonc').replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'));
 ok(wr.main === C.worker.entry, 'wrangler main = contract.worker.entry');

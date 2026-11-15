@@ -305,7 +305,7 @@ function openApp(id) {
   frameIds.set(frame, id);
   var frameLoaded = false;   // the first load is the app's own first document: nothing to cancel, generation unchanged
   frame.addEventListener('load', function () {
-    if (frameLoaded) { frameGen[id] = (frameGen[id] || 0) + 1; abortStreamsFor(id); }
+    if (frameLoaded) { frameGen[id] = (frameGen[id] || 0) + 1; abortStreamsFor(id); clearPublished(id); }
     frameLoaded = true;
   });
 
@@ -494,6 +494,8 @@ function closeApp(id) {
   var el = openWins[id];
   if (!el) return;
   abortStreamsFor(id);
+  frameGen[id] = (frameGen[id] || 0) + 1;
+  clearPublished(id);
   delete watches[id];
   Object.keys(runLocks).forEach(function (ws) {
     if (runLocks[ws].id === id) { runLocks[ws].fs.releaseRun(ws); delete runLocks[ws]; }
@@ -1251,7 +1253,86 @@ function netUrl(u) {
   if (url.username || url.password) throw new Error('no credentials in urls');
   return url;
 }
+var published = Object.create(null), selections = Object.create(null), publishTrail = Object.create(null);
+var pendingActs = Object.create(null), actSequence = 0;
+function clearPublished(id) {
+  delete published[id]; delete selections[id];
+  Object.keys(pendingActs).forEach(function (key) {
+    var p = pendingActs[key];
+    if (p.target === id || p.caller === id) p.finish(false, 'frame closed or reloaded');
+  });
+}
+function publishedTarget(id) {
+  if (typeof id !== 'string' || !byId[id] || !openWins[id] || !published[id]) throw new Error('app not open or not published');
+  return published[id];
+}
 var OPS = {
+  'app.publish': function (id, a) {
+    if (!Array.isArray(a.actions) || !a.actions.every(function (x) {
+      return x && typeof x.name === 'string' && x.name.length > 0 && ['read', 'write', 'external', 'secret'].indexOf(x.effect) !== -1 && typeof x.agent === 'boolean' && x.args && typeof x.args === 'object' && !Array.isArray(x.args);
+    })) throw new Error('invalid actions');
+    var json;
+    try { json = JSON.stringify({ state: a.state, actions: a.actions }); } catch (e) { throw new Error('invalid JSON'); }
+    if (a.state === undefined || !json) throw new Error('invalid state');
+    var bytes = new TextEncoder().encode(json).length;
+    if (bytes > 16384) throw new Error('publish too large');
+    if (published[id] && published[id].json === json) return true;
+    var copy = JSON.parse(json);
+    published[id] = { json: json, state: copy.state, actions: copy.actions, publishedAt: Date.now() };
+    if (!publishTrail[id] || Date.now() - publishTrail[id] >= 1000) {
+      publishTrail[id] = Date.now(); trailAdd('app:' + id, 'app.publish', copy.actions.length + ' actions, ' + bytes + ' bytes');
+    }
+    return true;
+  },
+  'app.human': function (id, a) {
+    var p = publishedTarget(id);
+    if (typeof a.action !== 'string' || !p.actions.some(function (x) { return x.name === a.action; })) throw new Error('unknown action');
+    trailAdd('human', 'app:' + id, a.action + ' (app-reported)'); return true;
+  },
+  'app.selection': function (id, a) {
+    if (a.ref === undefined) throw new Error('missing ref');
+    if (a.text !== undefined && typeof a.text !== 'string') throw new Error('invalid text');
+    var json = JSON.stringify({ ref: a.ref, text: a.text === undefined ? undefined : a.text.slice(0, 2000) });
+    if (new TextEncoder().encode(json).length > 16384) throw new Error('selection too large');
+    selections[id] = JSON.parse(json); return true;
+  },
+  'app.state': function (id, a) {
+    try {
+      var p = publishedTarget(a.id);
+      trailAdd('agent:' + id, 'app.state', a.id + ' → ok');
+      return { id: a.id, state: p.state, actions: p.actions, selection: selections[a.id] || null, publishedAt: p.publishedAt };
+    } catch (err) { trailAdd('agent:' + id, 'app.state', String(a.id) + ' → error: ' + err.message); throw err; }
+  },
+  'app.act': function (id, a) {
+    var detail = String(a.id) + '/' + String(a.action), actor = 'agent:' + id;
+    return Promise.resolve().then(function () {
+      var p = publishedTarget(a.id), action = p.actions.find(function (x) { return x.name === a.action; });
+      if (!action) throw new Error('unknown action');
+      if (!action.agent) throw new Error('action is not available to agents');
+      if (a.args != null && (typeof a.args !== 'object' || Array.isArray(a.args))) throw new Error('invalid args');
+      var frame = openWins[a.id].querySelector('iframe');
+      if (!frame || !frame.contentWindow) throw new Error('target frame unavailable');
+      return new Promise(function (resolve, reject) {
+        var re = 'act:' + (++actSequence), timer;
+        var entry = { target: a.id, caller: id, finish: function (ok, value) {
+          if (!pendingActs[re]) return;
+          delete pendingActs[re]; clearTimeout(timer);
+          if (ok) resolve(value); else reject(new Error(String(value || 'action failed')));
+        } };
+        pendingActs[re] = entry;
+        timer = setTimeout(function () { entry.finish(false, 'timeout'); }, 15000);
+        try { frame.contentWindow.postMessage({ airis: 1, event: 'act', re: re, action: a.action, args: a.args || {}, from: id }, '*'); }
+        catch (err) { entry.finish(false, err.message); }
+      });
+    }).then(function (value) { trailAdd(actor, 'app.act', detail + ' → ok'); return value; }, function (err) {
+      trailAdd(actor, 'app.act', detail + ' → error: ' + err.message); throw err;
+    });
+  },
+  'app.reply': function (id, a) {
+    var p = pendingActs[a.re];
+    if (!p || p.target !== id || typeof a.ok !== 'boolean') throw new Error('no pending action for this frame');
+    p.finish(a.ok, a.ok ? a.value : a.error); return true;
+  },
   'hello': function (id) {
     var a = byId[id];
     return { appId: id, entry: installs.records[id] ? installs.records[id].entry : a, theme: document.documentElement.getAttribute('data-theme'),

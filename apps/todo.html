@@ -75,6 +75,17 @@
 
   window.addEventListener('message', function (event) {
     if (event.source !== window.parent || !event.data || event.data.airis !== 1) return;
+    if (event.data.event === 'act') {
+      var msg = event.data;
+      Promise.resolve().then(function () {
+        if (input.disabled) throw new Error('not ready');
+        if (msg.action === 'add') return addItem(msg.args && msg.args.text);
+        if (msg.action === 'toggle') return toggleItem(msg.args && msg.args.id);
+        throw new Error('unknown action');
+      }).then(function (value) { return call('app.reply', { re: msg.re, ok: true, value: value }); },
+        function (err) { return call('app.reply', { re: msg.re, ok: false, error: err.message }); }).catch(function () {});
+      return;
+    }
     var p = pending[event.data.re];
     if (!p) return;
     delete pending[event.data.re];
@@ -362,6 +373,16 @@
     catch (e) { /* nothing to post to */ }
   }
 
+  function publish() {
+    if (!framed) return;
+    var open = items.filter(function (t) { return !t.done; }).length;
+    call('app.publish', { state: { count: items.length, open: open, done: items.length - open,
+      items: items.slice(0, 50).map(function (t) { return { id: t.id, text: String(t.text).slice(0, 40), done: !!t.done }; }) },
+      actions: [
+        { name: 'add', args: { text: 'string' }, effect: 'write', agent: true },
+        { name: 'toggle', args: { id: 'string' }, effect: 'write', agent: true }
+      ] }).catch(function () {});
+  }
   var saveQueue = Promise.resolve();
   function persist() {
     var snapshot = JSON.parse(JSON.stringify(items));
@@ -377,7 +398,7 @@
       var cb = document.createElement('input');
       cb.type = 'checkbox'; cb.checked = !!t.done;
       cb.setAttribute('aria-label', 'Mark done: ' + t.text);
-      cb.addEventListener('change', function () { items[i].done = cb.checked; persist(); });
+      cb.addEventListener('change', function () { toggleItem(t.id); reportHuman('toggle'); });
       var s = document.createElement('span');
       s.textContent = t.text;
       var del = document.createElement('button');
@@ -391,19 +412,33 @@
     count.textContent = items.length === 0 ? 'Nothing here yet.'
       : open + ' open · ' + items.length + ' total';
     postPicture();
+    publish();
   }
 
+  function addItem(text) {
+    if (typeof text !== 'string' || !text.trim()) throw new Error('text required');
+    var item = { id: crypto.randomUUID(), text: text.trim(), done: false };
+    items.push(item); persist(); return item.id;
+  }
+  function toggleItem(id) {
+    var item = items.find(function (t) { return t.id === id; });
+    if (!item) throw new Error('item not found');
+    item.done = !item.done; persist(); return item.done;
+  }
+  function reportHuman(action) { if (framed) call('app.human', { action: action }).catch(function () {}); }
   function add() {
-    var v = input.value.trim();
-    if (!v) return;
-    items.push({ text: v, done: false });
+    if (!input.value.trim()) return;
+    addItem(input.value);
+    reportHuman('add');
     input.value = '';
-    persist();
     input.focus();
   }
 
   store.load().then(function (loaded) {
     items = loaded;
+    var migrated = false;
+    items.forEach(function (t) { if (!t.id) { t.id = crypto.randomUUID(); migrated = true; } });
+    if (migrated) persist();
     input.disabled = addButton.disabled = clearButton.disabled = false;
     addButton.addEventListener('click', add);
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
