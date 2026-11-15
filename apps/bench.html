@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench</title>
+<style>
+:root { color-scheme: dark; --bg:#101b20; --panel:#192a2f; --field:#0a1418; --text:#e8f1f0; --muted:#a4bbb6; --border:#49635f; --button:#17554d; --warn:#ffcd88; }
+:root[data-theme="light"] { color-scheme:light; --bg:#edf5f2; --panel:#fff; --field:#f8fbfa; --text:#18312d; --muted:#526b65; --border:#a6bdb7; --button:#d0ebe2; --warn:#853a00; }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; font:14px system-ui,sans-serif; background:var(--bg); color:var(--text); }
+h1 { font-size:20px; margin:0 0 12px; } h2 { font-size:15px; margin:0; }
+.layout { display:grid; grid-template-columns:minmax(260px, 38%) minmax(0,1fr); gap:12px; }
+section { min-width:0; padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--panel); }
+.toolbar, .actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.toolbar { justify-content:space-between; margin-bottom:10px; }
+button { font:inherit; color:var(--text); background:var(--button); border:1px solid var(--border); border-radius:5px; padding:6px 9px; cursor:pointer; }
+button:disabled { opacity:.5; cursor:default; }
+ul { padding:0; margin:0; list-style:none; }
+li { border-top:1px solid var(--border); padding:8px 0; }
+.filename { overflow-wrap:anywhere; font-weight:600; } .meta, .hint { color:var(--muted); font-size:12px; }
+.actions { margin-top:5px; } .actions button { font-size:12px; }
+textarea { display:block; width:100%; min-height:330px; resize:vertical; margin:10px 0; padding:10px; font:13px/1.45 ui-monospace,monospace; color:var(--text); background:var(--field); border:1px solid var(--border); border-radius:5px; }
+#path { overflow-wrap:anywhere; } #status, #conflict, #run-note { overflow-wrap:anywhere; } #status, #conflict { color:var(--warn); }
+#conflict { border:1px solid var(--warn); border-radius:5px; padding:8px; margin:8px 0; }
+#conflict button { display:block; margin-top:6px; }
+[hidden] { display:none !important; }
+@media (max-width:640px) { .layout { grid-template-columns:1fr; } textarea { min-height:260px; } }
+</style>
+</head>
+<body>
+<h1>Bench</h1>
+<p id="status" role="status" aria-live="polite"></p>
+<div class="layout">
+<section>
+  <div class="toolbar"><h2>home/dev</h2><button id="new" disabled>New file</button></div>
+  <div id="empty" hidden><p>No files yet.</p><div class="actions"><button id="empty-new">New file</button><button id="insert">Insert hello world</button></div></div>
+  <ul id="files"></ul>
+</section>
+<section>
+  <div id="path">No file open</div>
+  <div id="conflict" role="alert" hidden><span id="conflict-text"></span><button id="reload">Reload from disk (discard my edits)</button></div>
+  <textarea id="editor" spellcheck="false" aria-label="File contents" disabled></textarea>
+  <div class="actions"><button id="save" disabled>Save</button><button id="run" disabled>Run</button></div>
+  <p class="hint">Runs in a test harness - not installed, never on the desktop.</p>
+  <p id="run-note" class="hint"></p>
+</section>
+</div>
+<script id="dev-rules">
+(function () {
+  'use strict';
+  var DEV = { ws: 'home', dir: 'dev', textExt: ['html','htm','js','mjs','css','json','md','txt','svg'], runExt: ['html','htm'] };
+  function checkName(name) {
+    if (typeof name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name) || name.indexOf('..') !== -1)
+      return { ok: false, error: 'Use a single file name (up to 64 letters, numbers, dots, underscores or hyphens; no consecutive dots).' };
+    var dot = name.lastIndexOf('.');
+    if (dot < 0 || DEV.textExt.indexOf(name.slice(dot + 1).toLowerCase()) < 0)
+      return { ok: false, error: 'Use a supported text file extension.' };
+    return { ok: true, path: 'dev/' + name };
+  }
+  function isDevPath(path) { return typeof path === 'string' && path.indexOf('dev/') === 0 && checkName(path.slice(4)).ok; }
+  function isRunnable(path) { return isDevPath(path) && DEV.runExt.indexOf(path.slice(path.lastIndexOf('.') + 1).toLowerCase()) !== -1; }
+  function viewFor(list) { return !Array.isArray(list) ? 'error' : list.some(function (item) { return item && isDevPath(item.path); }) ? 'files' : 'empty'; }
+  var HELLO_PATH = 'dev/hello.html';
+  var HELLO_TEXT = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Hello</title></head><body>
+<h1>Hello from dev/hello.html</h1><p id="info">Connecting…</p><button id="note">Note to trail</button>
+<script>
+(function () {
+  var seq = 0, pending = {};
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent || !event.data || event.data.airis !== 1) return;
+    var p = pending[event.data.re]; if (!p) return;
+    delete pending[event.data.re]; clearTimeout(p.timer);
+    if (event.data.ok) p.resolve(event.data.value); else p.reject(new Error(event.data.error));
+  });
+  function bridge(op, args) { return new Promise(function (resolve, reject) {
+    var id = ++seq, timer = setTimeout(function () { delete pending[id]; reject(new Error('Bridge timed out')); }, 10000);
+    pending[id] = {resolve:resolve, reject:reject, timer:timer};
+    try { window.parent.postMessage({airis:1, id:id, op:op, args:args || {}}, '*'); }
+    catch (e) { clearTimeout(timer); delete pending[id]; reject(e); }
+  }); }
+  var info = document.getElementById('info');
+  bridge('hello').then(function (value) {
+    value = value || {}; var file = value.file || {};
+    info.textContent = (value.harness ? 'running in the test harness' : 'not in the harness') + (file.path != null ? ' · ' + file.path : '') + (file.ver != null ? ' v' + file.ver : '');
+  }).catch(function (e) { info.textContent = e.message; });
+  document.getElementById('note').onclick = function () { bridge('trail.note', {text:'hello from the harness'}).catch(function (e) { info.textContent = e.message; }); };
+})();
+<\/script></body></html>`;
+  globalThis.DevRules = { DEV: DEV, checkName: checkName, isDevPath: isDevPath, isRunnable: isRunnable, viewFor: viewFor, HELLO_PATH: HELLO_PATH, HELLO_TEXT: HELLO_TEXT };
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  var rules = globalThis.DevRules, seq = 0, pending = {}, ready = false, busy = false;
+  var current = null, loadedVer = null, loadedText = '', conflict = null;
+  var $ = function (id) { return document.getElementById(id); };
+  window.addEventListener('message', function (event) {
+    if (event.source !== window.parent || !event.data || event.data.airis !== 1) return;
+    if (event.data.event === 'theme') { setTheme(event.data.theme); return; }
+    var p = pending[event.data.re]; if (!p) return;
+    delete pending[event.data.re]; clearTimeout(p.timer);
+    if (event.data.ok) p.resolve(event.data.value); else p.reject(new Error(event.data.error));
+  });
+  function call(op, args) { return new Promise(function (resolve, reject) {
+    var id = ++seq, timer = setTimeout(function () { delete pending[id]; reject(new Error('Bridge timed out')); }, 10000);
+    pending[id] = {resolve:resolve, reject:reject, timer:timer};
+    try { window.parent.postMessage({airis:1, id:id, op:op, args:args || {}}, '*'); }
+    catch (e) { clearTimeout(timer); delete pending[id]; reject(e); }
+  }); }
+  function setTheme(theme) { if (theme === 'dark' || theme === 'light') document.documentElement.dataset.theme = theme; }
+  function result(value) { if (value && value.ok === false) throw new Error(value.error || 'Operation failed'); return value; }
+  function dirty() { return current !== null && $('editor').value !== loadedText; }
+  function render() {
+    $('path').textContent = current ? current + ' · v' + loadedVer + (dirty() ? ' · unsaved' : '') : 'No file open';
+    $('editor').disabled = busy || !current;
+    $('new').disabled = !ready || busy;
+    $('empty-new').disabled = $('insert').disabled = !ready || busy;
+    $('save').disabled = busy || !current || !dirty() || !!conflict;
+    $('run').disabled = busy || !current || !rules.isRunnable(current);
+    $('reload').disabled = busy;
+    $('conflict').hidden = !conflict;
+    $('conflict-text').textContent = conflict || '';
+    $('run-note').textContent = current && dirty() && rules.isRunnable(current) ? 'Running the saved v' + loadedVer + '; unsaved edits are not included.' : '';
+    document.querySelectorAll('#files button').forEach(function (button) { button.disabled = busy; });
+  }
+  function status(message) { $('status').textContent = message; }
+  async function task(fn) {
+    if (busy) return;
+    busy = true; status(''); render();
+    try { await fn(); } catch (e) { status(e.message || String(e)); }
+    finally { busy = false; render(); }
+  }
+  function mayOpen() { return !dirty() || confirm('Discard unsaved edits to ' + current + '?'); }
+  async function openFile(path) {
+    var value = result(await call('fs.read', {ws:rules.DEV.ws, path:path}));
+    if (!value || typeof value.content !== 'string') throw new Error('Not a text file');
+    current = path; loadedVer = value.ver; loadedText = value.content; $('editor').value = loadedText; conflict = null;
+  }
+  async function refresh() {
+    var list = await call('fs.list', {ws:rules.DEV.ws, path:rules.DEV.dir, depth:1});
+    if (rules.viewFor(list) === 'error') { result(list); throw new Error('Could not list files'); }
+    $('empty').hidden = rules.viewFor(list) !== 'empty';
+    $('files').replaceChildren();
+    list.filter(function (item) { return item && rules.isDevPath(item.path); }).forEach(function (item) {
+      var li = document.createElement('li'), name = document.createElement('div'), meta = document.createElement('div'), actions = document.createElement('div');
+      name.className = 'filename'; name.textContent = item.path.slice(4);
+      meta.className = 'meta'; meta.textContent = item.size + ' bytes · v' + item.ver;
+      actions.className = 'actions';
+      function button(label, fn) { var b = document.createElement('button'); b.textContent = label; b.onclick = fn; actions.appendChild(b); }
+      button('Open', function () { if (mayOpen(item.path)) task(function () { return openFile(item.path); }); });
+      button('Rename', function () {
+        var name = prompt('New name for ' + item.path.slice(4) + ':', item.path.slice(4)); if (name === null) return;
+        var checked = rules.checkName(name); if (!checked.ok) { status(checked.error); return; }
+        if (current === item.path && (conflict || loadedVer !== item.ver)) { status('Reload the open file before renaming it.'); return; }
+        task(async function () {
+          var value = result(await call('fs.move', {ws:rules.DEV.ws, from:item.path, to:checked.path, base:item.ver}));
+          if (current === item.path) { current = checked.path; loadedVer = value.ver; conflict = null; }
+          await refresh();
+        });
+      });
+      button('Delete', function () {
+        if (!confirm('Delete ' + item.path.slice(4) + '?')) return;
+        task(async function () {
+          result(await call('fs.delete', {ws:rules.DEV.ws, path:item.path, base:item.ver}));
+          if (current === item.path) { current = null; loadedVer = null; loadedText = ''; $('editor').value = ''; conflict = null; }
+          await refresh();
+        });
+      });
+      li.append(name, meta, actions); $('files').appendChild(li);
+    });
+  }
+  async function createFile(path, content) {
+    var value = await call('fs.write', {ws:rules.DEV.ws, path:path, content:content, base:null});
+    if (value && value.ok === false && value.error === 'conflict') throw new Error('File already exists: ' + path);
+    result(value); await refresh(); await openFile(path);
+  }
+  function newFile() {
+    var name = prompt('New file name:'); if (name === null) return;
+    var checked = rules.checkName(name); if (!checked.ok) { status(checked.error); return; }
+    if (mayOpen(checked.path)) task(function () { return createFile(checked.path, ''); });
+  }
+  $('new').onclick = $('empty-new').onclick = newFile;
+  $('insert').onclick = function () { if (mayOpen(rules.HELLO_PATH)) task(function () { return createFile(rules.HELLO_PATH, rules.HELLO_TEXT); }); };
+  $('editor').oninput = render;
+  $('save').onclick = function () { task(async function () {
+    if (!current || !dirty() || conflict) return;
+    var text = $('editor').value;
+    var value = await call('fs.write', {ws:rules.DEV.ws, path:current, content:text, base:loadedVer});
+    if (value && value.ok === false && value.error === 'conflict') {
+      conflict = 'Conflict: ' + current + ' is now v' + value.current + ' (by ' + value.actor + '); your edits were not saved.'; return;
+    }
+    result(value); loadedVer = value.ver; loadedText = text; conflict = null; await refresh(); status('Saved.');
+  }); };
+  $('reload').onclick = function () { task(function () { return openFile(current); }); };
+  $('run').onclick = function () { task(async function () {
+    var value = result(await call('harness.run', {ws:rules.DEV.ws, path:current}));
+    status('Run: ' + (value === undefined ? 'OK' : JSON.stringify(value)));
+  }); };
+  document.addEventListener('keydown', function (event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!$('save').disabled) $('save').click(); } });
+  task(async function () {
+    var hello = result(await call('hello')); if (hello) setTheme(hello.theme);
+    var workspaces = result(await call('fs.workspaces'));
+    if (!Array.isArray(workspaces)) throw new Error('Could not list workspaces');
+    if (!workspaces.some(function (entry) { return entry.ws === rules.DEV.ws; })) {
+      var created;
+      try { created = await call('fs.create', {ws:rules.DEV.ws, name:'Home'}); }
+      catch (e) { if (e.message === 'workspace exists') throw new Error("Workspace 'home' exists but Bench has not been granted it"); throw e; }
+      if (created && created.ok === false && created.error === 'workspace exists') throw new Error("Workspace 'home' exists but Bench has not been granted it");
+      result(created);
+    }
+    await refresh(); ready = true;
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Airis OS",
   "contract": "airis.contract.json",
   "note": "The catalogue. Schema and rules: airis.contract.json -> appEntry. An installed record (localStorage airis.installs.v1) is what runs.",
@@ -443,6 +443,21 @@
       "legacyUrls": [
         "/repo.html"
       ]
+    },
+    {
+      "id": "bench",
+      "name": "Bench",
+      "icon": "🛠",
+      "url": "apps/bench.html",
+      "version": "1",
+      "install": "code",
+      "launch": "auto",
+      "category": "Developer",
+      "description": "Minimal dev environment: edit files in the shell workspace home/dev/ and run one in a test harness. Files are never apps or tiles.",
+      "capabilities": ["fs"],
+      "size": "large",
+      "desktop": { "width": 900, "height": 640 },
+      "phone": { "slot": "sheet" }
     }
   ]
 }

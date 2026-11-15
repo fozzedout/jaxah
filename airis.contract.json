@@ -2,6 +2,22 @@
   "contract": "airis/1",
   "about": "THE source of truth for this site. The site is Airis OS: one Cloudflare Worker serves every file in this repo as a static asset and routes /api/*. Every rule a human or agent needs to add, change or remove an app is in this file. Code reads this file at runtime (shell.js, worker.js via lib/router.js, scripts/dev.mjs, scripts/check.mjs) - when prose elsewhere disagrees, this file wins.",
 
+  "devEnvironment": {
+    "workspace": "home",
+    "dir": "dev",
+    "textExtensions": ["html", "htm", "js", "mjs", "css", "json", "md", "txt", "svg"],
+    "runExtensions": ["html", "htm"],
+    "tool": "bench (apps/bench.html, a catalogue app)",
+    "rules": [
+      "A file in a workspace is never an app. Install records from the catalogue (manifest.json) or an imported bundle are the only source of desktop tiles, dock entries, palette entries and the APPS list.",
+      "Nothing that reads, writes or runs a workspace file may create a manifest entry, install record, tile, dock entry or palette entry.",
+      "Dev files live in workspace 'home' under 'dev/' (flat: one name segment). Bench lists, creates, renames, deletes and edits them with fs.* and CAS (a stale base is a conflict, never an overwrite).",
+      "harness.run shows a saved .html dev file in a pane labelled 'Test harness' inside the caller's own window, in the same sandboxed srcdoc iframe as install:'code' apps (sandbox.iframe). The harness frame has no capabilities: only hello and trail.note.",
+      "Turning a dev file into an installed app is not supported yet."
+    ],
+    "doc": "docs/dev-environment.md"
+  },
+
   "recipes": {
     "addApp": [
       "1. Write the app as ONE self-contained HTML file under apps/<id>.html (inline CSS/JS, no external requests) if it should be installable as code; or keep an existing multi-file page where it is and use install:'link'.",
@@ -114,6 +130,8 @@
     "event": { "airis": 1, "event": "theme | trail | fs | act", "...": "payload; fs: {airis:1, event:'fs', ws, path, ver, actor}; act: {airis:1, event:'act', re, action, args, from}" },
     "publishedActions": "Per-app published actions are not entries in actions.list. Each has name, args object, agent boolean, and effect: read | write | external | secret. These classes describe effects; this bridge does not yet provide effect-based consent.",
     "ops": {
+      "harness.run": { "cap": "fs", "args": "{ ws, path }", "doc": "Run a saved HTML dev file in a sandboxed test pane inside the caller's window; requires a workspace grant." },
+      "harness.close": { "cap": null, "args": "{}", "doc": "Close the caller's test harness pane." },
       "app.publish": { "cap": null, "args": "{ state, actions: [{ name, args, effect, agent }] }", "doc": "Publish JSON state and actions for the calling frame, at most 16384 serialized UTF-8 bytes. Unchanged publications are ignored; records expire on close or reload." },
       "app.human": { "cap": null, "args": "{ action }", "doc": "Report a human invocation of a published action to the trail. This is app-reported, not proof of human input." },
       "app.selection": { "cap": null, "args": "{ ref, text? }", "doc": "Publish the calling frame's selection; text is capped at 2000 characters." },

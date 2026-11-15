@@ -252,6 +252,16 @@ function focusWin(id) {
   if (openWins[id] && location.hash !== '#app/' + id) history.replaceState(null, '', '#app/' + id);
 }
 
+function sandboxFrame(title, code, url) {
+  var frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', CONTRACT.sandbox.iframe);
+  frame.setAttribute('title', title);
+  frame.setAttribute('referrerpolicy', 'no-referrer');
+  if (typeof code === 'string') frame.srcdoc = code;
+  else frame.src = url;
+  return frame;
+}
+
 function openApp(id) {
   var app = byId[id];
   if (!app) { floor.show('no such app: ' + id); return; }
@@ -295,12 +305,7 @@ function openApp(id) {
   // Opaque-origin sandbox: scripts run, but the frame gets no origin —
   // no shell DOM, no shell storage, no sibling frames, no top navigation.
   // The install record is what runs: code records as srcdoc, link records by URL.
-  var frame = document.createElement('iframe');
-  frame.setAttribute('sandbox', CONTRACT.sandbox.iframe);
-  frame.setAttribute('title', app.name);
-  frame.setAttribute('referrerpolicy', 'no-referrer');
-  if (rec && typeof rec.code === 'string') frame.srcdoc = rec.code;
-  else frame.src = app.url;
+  var frame = sandboxFrame(app.name, rec && rec.code, app.url);
   el.appendChild(frame);
   frameIds.set(frame, id);
   var frameLoaded = false;   // the first load is the app's own first document: nothing to cancel, generation unchanged
@@ -492,6 +497,7 @@ function openApp(id) {
 
 function closeApp(id) {
   var el = openWins[id];
+  harnessClose(id);
   if (!el) return;
   abortStreamsFor(id);
   frameGen[id] = (frameGen[id] || 0) + 1;
@@ -1190,6 +1196,86 @@ function fsCall(id, a, op, method, mutation) {
   };
   return mutation ? fsRefusal(id, a, op, call) : Promise.resolve().then(call);
 }
+/* ── test harness: workspace files run here, never as apps ── */
+var harnesses = new Map();  // owner app id -> { el, frame, ws, path, ver }
+var harnessPending = new Map();
+function harnessRules() { return CONTRACT.devEnvironment; }
+function harnessPathOk(ws, path) {
+  var rules = harnessRules();
+  if (ws !== rules.workspace || typeof path !== 'string' || path.indexOf(rules.dir + '/') !== 0) return false;
+  var name = path.slice(rules.dir.length + 1);
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name) && name.indexOf('..') === -1 &&
+    name.indexOf('.') !== -1 && rules.runExtensions.indexOf(name.split('.').pop().toLowerCase()) !== -1;
+}
+function harnessClose(ownerId) {
+  harnessPending.delete(ownerId);
+  var h = harnesses.get(ownerId);
+  if (!h) return false;
+  h.el.remove();
+  var owner = openWins[ownerId];
+  if (owner) owner.classList.remove('has-harness');
+  harnesses.delete(ownerId);
+  return true;
+}
+function harnessForSource(src) {
+  var found = null;
+  harnesses.forEach(function (h, ownerId) {
+    if (src && h.frame.contentWindow === src) found = h;
+  });
+  return found;
+}
+function harnessRun(ownerId, ws, path, reload) {
+  return Promise.resolve().then(function () {
+    var owner = openWins[ownerId], generation = frameGen[ownerId];
+    if (!owner) throw new Error('owner window is not open');
+    fsRequire(ws, ownerId);
+    if (!harnessPathOk(ws, path)) throw new Error('invalid test harness file path');
+    var token = {};
+    harnessPending.set(ownerId, token);
+    return fsLib().then(function (fs) { return fs.read({ ws: ws, path: path }); }).then(function (file) {
+      if (harnessPending.get(ownerId) !== token || openWins[ownerId] !== owner || frameGen[ownerId] !== generation) throw new Error('test harness run cancelled');
+      fsRequire(ws, ownerId);
+      if (!file || typeof file.content !== 'string') throw new Error('test harness file is missing or not text');
+      var h = harnesses.get(ownerId);
+      if (reload && (!h || h.ws !== ws || h.path !== path)) throw new Error('test harness was closed or changed');
+      if (!h) {
+        var section = document.createElement('section');
+        section.className = 'harness';
+        var header = document.createElement('header');
+        var heading = document.createElement('strong');
+        heading.textContent = 'Test harness — not an app';
+        var label = document.createElement('span');
+        label.className = 'harness-label';
+        var reloadButton = document.createElement('button');
+        reloadButton.textContent = 'Reload';
+        var closeButton = document.createElement('button');
+        closeButton.textContent = '×';
+        closeButton.setAttribute('aria-label', 'Close test harness');
+        header.append(heading, label, reloadButton, closeButton);
+        section.appendChild(header);
+        h = { el: section, frame: null, ws: ws, path: path, ver: file.ver, label: label, ownerId: ownerId };
+        reloadButton.addEventListener('click', function () {
+          harnessRun(ownerId, h.ws, h.path, true).catch(function (err) {
+            trailAdd('app:' + ownerId, 'harness.reload', 'refused: ' + err.message);
+            label.textContent = h.ws + ':' + h.path + ' v' + h.ver + ' — ' + err.message;
+          });
+        });
+        closeButton.addEventListener('click', function () { harnessClose(ownerId); });
+        owner.appendChild(section); // owner's iframe remains the first iframe
+        owner.classList.add('has-harness');
+        harnesses.set(ownerId, h);
+      }
+      var frame = sandboxFrame('Test harness: ' + path, file.content);
+      if (h.frame) h.frame.replaceWith(frame); else h.el.appendChild(frame);
+      h.frame = frame; h.ws = ws; h.path = path; h.ver = file.ver;
+      h.label.textContent = ws + ':' + path + ' v' + file.ver;
+      trailAdd('app:' + ownerId, reload ? 'harness.reload' : 'harness.run', ws + ':' + path + ' v' + file.ver);
+      return { ok: true, ws: ws, path: path, ver: file.ver };
+    }).finally(function () { if (harnessPending.get(ownerId) === token) harnessPending.delete(ownerId); });
+  }).catch(function (err) { throw new Error('test harness: ' + (err && err.message || String(err))); });
+}
+/* ── end test harness ── */
+
 function fsChanges(event) {
   Object.keys(watches).forEach(function (id) {
     var win = openWins[id], fr = win && win.querySelector('iframe');
@@ -1267,6 +1353,8 @@ function publishedTarget(id) {
   return published[id];
 }
 var OPS = {
+  'harness.run': function (id, a) { return harnessRun(id, a.ws, a.path); },
+  'harness.close': function (id) { return harnessClose(id); },
   'app.publish': function (id, a) {
     if (!Array.isArray(a.actions) || !a.actions.every(function (x) {
       return x && typeof x.name === 'string' && x.name.length > 0 && ['read', 'write', 'external', 'secret'].indexOf(x.effect) !== -1 && typeof x.agent === 'boolean' && x.args && typeof x.args === 'object' && !Array.isArray(x.args);
@@ -1492,6 +1580,23 @@ function netStream(id, win, re, a) {
 window.addEventListener('message', function (e) {
   var m = e.data;
   if (!m || m.airis !== 1 || typeof m.op !== 'string' || !CONTRACT) return;
+  var harness = harnessForSource(e.source);
+  if (harness) {
+    var h = harness, ownerId = harness.ownerId;
+    var ha = m.args && typeof m.args === 'object' ? m.args : {};
+    if (m.op === 'hello') reply(e.source, { re: m.id, ok: true, value: {
+      appId: null, harness: true, owner: ownerId, file: { ws: h.ws, path: h.path, ver: h.ver },
+      theme: document.documentElement.getAttribute('data-theme'), capabilities: [], contract: CONTRACT.contract
+    } });
+    else if (m.op === 'trail.note') {
+      trailAdd('harness:' + ownerId, 'note', String(ha.text));
+      reply(e.source, { re: m.id, ok: true, value: true });
+    } else {
+      trailAdd('harness:' + ownerId, m.op, 'refused: test harness');
+      reply(e.source, { re: m.id, ok: false, error: 'not available in the test harness' });
+    }
+    return;
+  }
   var id = appIdForSource(e.source);
   var gen = frameGen[id];
   if (!id || !byId[id]) return;             // not one of our frames
