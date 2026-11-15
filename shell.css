@@ -220,9 +220,21 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
      never rgba or backdrop-filter at the top. */
   #status-tint { visibility: visible; }
   #stage { inset: 0; }
+  /* The header is a fixed --sb-h tall, and the body's top layer holds --band solid to
+     exactly that edge, then fades it out over 160px: no hard step from the dark band
+     into the teal glass (media 834). Behind the icons; opaque at the header edge. */
+  :root { --sb-h: calc(60px + env(safe-area-inset-top)); }
+  body {
+    background:
+      linear-gradient(180deg, var(--band) 0, var(--band) var(--sb-h), transparent calc(var(--sb-h) + 160px)),
+      radial-gradient(90% 60% at 15% 0%, rgba(94, 234, 212, .14) 0%, transparent 60%),
+      radial-gradient(80% 60% at 90% 10%, rgba(129, 140, 248, .16) 0%, transparent 55%),
+      radial-gradient(120% 90% at 50% 110%, rgba(15, 118, 110, .35) 0%, transparent 60%),
+      linear-gradient(180deg, var(--bg1), var(--bg0));
+  }
   #statusbar {
     display: flex; align-items: center; justify-content: space-between;
-    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10; height: var(--sb-h);
     padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
     font-size: 13px; color: var(--dim); background: var(--band);
   }

@@ -107,6 +107,24 @@ async function assertPhoneHeader(label, page, y, selector, colour, x = 195) {
   ok(top.bg === rootColour, `${label}: header matches --band (${rootColour})`);
 }
 
+// Media 834: the dark header met the teal glass in a hard step. Read a gutter column
+// (clear of icons) from a real screenshot and require no row-to-row jump near the top.
+async function noTopStep(page, label) {
+  const png = (await page.screenshot({ clip: { x: 8, y: 0, width: 1, height: 400 } })).toString('base64');
+  const step = await page.evaluate(async (src) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + src; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, 1, img.height).data;
+    let max = 0, at = 0;
+    for (let y = 0; y + 1 < img.height; y++) for (let k = 0; k < 3; k++) {
+      const v = Math.abs(d[y * 4 + k] - d[(y + 1) * 4 + k]); if (v > max) { max = v; at = y; }
+    }
+    return { max, at };
+  }, png);
+  ok(step.max <= 8, `${label}: no hard colour step in the top 400px (max row jump ${step.max} at y=${step.at})`);
+}
+
 let browser;
 try {
   browser = await playwright.default.chromium.launch();
@@ -135,6 +153,7 @@ try {
       // At zero inset the presence control occupies the centre at y=40; probe the empty header beside it.
       for (const y of [4, 10, 40]) await assertPhoneHeader(home, page, y, '#statusbar', colour, inset === 0 && y === 40 ? 100 : 195);
       await glassTopBand(page, home);
+      await noTopStep(page, home);
       const grid = await page.evaluate(() => ({ header: document.querySelector('#statusbar').getBoundingClientRect().bottom, icon: document.querySelector('.tile .t-icon').getBoundingClientRect().top }));
       ok(grid.icon >= grid.header, `${home}: first row icons start below header (${grid.icon} >= ${grid.header})`);
       await openTile(page, sheetLabel + ' open');
