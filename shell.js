@@ -649,7 +649,7 @@ var RULES = [
     say: 'This palette is scripted, not live. For a live agent, open Session.' },
   { re: /^(hi|hello|hey)\b/i, say: 'Hello. This palette is scripted \u2014 Session is the live one.' },
   { re: /what can (you|i) (run|do)|help|commands/i,
-    say: 'Type an app name, or a command: open <id> \u00b7 close <id> \u00b7 install <id> \u00b7 theme dark \u00b7 trail \u00b7 export \u00b7 terminal.' },
+    say: 'Type an app name, or a command: open <id> \u00b7 close <id> \u00b7 install <id> \u00b7 theme dark \u00b7 trail \u00b7 diagnostic \u00b7 export \u00b7 terminal.' },
   { re: /theme/i, say: 'Say \u2018theme dark\u2019 or \u2018theme light\u2019.' }
 ];
 function scriptedAnswer(q) {
@@ -1173,7 +1173,8 @@ var ACTIONS = {
   'export': function () { return exportBundle(); },
   'import': function (a) { return importBundle(String(a.text || '')); },
   terminal: function () { floor.show(); return 'terminal'; },
-  trail: function () { toggleTrail(); return trailEl && !trailEl.hidden ? 'shown' : 'hidden'; }
+  trail: function () { toggleTrail(); return trailEl && !trailEl.hidden ? 'shown' : 'hidden'; },
+  diagnostic: function () { if (!window.airisDiagnostic) throw new Error('Diagnostic is unavailable'); window.airisDiagnostic.open(); return 'shown'; }
 };
 function need(id) { if (!byId[id]) throw new Error('no such installed app: ' + id); }
 function summarise(name, args) {
@@ -1605,6 +1606,8 @@ function restoreSession() {
 var trailBtn = $('tb-trail'), trailX = $('trail-x');
 if (trailBtn) trailBtn.addEventListener('click', function () { act('trail', {}, 'human'); });
 if (trailX) trailX.addEventListener('click', function () { act('trail', {}, 'human'); });
+var trailDiag = $('trail-diag');
+if (trailDiag) trailDiag.addEventListener('click', function () { act('diagnostic', {}, 'human'); });
 var sbTrail = $('sb-trail');
 if (sbTrail) sbTrail.addEventListener('click', function () { act('trail', {}, 'human'); });
 

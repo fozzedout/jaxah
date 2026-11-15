@@ -449,6 +449,7 @@ html[data-theme="light"] .pf-pupil { fill: #102a28; }
 #trail header { display: flex; align-items: baseline; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--tile-border); font-size: 13px; }
 #trail header small { color: var(--faint); font-size: 11px; flex: 1; }
 #trail header button { border: none; background: none; cursor: pointer; color: var(--dim); font-size: 16px; min-width: 32px; min-height: 32px; }
+#trail header #trail-diag { font-size: 13px; padding: 0 10px; min-height: 32px; border: 1px solid var(--tile-border); border-radius: 6px; color: var(--ink); }
 #trail-list { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; flex: 1;
   font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 #trail-list li { display: grid; grid-template-columns: auto auto 1fr; gap: 2px 8px; padding: 4px 12px; border-left: 3px solid transparent; }

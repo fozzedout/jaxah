@@ -28,6 +28,7 @@
     "index.html": "the OS shell page (served at /). Terminal floor markup first, OS chrome hidden until boot succeeds.",
     "terminal.js / terminal.css": "the floor. No dependency on shell, manifest, contract, storage or network. Must keep working if everything else fails.",
     "shell.js / shell.css": "window manager, bridge host, action registry, event trail, install records. Reads manifest.json and this file.",
+    "diagnostic.js": "shared measurements and report for the /diagnostic route and the in-page overlay.",
     "manifest.json": "the app catalogue, never the PWA manifest. What exists. Not what runs - an install record is what runs.",
     "site.webmanifest": "the PWA manifest for the shell and home screen.",
     "assets/icons/*": "PWA and home-screen icons.",
@@ -169,7 +170,8 @@
       "export":    { "args": {}, "agent": false },
       "import":    { "args": { "text": "bundle JSON" }, "agent": false },
       "terminal":  { "args": {}, "agent": false },
-      "trail":     { "args": {}, "agent": true, "doc": "toggle the trail panel" }
+      "trail":     { "args": {}, "agent": true, "doc": "toggle the trail panel" },
+      "diagnostic": { "args": {}, "agent": true, "doc": "open the in-page diagnostic overlay; no URL change" }
     },
     "actors": ["human", "agent:<app id>", "app:<app id>", "system", "console"]
   },
