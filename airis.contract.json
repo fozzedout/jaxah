@@ -246,6 +246,7 @@
     "routes": [
       { "match": "/", "to": "index.html with #build-stamp set from CF_VERSION_METADATA.tag (UNBUILT if untagged), Cache-Control: no-cache, X-Airis-Build header" },
       { "match": "/diagnostic", "to": "same shell and stamp, Cache-Control: no-store, X-Airis-Build header" },
+      { "match": "/api/tape", "to": "worker.tape relay", "doc": "POST debug reports through a Worker secret; absent, same-origin or null Origin only, per-IP best-effort in-isolate rate limit, no token or upstream URL in responses." },
       { "match": "/api/<upstream>/<path>", "to": "worker.upstreams[<upstream>]", "doc": "same-origin passthrough. Only (method, path) pairs in that upstream's allow list. Anything else under /api: 404 JSON. Wrong method: 405. Cross-origin Origin header: 403. Query strings dropped." },
       { "match": "redirects[]", "to": "301 to the listed path", "doc": "only reached when no static asset matches" },
       { "match": "everything else", "to": "static asset from the repo root (assets.directory '.', html_handling auto-trailing-slash: /page.html 307s to /page which serves page.html - same as Pages did)", "notFound": "404" }
@@ -258,6 +259,15 @@
       { "fromPrefix": "/os/apps/", "toPrefix": "/apps/" },
       { "fromPrefix": "/os/assets/", "toPrefix": "/assets/" }
     ],
+    "tape": {
+      "route": "/api/tape", "method": "POST",
+      "upstream": "https://her.xefig.com/api/debug-tape/in", "envOverride": "DEBUG_TAPE_BASE",
+      "secretEnv": "DEBUG_TAPE_TOKEN",
+      "sources": ["jaxah-diagnostic", "jaxah-session-strip"],
+      "maxBytes": 65536,
+      "rate": { "max": 6, "windowSeconds": 60 },
+      "doc": "The token must never reach the client; it is a Worker secret set with `wrangler secret put DEBUG_TAPE_TOKEN`. Origin may be absent, same-origin, or the literal null (the Session app runs in an opaque-origin srcdoc frame); anything else is 403. Rate limiting is per client IP (CF-Connecting-IP, else local), in-isolate and best-effort; the Worker has no storage bindings by design. Responses never echo the token or upstream URL."
+    },
     "upstreams": {
       "go": {
         "label": "OpenCode Go",
@@ -273,7 +283,7 @@
         "forwardResponseHeaders": ["content-type", "x-request-id", "retry-after"]
       }
     },
-    "keyHandling": "Authorization is copied from the caller to the upstream and nowhere else: not logged, not stored, not echoed in errors. The Worker has no storage bindings."
+    "keyHandling": "Authorization is copied from the caller to the upstream and nowhere else: not logged, not stored, not echoed in errors. The Worker has no storage bindings. DEBUG_TAPE_TOKEN is a Worker secret attached only to the tape relay\u0027s upstream request."
   },
 
   "dev": {
@@ -297,6 +307,9 @@
       "/os/assets/airis-scripted.mp3"
     ],
     "apiMustRefuse": [
+      { "method": "GET", "path": "/api/tape", "status": 405 },
+      { "method": "POST", "path": "/api/tape?source=evil", "status": 400 },
+      { "method": "POST", "path": "/api/tape?source=jaxah-diagnostic", "origin": "https://evil.example", "status": 403 },
       { "method": "GET", "path": "/api/go/chat/completions", "status": 405 },
       { "method": "POST", "path": "/api/go/completions", "status": 404 },
       { "method": "POST", "path": "/api/go/../../evil", "status": 404 },

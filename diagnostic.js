@@ -1,6 +1,4 @@
 /* Read the real shell before placing the report over it. */
-// Debug-tape ingest on her.xefig.com. The path segment after /in/ is a write secret; keep it here only.
-var DEBUG_TAPE_URL = 'https://her.xefig.com/api/debug-tape/in/dlt_7cc47dc7347b34e7788abca160321549f7571a7b93bdaa50';
 if (location.pathname === '/diagnostic') {
   window.addEventListener('load', function () {
     setTimeout(async function () {
@@ -115,16 +113,20 @@ if (location.pathname === '/diagnostic') {
         const report = document.createElement('pre');
         report.style.cssText = 'position:fixed;inset:0;z-index:2147483647;margin:0;padding:max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#080d10;color:#fff;font:16px/1.45 ui-monospace,monospace;';
         const text = lines.concat('== HOME ==', home, '== SHEET ==', sheet).flat().join('\n\n');
-        let sendLine = 'SEND pending';
+        const bytes = new TextEncoder().encode(text);
+        const truncated = bytes.length > 65536;
+        const payload = truncated ? new TextDecoder().decode(bytes.slice(0, 65536), { stream: true }) : text;
+        const suffix = truncated ? ' truncated' : '';
+        let sendLine = 'SEND pending' + suffix;
         report.textContent = text + '\n\n' + sendLine;
         document.body.appendChild(report);
         function failed(e) {
-          sendLine = 'SEND failed ' + ((e && (e.message || e.name)) || String(e));
+          sendLine = 'SEND failed ' + ((e && (e.message || e.name)) || String(e)) + suffix;
           report.textContent = text + '\n\n' + sendLine;
         }
         try {
-          fetch(DEBUG_TAPE_URL + '?source=jaxah-diagnostic', { method: 'POST', mode: 'no-cors', body: text })
-            .then(() => { sendLine = 'SEND ok (opaque)'; report.textContent = text + '\n\n' + sendLine; })
+          fetch('/api/tape?source=jaxah-diagnostic', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: payload })
+            .then(res => { sendLine = 'SEND ' + (res.ok ? 'ok ' : 'failed ') + res.status + suffix; report.textContent = text + '\n\n' + sendLine; })
             .catch(failed);
         } catch (e) { failed(e); }
       }

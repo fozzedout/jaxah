@@ -259,6 +259,7 @@ function refreshKey() {
   return call('secret.has', { name: name }).then(function (h) {
     if (name !== keyName()) return;
     hasKey = !!h;
+    $('strip').setAttribute('data-key', hasKey ? 'yes' : 'no');
     var s = $('keystate'); s.textContent = hasKey ? 'key stored in this browser' : 'no key'; s.classList.toggle('on', hasKey);
     $('forget').disabled = !hasKey;
     if (presets.length) setFold($('strip').classList.contains('folded'));
@@ -270,6 +271,7 @@ function setFold(f) {
   $('summary').textContent = preset().label + ' · ' + (model() || 'no model') + ' · ' + (hasKey ? 'key ✓' : 'no key');
 }
 $('fold').addEventListener('click', function () {
+  $('strip').setAttribute('data-foldby', 'user');
   settings.fold = !$('strip').classList.contains('folded'); saveSettings(); setFold(settings.fold);
 });
 $('preset').addEventListener('change', function () { settings.presetId = this.value; saveSettings(); fillStrip(); refreshKey(); });
@@ -538,6 +540,7 @@ call('hello').then(function (h) {
   if (!convo.id) convo.id = newId();
   renderAll();
   return refreshKey().then(fillStrip).then(function () {
+    $('strip').setAttribute('data-foldby', typeof settings.fold === 'boolean' ? 'saved' : 'default');
     setFold(typeof settings.fold === 'boolean' ? settings.fold : hasKey && window.innerWidth < 560);
   });
 }).catch(function (err) {
@@ -549,8 +552,8 @@ call('hello').then(function (h) {
 <script>
 (function () {
   'use strict';
-  // Debug-tape ingest on her.xefig.com; the path after /in/ is a write secret.
-  var url = 'https://her.xefig.com/api/debug-tape/in/dlt_7cc47dc7347b34e7788abca160321549f7571a7b93bdaa50?source=jaxah-session-strip';
+  // Posts to this site's relay, which holds the tape token.
+  var url = new URL('/api/tape?source=jaxah-session-strip', document.baseURI).href;
   if (window.parent === window) return;
   function round(n) { return Math.round(n * 10) / 10; }
   function rectText(r) {
@@ -564,7 +567,8 @@ call('hello').then(function (h) {
       return id + '{' + rectText(r) + ' h=' + round(r.height) + ' bg=' + css.backgroundColor +
         ' backdrop=' + css.backdropFilter + ' webkit=' + css.getPropertyValue('-webkit-backdrop-filter') +
         ' pos=' + css.position + ' z=' + css.zIndex + ' hidden=' + el.hidden +
-        ' folded=' + el.classList.contains('folded') + '}';
+        ' folded=' + el.classList.contains('folded') + ' key=' + (el.getAttribute('data-key') || 'pending') +
+        ' foldby=' + (el.getAttribute('data-foldby') || 'none') + '}';
     } catch (e) { return id + '{ERR ' + ((e && e.message) || String(e)) + '}'; }
   }
   window.addEventListener('load', function () {

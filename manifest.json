@@ -9,7 +9,7 @@
       "name": "Session",
       "icon": "◇",
       "url": "apps/session.html",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "install": "code",
       "preinstalled": true,
       "launch": "auto",
