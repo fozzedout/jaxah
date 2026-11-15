@@ -93,18 +93,18 @@ async function assertOpaqueTop(label, page, expectHeightAtLeast, colour) {
   return t;
 }
 
-async function assertPhoneHeader(label, page, y, selector, colour) {
-  const t = await topAt(page, 195, y), top = t.stack[0] || {};
+async function assertPhoneHeader(label, page, y, selector, colour, x = 195) {
+  const t = await topAt(page, x, y), top = t.stack[0] || {};
   const matches = selector === '#statusbar' ? top.id === 'statusbar' : top.cls?.split(/\s+/).includes('w-title');
-  ok(matches, `${label}: topmost element at (195,${y}) is ${selector}, got ${top.id || top.cls || top.tag}`);
+  ok(matches, `${label}: topmost element at (${x},${y}) is ${selector}, got ${top.id || top.cls || top.tag}`);
   ok(top.position === 'fixed', `${label}: header is fixed, got ${top.position}`);
   ok(top.vis === 'visible' && alpha(top.bg) === 1 && top.bg === colour, `${label}: header is opaque ${colour}, got ${top.bg}`);
   ok(!top.backdrop || top.backdrop === 'none', `${label}: header has no backdrop-filter`);
   ok(top.rect && top.rect.top === 0 && top.rect.left === 0 && top.rect.right >= t.vw, `${label}: header spans the top edge`);
-  const styles = await page.evaluate(() => ({ bg: getComputedStyle(document.documentElement).getPropertyValue('--bg0').trim() }));
+  const styles = await page.evaluate(() => ({ bg: getComputedStyle(document.documentElement).getPropertyValue('--band').trim() }));
   await assertOpaqueTop(label + ' tint', page, 6, colour);
   const rootColour = await page.evaluate((bg) => { const e = document.createElement('div'); e.style.color = bg; document.body.appendChild(e); const colour = getComputedStyle(e).color; e.remove(); return colour; }, styles.bg);
-  ok(top.bg === rootColour, `${label}: header matches --bg0 (${rootColour})`);
+  ok(top.bg === rootColour, `${label}: header matches --band (${rootColour})`);
 }
 
 let browser;
@@ -127,12 +127,13 @@ try {
     await page.waitForTimeout(800);
     ok(await page.locator('.window').count() > 0, label + ': window exists');
   }
-  for (const [theme, colour] of [['dark', 'rgb(7, 13, 18)'], ['light', 'rgb(223, 233, 231)']]) {
-    for (const inset of [47, 59]) await scenario(theme, inset, {}, async (page) => {
+  for (const [theme, colour] of [['dark', 'rgb(1, 5, 4)'], ['light', 'rgb(223, 233, 231)']]) {
+    for (const inset of [0, 47, 59]) await scenario(theme, inset, {}, async (page) => {
       const home = `${theme} home @${inset}`, sheetLabel = `${theme} sheet @${inset}`;
       const hit = await page.evaluate(() => document.elementFromPoint(195, 4)?.id || '');
       ok(hit === 'statusbar', `${home}: unmodified hit at (195,4) is #statusbar, got ${hit || '(none)'}`);
-      for (const y of [4, 10, 40]) await assertPhoneHeader(home, page, y, '#statusbar', colour);
+      // At zero inset the presence control occupies the centre at y=40; probe the empty header beside it.
+      for (const y of [4, 10, 40]) await assertPhoneHeader(home, page, y, '#statusbar', colour, inset === 0 && y === 40 ? 100 : 195);
       await glassTopBand(page, home);
       const grid = await page.evaluate(() => ({ header: document.querySelector('#statusbar').getBoundingClientRect().bottom, icon: document.querySelector('.tile .t-icon').getBoundingClientRect().top }));
       ok(grid.icon >= grid.header, `${home}: first row icons start below header (${grid.icon} >= ${grid.header})`);
@@ -150,19 +151,19 @@ try {
     await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 47 } });
     await page.waitForTimeout(300);
     await openTile(page, 'stale inset sheet open');
-    await assertPhoneHeader('stale inset sheet open', page, 40, '.w-title', 'rgb(7, 13, 18)');
+    await assertPhoneHeader('stale inset sheet open', page, 40, '.w-title', 'rgb(1, 5, 4)');
   });
   await scenario('dark', 0, { viewport: { width: 1280, height: 800 } }, async (page) => {
     const vis = await page.evaluate(() => getComputedStyle(document.getElementById('status-tint')).visibility);
     ok(vis === 'hidden', 'desktop: status tint is hidden (no 6px band), got ' + vis);
   });
   await scenario('dark', 0, { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
-    await assertOpaqueTop('landscape touch', page, 20, 'rgb(7, 13, 18)');
+    await assertOpaqueTop('landscape touch', page, 20, 'rgb(1, 5, 4)');
   });
   await scenario('dark', 0, { viewport: { width: 700, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
-    await assertPhoneHeader('phone landscape home', page, 10, '#statusbar', 'rgb(7, 13, 18)');
+    await assertPhoneHeader('phone landscape home', page, 10, '#statusbar', 'rgb(1, 5, 4)');
     await openTile(page, 'phone landscape sheet');
-    await assertPhoneHeader('phone landscape sheet', page, 10, '.w-title', 'rgb(7, 13, 18)');
+    await assertPhoneHeader('phone landscape sheet', page, 10, '.w-title', 'rgb(1, 5, 4)');
     const sheet = await page.evaluate(() => ({ title: document.querySelector('.window .w-title').getBoundingClientRect().bottom, frame: document.querySelector('.window iframe').getBoundingClientRect().top }));
     ok(Math.abs(sheet.title - sheet.frame) < 0.1, `phone landscape: iframe starts at title bottom (${sheet.frame} vs ${sheet.title})`);
   });

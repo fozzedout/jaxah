@@ -4,6 +4,7 @@
 
 :root {
   --bg0: #070d12;
+  --band: #010504;
   --bg1: #0b1e24;
   --glass: rgba(13, 28, 34, .78);
   --tile: rgba(255, 255, 255, .06);
@@ -19,6 +20,7 @@
 }
 html[data-theme="light"] {
   --bg0: #dfe9e7;
+  --band: var(--bg0);
   --bg1: #f4faf9;
   --glass: rgba(255, 255, 255, .82);
   --tile: rgba(10, 40, 40, .05);
@@ -49,14 +51,13 @@ button { font: inherit; color: inherit; }
 
 /* ── Stage ──────────────────────────────────────────────────────────── */
 #os { position: fixed; inset: 0; z-index: 1; }
-/* Status-bar tint strip (see index.html). black-translucent makes the page draw
-   under the iOS status bar, so env(safe-area-inset-top) is the real band height;
-   this strip paints it OPAQUE in the header's colour (opaque defeats the iOS 26 blur;
-   never rgba or backdrop-filter here). Hidden on desktop (no 6px band), shown on
-   phones and touch landscape. */
+/* No status-bar style meta: iOS paints its own band, and env(safe-area-inset-top)
+   may read 0. The opaque strip and phone top bars use --band (dark #010504,
+   measured on device) to meet it without a step. Never rgba or backdrop-filter
+   at the top. Hidden on desktop; shown on phones and touch landscape. */
 #status-tint {
   position: fixed; top: 0; left: 0; right: 0; height: max(env(safe-area-inset-top), 6px); z-index: 2;
-  background-color: var(--bg0); pointer-events: none; visibility: hidden;
+  background-color: var(--band); pointer-events: none; visibility: hidden;
 }
 body.term #status-tint { background-color: #020604; } /* terminal floor background */
 #stage { position: absolute; inset: 0 0 var(--taskbar-h); }
@@ -214,14 +215,16 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
 
 /* ── Phone (<768px): home-screen grid, one app at a time ─────────────── */
 @media (max-width: 767.98px) {
-  /* The opaque strip paints the status-bar band; the opaque header below is the same --bg0. */
+  /* iOS paints its own band without the status-bar meta; env() may be 0.
+     The strip and top bars use opaque --band (dark #010504 measured) to avoid a step;
+     never rgba or backdrop-filter at the top. */
   #status-tint { visibility: visible; }
   #stage { inset: 0; }
   #statusbar {
     display: flex; align-items: center; justify-content: space-between;
     position: fixed; top: 0; left: 0; right: 0; z-index: 10;
     padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
-    font-size: 13px; color: var(--dim); background: var(--bg0);
+    font-size: 13px; color: var(--dim); background: var(--band);
   }
   #sb-time { font-variant-numeric: tabular-nums; min-width: 44px; }
   #sb-theme { border: none; background: none; font-size: 15px; min-width: 44px; min-height: 44px; }
@@ -246,7 +249,7 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
   }
   .window.max { inset: 0 !important; }
   /* Fixed edge header: 56px of controls plus the top inset; window padding reserves its space. */
-  .w-title { position: fixed; top: 0; left: 0; right: 0; z-index: 1; height: calc(56px + env(safe-area-inset-top)); cursor: default; padding-top: env(safe-area-inset-top); background: var(--bg0); }
+  .w-title { position: fixed; top: 0; left: 0; right: 0; z-index: 1; height: calc(56px + env(safe-area-inset-top)); cursor: default; padding-top: env(safe-area-inset-top); background: var(--band); }
   .w-btns button, .w-btns a.w-ext { min-width: 48px; min-height: 48px; }
   /* .w-btns prefix: must outrank `.w-btns button { display: inline-grid }` above. */
   .w-btns .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */

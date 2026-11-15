@@ -47,7 +47,7 @@
 
   "pwa": {
     "height": "html/body use 100vh, never 100% (iOS falls back to non-cover layout) or 100dvh (PWA cold-start values are wrong until rotation).",
-    "insets": "CSS reads env(safe-area-inset-*) directly; no JS mirrors or fakes the insets. apple-mobile-web-app-status-bar-style is black-translucent (with viewport-fit=cover) so the page draws under the iOS status bar; #status-tint paints that band opaque --bg0.",
+    "insets": "CSS reads env(safe-area-inset-*) directly; no JS mirrors or fakes the insets. No apple-mobile-web-app-status-bar-style meta (black-translucent brought back the iOS 26 blur on device); viewport-fit=cover kept. On the installed iPhone PWA env(safe-area-inset-top) reads 0 and iOS paints the status band itself (#010504 measured), out of reach of page colour, so #status-tint and the phone top bars (#statusbar, .w-title) use --band (#010504 dark; light = --bg0, unmeasured) to meet it without a step.",
     "landscape": "Touch landscape has an unreported top dead zone; use max(20px, safe-area-inset-top) as the floor, and inset the desktop stage and taskbar.",
     "zoom": "Keep pinch zoom: no maximum-scale or user-scalable=no; use touch-action: manipulation on shell chrome instead."
   },

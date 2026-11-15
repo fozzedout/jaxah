@@ -160,12 +160,15 @@ ok(/<meta\s+name="viewport"[^>]*content="[^"]*viewport-fit=cover/i.test(idx), 'v
 const css = read('shell.css').replace(/\/\*[\s\S]*?\*\//g, '');
 const rootBg = css.match(/:root\s*\{[^}]*--bg0\s*:\s*([^;}]*)/i)?.[1].trim();
 const lightBg = css.match(/html\[data-theme="light"\]\s*\{[^}]*--bg0\s*:\s*([^;}]*)/i)?.[1].trim();
+const rootBand = css.match(/:root\s*\{[^}]*--band\s*:\s*([^;}]*)/i)?.[1].trim();
+const lightBand = css.match(/html\[data-theme="light"\]\s*\{[^}]*--band\s*:\s*([^;}]*)/i)?.[1].trim();
 const tintRule = css.match(/(?:^|})\s*#status-tint\s*\{([^}]*)\}/)?.[1] || '';
 ok(/<div\s+id="status-tint"\s+aria-hidden="true"\s*>/i.test(idx), 'status tint strip exists');
-ok(/<meta\s+name="apple-mobile-web-app-status-bar-style"\s+content="black-translucent"\s*>/i.test(idx) && idx.match(/<meta\s+name="theme-color"\s+content="([^"]*)"\s*>/i)?.[1] === rootBg, 'black-translucent status bar (page draws under it) and theme-color matches root background');
+ok(!/<meta\b[^>]*\bname\s*=\s*["']apple-mobile-web-app-status-bar-style["']/i.test(idx) && idx.match(/<meta\s+name="theme-color"\s+content="([^"]*)"\s*>/i)?.[1] === rootBg, 'no status-bar style meta; theme-color matches root background');
 ok(!/--sa[tblr]\b/.test(css) && !/--sa[tblr]\b/.test(shell) && !/safe-area-inset/.test(shell), 'no JS mirrors or fakes the safe-area insets: CSS reads env() directly');
-ok(['position: fixed', 'top: 0', 'left: 0', 'right: 0', 'pointer-events: none', 'background-color: var(--bg0)', 'height: max(env(safe-area-inset-top), 6px)', 'visibility: hidden'].every((declaration) => tintRule.includes(declaration)) && !/rgba|backdrop-filter|--sat/.test(tintRule), 'status tint is fixed, full-width, pointer-events none, opaque --bg0 (no rgba/backdrop-filter), max(env, 6px) high, hidden on desktop');
-ok([rootBg, lightBg].every((value) => /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value || '')), 'dark and light root backgrounds are opaque hex colours');
+ok(['position: fixed', 'top: 0', 'left: 0', 'right: 0', 'pointer-events: none', 'background-color: var(--band)', 'height: max(env(safe-area-inset-top), 6px)', 'visibility: hidden'].every((declaration) => tintRule.includes(declaration)) && !/rgba|backdrop-filter|--sat/.test(tintRule), 'status tint is fixed, full-width, pointer-events none, opaque --band (no rgba/backdrop-filter), max(env, 6px) high, hidden on desktop');
+ok(rootBg === '#070d12' && lightBg === '#dfe9e7', 'dark and light --bg0 values are unchanged');
+ok(rootBand === '#010504' && lightBand === 'var(--bg0)', 'dark --band matches the measured iOS band; light --band uses --bg0');
 ok(/@media\s*\(max-width:\s*767\.98px\)\s*\{[\s\S]*?\.w-title\s*\{[^}]*height:\s*calc\(56px\s*\+/.test(css), 'phone window title includes 56px plus inset');
 // Phone hides minimise/maximise: the hiding rule must outrank the base `.w-btns button` display rule.
 const spec = (sel) => {
@@ -202,10 +205,11 @@ ok(!!pwa, 'site.webmanifest parses as JSON');
 ok(pwa?.display === 'standalone', 'PWA display is standalone');
 ok(pwa?.start_url === '/', 'PWA starts at root');
 ok(pwa?.theme_color === rootBg && pwa?.background_color === rootBg, 'site.webmanifest theme_color and background_color match dark --bg0');
-ok(/#status-tint\s*\{\s*visibility:\s*visible;\s*\}/.test(phoneBlock) && !/#status-tint\s*\{[^}]*visibility:\s*hidden/.test(phoneBlock), 'phone shows the opaque status tint over the band');
-ok(/#statusbar\s*\{[^}]*background:\s*var\(--bg0\)/.test(phoneBlock) && !/#statusbar\s*\{[^}]*(?:rgba|backdrop-filter)/.test(phoneBlock), 'phone status bar header is opaque --bg0, same colour as the tint');
+ok(/#status-tint\s*\{\s*visibility:\s*visible;\s*\}/.test(phoneBlock) && !/#status-tint\s*\{[^}]*visibility:\s*hidden/.test(phoneBlock), 'phone shows the opaque status tint at the viewport top');
+ok(/#statusbar\s*\{[^}]*background:\s*var\(--band\)/.test(phoneBlock) && !/#statusbar\s*\{[^}]*(?:rgba|backdrop-filter)/.test(phoneBlock), 'phone status bar header is opaque --band, same colour as the tint');
 ok(/#statusbar\s*\{[^}]*position:\s*fixed/.test(phoneBlock) && /\.w-title\s*\{[^}]*position:\s*fixed/.test(phoneBlock), 'phone headers are fixed');
-ok(/\.window\s*\{[^}]*background:\s*var\(--bg0\);[^}]*backdrop-filter:\s*none/.test(phoneBlock) && /\.w-title\s*\{[^}]*background:\s*var\(--bg0\)/.test(phoneBlock), 'phone sheet and title are opaque --bg0 with no backdrop-filter');
+ok(/\.window\s*\{[^}]*background:\s*var\(--bg0\);[^}]*backdrop-filter:\s*none/.test(phoneBlock), 'phone sheet is opaque --bg0 with no backdrop-filter');
+ok(/\.w-title\s*\{[^}]*background:\s*var\(--band\)/.test(phoneBlock) && !/\.w-title\s*\{[^}]*(?:rgba|backdrop-filter)/.test(phoneBlock), 'phone title is opaque --band with no rgba or backdrop-filter');
 ok(/@media\s*\(orientation:\s*landscape\)\s*and\s*\(hover:\s*none\)\s*and\s*\(pointer:\s*coarse\)\s*\{\s*#status-tint\s*\{\s*visibility:\s*visible;\s*height:\s*max\(20px,\s*env\(safe-area-inset-top\)\);\s*\}/.test(css), 'touch landscape paints the tint over the 20px dead zone');
 const icons = Array.isArray(pwa?.icons) ? pwa.icons : [];
 ok(icons.some((i) => i.sizes === '192x192'), 'PWA has a 192px icon');
