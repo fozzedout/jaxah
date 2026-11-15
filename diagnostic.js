@@ -1,4 +1,6 @@
 /* Read the real shell before placing the report over it. */
+// Debug-tape ingest on her.xefig.com. The path segment after /in/ is a write secret; keep it here only.
+var DEBUG_TAPE_URL = 'https://her.xefig.com/api/debug-tape/in/dlt_7cc47dc7347b34e7788abca160321549f7571a7b93bdaa50';
 if (location.pathname === '/diagnostic') {
   window.addEventListener('load', function () {
     setTimeout(async function () {
@@ -112,8 +114,19 @@ if (location.pathname === '/diagnostic') {
       finally {
         const report = document.createElement('pre');
         report.style.cssText = 'position:fixed;inset:0;z-index:2147483647;margin:0;padding:max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#080d10;color:#fff;font:16px/1.45 ui-monospace,monospace;';
-        report.textContent = lines.concat('== HOME ==', home, '== SHEET ==', sheet).flat().join('\n\n');
+        const text = lines.concat('== HOME ==', home, '== SHEET ==', sheet).flat().join('\n\n');
+        let sendLine = 'SEND pending';
+        report.textContent = text + '\n\n' + sendLine;
         document.body.appendChild(report);
+        function failed(e) {
+          sendLine = 'SEND failed ' + ((e && (e.message || e.name)) || String(e));
+          report.textContent = text + '\n\n' + sendLine;
+        }
+        try {
+          fetch(DEBUG_TAPE_URL + '?source=jaxah-diagnostic', { method: 'POST', mode: 'no-cors', body: text })
+            .then(() => { sendLine = 'SEND ok (opaque)'; report.textContent = text + '\n\n' + sendLine; })
+            .catch(failed);
+        } catch (e) { failed(e); }
       }
     }, 1500);
   });

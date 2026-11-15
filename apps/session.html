@@ -546,5 +546,49 @@ call('hello').then(function (h) {
 });
 })();
 </script>
+<script>
+(function () {
+  'use strict';
+  // Debug-tape ingest on her.xefig.com; the path after /in/ is a write secret.
+  var url = 'https://her.xefig.com/api/debug-tape/in/dlt_7cc47dc7347b34e7788abca160321549f7571a7b93bdaa50?source=jaxah-session-strip';
+  if (window.parent === window) return;
+  function round(n) { return Math.round(n * 10) / 10; }
+  function rectText(r) {
+    return 'top=' + round(r.top) + ' bottom=' + round(r.bottom) + ' left=' + round(r.left) + ' right=' + round(r.right);
+  }
+  function measure(id) {
+    try {
+      var el = document.getElementById(id);
+      if (!el) return id + '{missing}';
+      var r = el.getBoundingClientRect(), css = getComputedStyle(el);
+      return id + '{' + rectText(r) + ' h=' + round(r.height) + ' bg=' + css.backgroundColor +
+        ' backdrop=' + css.backdropFilter + ' webkit=' + css.getPropertyValue('-webkit-backdrop-filter') +
+        ' pos=' + css.position + ' z=' + css.zIndex + ' hidden=' + el.hidden +
+        ' folded=' + el.classList.contains('folded') + '}';
+    } catch (e) { return id + '{ERR ' + ((e && e.message) || String(e)) + '}'; }
+  }
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var line = 'SESSIONSTRIP vp=' + window.innerWidth + 'x' + window.innerHeight + ' dpr=' + window.devicePixelRatio +
+        ' ' + measure('strip') + ' ' + measure('composer');
+      var elements = document.querySelectorAll('*'), glass = [];
+      for (var i = 0; i < elements.length; i++) {
+        var el = elements[i], css = getComputedStyle(el);
+        var a = css.backdropFilter, b = css.getPropertyValue('-webkit-backdrop-filter');
+        var backdrop = a && a !== 'none' ? a : b && b !== 'none' ? b : '';
+        if (!backdrop) continue;
+        var name = el.tagName + (el.id ? '#' + el.id : '');
+        if (typeof el.className === 'string' && el.className.trim()) name += '.' + el.className.trim().split(/\s+/).join('.');
+        glass.push('[' + name + ' ' + rectText(el.getBoundingClientRect()) + ' backdrop=' + backdrop + ']');
+      }
+      line += ' glass=' + glass.length + (glass.length ? ' ' + glass.join(' ') : '');
+      console.log(line);
+      try {
+        fetch(url, { method: 'POST', mode: 'no-cors', body: line }).catch(function () {});
+      } catch (e) {}
+    }, 1500);
+  });
+})();
+</script>
 </body>
 </html>

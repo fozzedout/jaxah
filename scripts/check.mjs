@@ -244,7 +244,7 @@ ok(Array.isArray(M.apps), 'manifest.json remains the app catalogue');
   ok(requestHeaders({}, 'anthropic', 'direct')[browserHeader] === 'true', 'direct Anthropic sends browser access header');
   ok(!(browserHeader in requestHeaders({}, 'anthropic', 'proxy')), 'proxy Anthropic omits browser access header');
   ok(!(browserHeader in requestHeaders({}, 'openai', 'direct')), 'direct OpenAI omits browser access header');
-  ok(session?.version === '1.2.1', 'session version is 1.2.1');
+  ok(session?.version === '1.2.2', 'session version is 1.2.2');
 }
 
 console.log(`${fails ? 'FAILED' : 'OK'}: ${passes} passed, ${fails} failed`);
