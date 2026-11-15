@@ -50,10 +50,12 @@ async function homeTop(page, label, phone) {
         const i = (y * img.width + x) * 4, l = .2126 * data[i] + .7152 * data[i + 1] + .0722 * data[i + 2];
         sum += l; sum2 += l * l; colors.add(`${data[i]},${data[i + 1]},${data[i + 2]}`);
       }
-      return { sd: Math.sqrt(Math.max(0, sum2 / img.width - (sum / img.width) ** 2)), colors: colors.size };
+      return { sd: Math.sqrt(Math.max(0, sum2 / img.width - (sum / img.width) ** 2)), colors: colors.size, rgb: [...colors][0] };
     });
   }, png);
-  ok(rows.length === 10 && rows.every((r) => r.sd > 5 && r.colors > 1), `${label}: each top row has image detail: ${JSON.stringify(rows)}`);
+  // Rows 0-5 are the hard 6px #status-tint strip (#4a2f2c); the wallpaper shows from row 6.
+  ok(rows.length === 10 && rows.slice(0, 6).every((r) => r.colors === 1 && r.rgb === '74,47,44'), `${label}: rows 0-5 are the solid #4a2f2c status-tint: ${JSON.stringify(rows.slice(0, 6))}`);
+  ok(rows.slice(6).every((r) => r.sd > 5 && r.colors > 1), `${label}: rows 6-9 have image detail: ${JSON.stringify(rows.slice(6))}`);
   console.log(`  info: ${label}: top row luminance std-dev ${rows.map((r) => r.sd.toFixed(1)).join(', ')}`);
 }
 

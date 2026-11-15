@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Airis OS">
 <meta name="theme-color" content="#070d12">
 <link rel="manifest" href="/site.webmanifest">
@@ -23,8 +24,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data:; frame-src 'self' https://lexfall.com; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <link rel="stylesheet" href="./terminal.css">
 <link rel="stylesheet" href="./shell.css">
+<!-- Paul's device test (15 Nov): the iOS status-bar blur goes away only when a
+     real element of non-zero height with an opaque background sits at the top
+     edge. A zero-height env(safe-area-inset-top) strip does not work; a hard
+     6px floor does. #4a2f2c is sampled from the wallpaper's top rows. -->
+<style>#status-tint { position: fixed; top: 0; left: 0; right: 0; width: 100%; height: 6px; background-color: #4a2f2c; pointer-events: none; z-index: 21; margin: 0; padding: 0; border: 0; }</style>
 </head>
-<body class="term">
+<body class="term"><div id="status-tint" aria-hidden="true"></div>
   <span id="build-stamp" aria-label="Build">UNBUILT</span>
 
   <!-- ══ TERMINAL FLOOR ══

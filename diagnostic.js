@@ -151,7 +151,7 @@
       const overlay = document.createElement('div');
       overlay.setAttribute('role', 'dialog');
       overlay.setAttribute('aria-label', 'Diagnostic');
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;box-sizing:border-box;padding:max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));display:flex;flex-direction:column;background:#080d10;color:#fff;font:16px/1.45 ui-monospace,monospace';
+      overlay.style.cssText = 'position:fixed;inset:1px 0 0 0;z-index:2147483647;box-sizing:border-box;padding:max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));display:flex;flex-direction:column;background:#080d10;color:#fff;font:16px/1.45 ui-monospace,monospace';
       const header = document.createElement('header');
       header.style.cssText = 'flex:none;display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid #2a3a44';
       const title = document.createElement('strong'); title.textContent = 'Diagnostic'; title.style.flex = '1';
@@ -194,7 +194,7 @@
       setTimeout(async function () {
         const text = await collect({ openSheet: true });
         const report = document.createElement('pre');
-        report.style.cssText = 'position:fixed;inset:0;z-index:2147483647;margin:0;padding:max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#080d10;color:#fff;font:16px/1.45 ui-monospace,monospace;';
+        report.style.cssText = 'position:fixed;inset:1px 0 0 0;z-index:2147483647;margin:0;padding:max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#080d10;color:#fff;font:16px/1.45 ui-monospace,monospace;';
         document.body.appendChild(report);
         send(text, value => { report.textContent = value; });
       }, 1500);
