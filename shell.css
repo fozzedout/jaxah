@@ -253,7 +253,8 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
   .w-btns .w-max { display: none; } /* no maximise on phone: sheets are already full */
   .rz { display: none; } /* no drag-resize on phone sheets */
 
-  #whisper { top: calc(46px + var(--sat, env(safe-area-inset-top))); bottom: auto; }
+  /* Clear the fixed header: its own height (56px + inset) plus an 8px gap. */
+  #whisper { top: calc(56px + var(--sat, env(safe-area-inset-top)) + 8px); bottom: auto; }
 
   /* Corner presences sit above the dock, never under it. */
   #presence-portrait { bottom: 118px; }
@@ -307,7 +308,7 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
     #icon-grid { padding-top: calc(52px + max(20px, var(--sat, env(safe-area-inset-top)))); }
     .window { padding-top: calc(56px + max(20px, var(--sat, env(safe-area-inset-top)))); }
     .w-title { height: calc(56px + max(20px, var(--sat, env(safe-area-inset-top)))); padding-top: max(20px, var(--sat, env(safe-area-inset-top))); }
-    #whisper { top: calc(46px + max(20px, var(--sat, env(safe-area-inset-top)))); }
+    #whisper { top: calc(56px + max(20px, var(--sat, env(safe-area-inset-top))) + 8px); }
   }
 }
 
