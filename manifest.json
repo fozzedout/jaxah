@@ -449,7 +449,7 @@
       "name": "Bench",
       "icon": "🛠",
       "url": "apps/bench.html",
-      "version": "1",
+      "version": "2",
       "install": "code",
       "launch": "auto",
       "category": "Developer",

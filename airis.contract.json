@@ -12,7 +12,8 @@
       "A file in a workspace is never an app. Install records from the catalogue (manifest.json) or an imported bundle are the only source of desktop tiles, dock entries, palette entries and the APPS list.",
       "Nothing that reads, writes or runs a workspace file may create a manifest entry, install record, tile, dock entry or palette entry.",
       "Dev files live in workspace 'home' under 'dev/' (flat: one name segment). Bench lists, creates, renames, deletes and edits them with fs.* and CAS (a stale base is a conflict, never an overwrite).",
-      "harness.run shows a saved .html dev file in a pane labelled 'Test harness' inside the caller's own window, in the same sandboxed srcdoc iframe as install:'code' apps (sandbox.iframe). The harness frame has no capabilities: only hello and trail.note.",
+      "If home already exists without a Bench grant, Bench offers an explicit grant button. The shell confirms with the user that Bench can read and change the entire home workspace, including outside dev/, before granting it. Declining leaves access denied; the grant persists until revoked. This is specific to Bench and home, not a general grant UI.",
+      "harness.run shows a saved .html dev file in a pane labelled 'Test harness' inside the caller's own window, in the same sandboxed srcdoc iframe as install:'code' apps (sandbox.iframe). The harness has no bridge capabilities: only hello and trail.note are available. Normal sandboxed browser features, including CSP-permitted network requests, forms and downloads, remain available.",
       "Turning a dev file into an installed app is not supported yet."
     ],
     "doc": "docs/dev-environment.md"
@@ -130,6 +131,7 @@
     "event": { "airis": 1, "event": "theme | trail | fs | act", "...": "payload; fs: {airis:1, event:'fs', ws, path, ver, actor}; act: {airis:1, event:'act', re, action, args, from}" },
     "publishedActions": "Per-app published actions are not entries in actions.list. Each has name, args object, agent boolean, and effect: read | write | external | secret. These classes describe effects; this bridge does not yet provide effect-based consent.",
     "ops": {
+      "bench.grantHome": { "cap": "fs", "args": "{}", "doc": "Bench requests access to an existing home workspace; the shell asks the user to confirm the whole-workspace grant." },
       "harness.run": { "cap": "fs", "args": "{ ws, path }", "doc": "Run a saved HTML dev file in a sandboxed test pane inside the caller's window; requires a workspace grant." },
       "harness.close": { "cap": null, "args": "{}", "doc": "Close the caller's test harness pane." },
       "app.publish": { "cap": null, "args": "{ state, actions: [{ name, args, effect, agent }] }", "doc": "Publish JSON state and actions for the calling frame, at most 16384 serialized UTF-8 bytes. Unchanged publications are ignored; records expire on close or reload." },

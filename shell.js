@@ -1455,6 +1455,22 @@ var OPS = {
   'store.export': function () { return act('export', {}, 'human'); },
   'store.import': function (id, a) { return act('import', { text: a.text }, 'human'); },
   'fs.workspaces': function (id) { return fsLib().then(function (fs) { return fs.listWorkspaces(); }).then(function (list) { return list.filter(function (w) { return fsGranted(w.ws, id); }); }); },
+  'bench.grantHome': function (id) {
+    if (id !== 'bench') throw new Error('only Bench can request this grant');
+    var win = openWins[id], gen = frameGen[id];
+    return fsLib().then(function (fs) { return fs.listWorkspaces(); }).then(function (list) {
+      if (!win || openWins[id] !== win || frameGen[id] !== gen) throw new Error('Bench was closed or reloaded');
+      if (!list.some(function (w) { return w.ws === 'home'; })) throw new Error('workspace home does not exist');
+      if (fsGranted('home', id)) return true;
+      if (!window.confirm('Allow Bench to read and change all files in the home workspace, including files outside dev/?')) {
+        trailAdd('human', 'grant', 'home to bench declined');
+        return false;
+      }
+      fsGrant('home', id);
+      trailAdd('human', 'grant', 'ws=home id=bench');
+      return true;
+    });
+  },
   'fs.create': function (id, a) { return fsRefusal(id, a, 'fs.create', function () { return fsLib().then(function (fs) { return fs.createWorkspace(a); }).then(function (res) { if (res.ok) fsGrant(res.ws, id); return fsTrail(fsActor(id, a), 'fs.create', a.ws, '', res); }); }); },
   'fs.list': function (id, a) { return fsCall(id, a, 'fs.list', 'list'); },
   'fs.read': function (id, a) { return fsCall(id, a, 'fs.read', 'read'); },

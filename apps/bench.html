@@ -31,6 +31,7 @@ textarea { display:block; width:100%; min-height:330px; resize:vertical; margin:
 <body>
 <h1>Bench</h1>
 <p id="status" role="status" aria-live="polite"></p>
+<p id="grant-prompt" hidden>Bench needs access to the whole home workspace, including files outside dev/. <button id="grant">Grant access</button></p>
 <div class="layout">
 <section>
   <div class="toolbar"><h2>home/dev</h2><button id="new" disabled>New file</button></div>
@@ -199,6 +200,10 @@ textarea { display:block; width:100%; min-height:330px; resize:vertical; margin:
     var value = result(await call('harness.run', {ws:rules.DEV.ws, path:current}));
     status('Run: ' + (value === undefined ? 'OK' : JSON.stringify(value)));
   }); };
+  $('grant').onclick = function () { task(async function () {
+    if (!await call('bench.grantHome')) { status('Access was not granted.'); return; }
+    await refresh(); ready = true; $('grant-prompt').hidden = true;
+  }); };
   document.addEventListener('keydown', function (event) { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!$('save').disabled) $('save').click(); } });
   task(async function () {
     var hello = result(await call('hello')); if (hello) setTheme(hello.theme);
@@ -207,8 +212,8 @@ textarea { display:block; width:100%; min-height:330px; resize:vertical; margin:
     if (!workspaces.some(function (entry) { return entry.ws === rules.DEV.ws; })) {
       var created;
       try { created = await call('fs.create', {ws:rules.DEV.ws, name:'Home'}); }
-      catch (e) { if (e.message === 'workspace exists') throw new Error("Workspace 'home' exists but Bench has not been granted it"); throw e; }
-      if (created && created.ok === false && created.error === 'workspace exists') throw new Error("Workspace 'home' exists but Bench has not been granted it");
+      catch (e) { if (e.message === 'workspace exists') { $('grant-prompt').hidden = false; throw new Error("Workspace 'home' exists but Bench has not been granted it"); } throw e; }
+      if (created && created.ok === false && created.error === 'workspace exists') { $('grant-prompt').hidden = false; throw new Error("Workspace 'home' exists but Bench has not been granted it"); }
       result(created);
     }
     await refresh(); ready = true;
