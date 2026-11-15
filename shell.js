@@ -39,7 +39,10 @@ function normaliseApp(a) {
   if (!a || typeof a.id !== 'string' || !a.id || typeof a.url !== 'string' || !a.url) {
     throw new Error('manifest app needs an id and URL');
   }
-  a = Object.assign({}, a);
+  // Deep copy: the caller's entry is often installs.records[id].entry, which is
+  // saved and compared to the manifest by syncCatalogue(); filling defaults into
+  // shared nested objects (desktop/phone) would make every record look stale.
+  a = JSON.parse(JSON.stringify(a));
   a.name = a.name || a.title || a.id;
   a.title = a.title || a.name;
   a.icon = a.icon || '▢';

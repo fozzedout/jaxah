@@ -327,6 +327,7 @@
     "check": "node scripts/check.mjs                              # offline: manifest/contract/files/CSP",
     "live": "node scripts/check.mjs --live http://localhost:8788  # also: every legacy URL resolves, /api allowlist refuses the rest",
     "paint": "PLAYWRIGHT_CORE=/path/to/node_modules/playwright-core node scripts/check-paint.mjs http://localhost:8788  # rendered: phone status strip is the topmost opaque paint over the top inset (exit 2 = skipped)",
+    "benchDev": "PLAYWRIGHT_CORE=/path/to/node_modules/playwright-core node scripts/check-bench-dev.mjs http://localhost:8788  # rendered: dev files pre-seeded in home/dev never become apps/records; Bench lists them and runs CAS rename/delete; a plain boot leaves airis.installs.v1 byte-identical (exit 2 = skipped)",
     "legacyUrls": [
       "/", "/index.html", "/repo.html", "/lexfall.html", "/lsb-coding.html", "/lsb-pwman.html", "/fuel-calc-uk.html",
       "/trie-test.html", "/trie-test.html?dataset=words", "/idb-test.html", "/reveal.html", "/rustys-commands.html",
