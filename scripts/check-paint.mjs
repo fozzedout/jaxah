@@ -65,17 +65,32 @@ function alpha(rgb) {
   return parts.length === 3 ? 1 : parts.length === 4 ? Number(parts[3]) : NaN;
 }
 
-async function assertOpaqueTop(label, page, x, y, expectHeightAtLeast) {
-  const t = await topAt(page, x, y), top = t.stack[0] || {};
-  const desc = top.id ? '#' + top.id : top.tag || '(none)';
-  ok(top.id === 'status-tint', `${label}: topmost painted element at (${x},${y}) is #status-tint, got ${desc}`);
-  ok(top.vis === 'visible', label + ': strip is visible');
-  ok(alpha(top.bg) === 1, label + ': strip background is fully opaque, got ' + top.bg);
-  ok(top.rect && top.rect.top <= 0 && top.rect.left <= 0 && top.rect.right >= t.vw, label + ': strip spans full width from y=0');
-  ok(top.rect && top.rect.bottom >= expectHeightAtLeast, label + ': strip covers the inset band (bottom ' + top.rect?.bottom + ' >= ' + expectHeightAtLeast + ')');
-  ok(!top.backdrop || top.backdrop === 'none', label + ': strip has no backdrop-filter');
-  console.log(`  info: ${label}: bg ${top.bg}, inset ${t.inset}, stack ${t.stack.map((e) => (e.id ? '#' + e.id : e.tag) + ' ' + e.bg).join(' | ')}`);
-  return { ...top, stack: t.stack };
+async function tintState(page) {
+  return page.evaluate(() => {
+    const el = document.getElementById('status-tint'), c = getComputedStyle(el), r = el.getBoundingClientRect();
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;height:env(safe-area-inset-top, 0px)';
+    document.body.appendChild(probe);
+    const inset = probe.getBoundingClientRect().height;
+    probe.remove();
+    return { vis: c.visibility, bg: c.backgroundColor, pe: c.pointerEvents, position: c.position, backdrop: c.backdropFilter || c.webkitBackdropFilter,
+      rect: { top: r.top, bottom: r.bottom, left: r.left, right: r.right }, vw: window.innerWidth, inset };
+  });
+}
+
+// The strip is pointer-events:none (hit tests pass through), so read it directly rather than via elementsFromPoint.
+async function assertOpaqueTop(label, page, expectHeightAtLeast, colour) {
+  const t = await tintState(page);
+  ok(t.position === 'fixed', label + ': strip is fixed, got ' + t.position);
+  ok(t.vis === 'visible', label + ': strip is visible, got ' + t.vis);
+  ok(t.pe === 'none', label + ': strip is pointer-events none, got ' + t.pe);
+  ok(alpha(t.bg) === 1, label + ': strip background is fully opaque, got ' + t.bg);
+  if (colour) ok(t.bg === colour, `${label}: strip is the header colour ${colour}, got ${t.bg}`);
+  ok(t.rect.top <= 0 && t.rect.left <= 0 && t.rect.right >= t.vw, label + ': strip spans full width from y=0');
+  ok(t.rect.bottom >= Math.max(expectHeightAtLeast, t.inset), label + ': strip covers the inset band (bottom ' + t.rect.bottom + ' >= ' + Math.max(expectHeightAtLeast, t.inset) + ')');
+  ok(!t.backdrop || t.backdrop === 'none', label + ': strip has no backdrop-filter');
+  console.log(`  info: ${label}: bg ${t.bg}, inset ${t.inset}, strip bottom ${t.rect.bottom}`);
+  return t;
 }
 
 async function assertPhoneHeader(label, page, y, selector, colour) {
@@ -86,8 +101,8 @@ async function assertPhoneHeader(label, page, y, selector, colour) {
   ok(top.vis === 'visible' && alpha(top.bg) === 1 && top.bg === colour, `${label}: header is opaque ${colour}, got ${top.bg}`);
   ok(!top.backdrop || top.backdrop === 'none', `${label}: header has no backdrop-filter`);
   ok(top.rect && top.rect.top === 0 && top.rect.left === 0 && top.rect.right >= t.vw, `${label}: header spans the top edge`);
-  const styles = await page.evaluate(() => ({ tint: getComputedStyle(document.querySelector('#status-tint')).visibility, bg: getComputedStyle(document.documentElement).getPropertyValue('--bg0').trim() }));
-  ok(styles.tint === 'hidden', `${label}: phone tint is hidden, got ${styles.tint}`);
+  const styles = await page.evaluate(() => ({ bg: getComputedStyle(document.documentElement).getPropertyValue('--bg0').trim() }));
+  await assertOpaqueTop(label + ' tint', page, 6, colour);
   const rootColour = await page.evaluate((bg) => { const e = document.createElement('div'); e.style.color = bg; document.body.appendChild(e); const colour = getComputedStyle(e).color; e.remove(); return colour; }, styles.bg);
   ok(top.bg === rootColour, `${label}: header matches --bg0 (${rootColour})`);
 }
@@ -142,7 +157,7 @@ try {
     ok(vis === 'hidden', 'desktop: status tint is hidden (no 6px band), got ' + vis);
   });
   await scenario('dark', 0, { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
-    await assertOpaqueTop('landscape touch', page, 195, 10, 20);
+    await assertOpaqueTop('landscape touch', page, 20, 'rgb(7, 13, 18)');
   });
   await scenario('dark', 0, { viewport: { width: 700, height: 390 }, hasTouch: true, isMobile: true }, async (page) => {
     await assertPhoneHeader('phone landscape home', page, 10, '#statusbar', 'rgb(7, 13, 18)');

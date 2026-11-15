@@ -49,14 +49,14 @@ button { font: inherit; color: inherit; }
 
 /* ── Stage ──────────────────────────────────────────────────────────── */
 #os { position: fixed; inset: 0; z-index: 1; }
-/* Status-bar tint strip (see index.html). Hidden by default and on phones,
-   where the fixed opaque header covers the inset and row for iOS's edge hit test.
-   Touch landscape at desktop widths shows the strip over the top dead zone.
-   Status bar style is default (no black-translucent: iOS 26.1+ scrims it). */
+/* Status-bar tint strip (see index.html). black-translucent makes the page draw
+   under the iOS status bar, so env(safe-area-inset-top) is the real band height;
+   this strip paints it OPAQUE in the header's colour (opaque defeats the iOS 26 blur;
+   never rgba or backdrop-filter here). Hidden on desktop (no 6px band), shown on
+   phones and touch landscape. */
 #status-tint {
   position: fixed; top: 0; left: 0; right: 0; height: max(env(safe-area-inset-top), 6px); z-index: 2;
-  /* WebKit's colour-extension check hit-tests the top edge; pointer-events:none makes iOS ignore it and blur. */
-  background-color: var(--bg0); pointer-events: auto; visibility: hidden;
+  background-color: var(--bg0); pointer-events: none; visibility: hidden;
 }
 body.term #status-tint { background-color: #020604; } /* terminal floor background */
 #stage { position: absolute; inset: 0 0 var(--taskbar-h); }
@@ -214,13 +214,13 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
 
 /* ── Phone (<768px): home-screen grid, one app at a time ─────────────── */
 @media (max-width: 767.98px) {
-  /* The fixed opaque header, not the inset-only strip, owns the phone top edge. */
-  #status-tint { visibility: hidden; }
+  /* The opaque strip paints the status-bar band; the opaque header below is the same --bg0. */
+  #status-tint { visibility: visible; }
   #stage { inset: 0; }
   #statusbar {
     display: flex; align-items: center; justify-content: space-between;
     position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-    padding: calc(8px + var(--sat, env(safe-area-inset-top))) 16px 8px;
+    padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
     font-size: 13px; color: var(--dim); background: var(--bg0);
   }
   #sb-time { font-variant-numeric: tabular-nums; min-width: 44px; }
@@ -231,7 +231,7 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
     top: 0; left: 0; right: 0; bottom: 0; max-height: none;
     flex-direction: row; align-content: flex-start; justify-content: flex-start;
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
-    padding: calc(52px + var(--sat, env(safe-area-inset-top))) 12px 110px; overflow-y: auto;
+    padding: calc(52px + env(safe-area-inset-top)) 12px 110px; overflow-y: auto;
   }
   .tile { width: auto; padding: 10px 2px 8px; }
   .tile .t-icon { width: 56px; height: 56px; font-size: 27px; }
@@ -239,14 +239,14 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
   /* One app at a time: window becomes a full-screen sheet */
   .window {
     position: absolute; inset: 0 !important; width: auto !important; height: auto !important;
-    border-radius: 0; border: none; padding-top: calc(56px + var(--sat, env(safe-area-inset-top))); padding-bottom: var(--sab, env(safe-area-inset-bottom));
+    border-radius: 0; border: none; padding-top: calc(56px + env(safe-area-inset-top)); padding-bottom: env(safe-area-inset-bottom);
     min-width: 0; min-height: 0;
     /* No glass or containing-block effects: the fixed title owns the top edge. */
     background: var(--bg0); backdrop-filter: none; -webkit-backdrop-filter: none;
   }
   .window.max { inset: 0 !important; }
   /* Fixed edge header: 56px of controls plus the top inset; window padding reserves its space. */
-  .w-title { position: fixed; top: 0; left: 0; right: 0; z-index: 1; height: calc(56px + var(--sat, env(safe-area-inset-top))); cursor: default; padding-top: var(--sat, env(safe-area-inset-top)); background: var(--bg0); }
+  .w-title { position: fixed; top: 0; left: 0; right: 0; z-index: 1; height: calc(56px + env(safe-area-inset-top)); cursor: default; padding-top: env(safe-area-inset-top); background: var(--bg0); }
   .w-btns button, .w-btns a.w-ext { min-width: 48px; min-height: 48px; }
   /* .w-btns prefix: must outrank `.w-btns button { display: inline-grid }` above. */
   .w-btns .w-min { display: none; } /* no minimise on phone: ⌄ closes instead */
@@ -254,14 +254,14 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
   .rz { display: none; } /* no drag-resize on phone sheets */
 
   /* Clear the fixed header: its own height (56px + inset) plus an 8px gap. */
-  #whisper { top: calc(56px + var(--sat, env(safe-area-inset-top)) + 8px); bottom: auto; }
+  #whisper { top: calc(56px + env(safe-area-inset-top) + 8px); bottom: auto; }
 
   /* Corner presences sit above the dock, never under it. */
   #presence-portrait { bottom: 118px; }
   #presence-orb { bottom: 118px; }
   #dock {
     display: flex; align-items: center; gap: 4px;
-    position: absolute; left: 10px; right: 10px; bottom: calc(10px + var(--sab, env(safe-area-inset-bottom)));
+    position: absolute; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom));
     z-index: 10; padding: 8px 10px; border-radius: 22px;
     background: var(--glass); border: 1px solid var(--tile-border);
     backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -279,7 +279,7 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
   #summon-box {
     margin-top: 0; width: 100%; border-radius: 22px 22px 0 0;
     max-height: 82vh; display: flex; flex-direction: column;
-    padding-bottom: var(--sab, env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
   }
   #summon-out { max-height: 60vh; }
   .sr { padding: 15px 14px; font-size: 16px; }
@@ -291,24 +291,23 @@ body.term #status-tint { background-color: #020604; } /* terminal floor backgrou
   #status-tint { visibility: visible; height: max(20px, env(safe-area-inset-top)); }
   @media (min-width: 768px) {
     #stage {
-      inset: max(20px, var(--sat, env(safe-area-inset-top))) var(--sar, env(safe-area-inset-right))
-        calc(var(--taskbar-h) + var(--sab, env(safe-area-inset-bottom))) var(--sal, env(safe-area-inset-left));
+      inset: max(20px, env(safe-area-inset-top)) env(safe-area-inset-right)
+        calc(var(--taskbar-h) + env(safe-area-inset-bottom)) env(safe-area-inset-left);
     }
     #taskbar {
-      height: calc(var(--taskbar-h) + var(--sab, env(safe-area-inset-bottom)));
-      padding-left: calc(12px + var(--sal, env(safe-area-inset-left)));
-      padding-right: calc(12px + var(--sar, env(safe-area-inset-right)));
-      padding-bottom: var(--sab, env(safe-area-inset-bottom));
+      height: calc(var(--taskbar-h) + env(safe-area-inset-bottom));
+      padding-left: calc(12px + env(safe-area-inset-left));
+      padding-right: calc(12px + env(safe-area-inset-right));
+      padding-bottom: env(safe-area-inset-bottom);
     }
-    #whisper { bottom: calc(var(--taskbar-h) + 12px + var(--sab, env(safe-area-inset-bottom))); }
+    #whisper { bottom: calc(var(--taskbar-h) + 12px + env(safe-area-inset-bottom)); }
   }
   @media (max-width: 767.98px) {
-    #status-tint { visibility: hidden; }
-    #statusbar { padding-top: calc(8px + max(20px, var(--sat, env(safe-area-inset-top)))); }
-    #icon-grid { padding-top: calc(52px + max(20px, var(--sat, env(safe-area-inset-top)))); }
-    .window { padding-top: calc(56px + max(20px, var(--sat, env(safe-area-inset-top)))); }
-    .w-title { height: calc(56px + max(20px, var(--sat, env(safe-area-inset-top)))); padding-top: max(20px, var(--sat, env(safe-area-inset-top))); }
-    #whisper { top: calc(56px + max(20px, var(--sat, env(safe-area-inset-top))) + 8px); }
+    #statusbar { padding-top: calc(8px + max(20px, env(safe-area-inset-top))); }
+    #icon-grid { padding-top: calc(52px + max(20px, env(safe-area-inset-top))); }
+    .window { padding-top: calc(56px + max(20px, env(safe-area-inset-top))); }
+    .w-title { height: calc(56px + max(20px, env(safe-area-inset-top))); padding-top: max(20px, env(safe-area-inset-top)); }
+    #whisper { top: calc(56px + max(20px, env(safe-area-inset-top)) + 8px); }
   }
 }
 
