@@ -61,6 +61,7 @@ export const fakeIndexedDB = () => {
       const tx = { names, mode, error: null };
       const check = () => setTimeout(() => {
         if (state !== 'active' || pending) return;
+        if (mode !== 'readonly' && tx.commitError) { abort(tx.commitError); return; }
         if (mode !== 'readonly') for (const [n, entries] of working) data.set(n, entries);
         state = 'finished'; release(tx); tx.oncomplete?.({ target: tx });
       }, 0);

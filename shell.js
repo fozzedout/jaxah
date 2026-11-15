@@ -1243,7 +1243,7 @@ function fsContext(id, a) {
 function fsTrail(actor, op, ws, path, res) {
   var detail = 'ok';
   if (res && res.ok === false) {
-    detail = res.error;
+    detail = res.error === 'quota' ? 'refused: quota (storage full)' : res.error;
     if (res.error === 'conflict' && res.current != null) detail += ' (current v' + res.current + (res.actor ? ' by ' + res.actor : '') + ')';
   } else if (res && res.deleted) detail = 'deleted';
   else if (res && res.ver != null) detail = 'v' + res.ver;
@@ -1253,7 +1253,8 @@ function fsTrail(actor, op, ws, path, res) {
 }
 function fsRefusal(id, a, op, fn) {
   return Promise.resolve().then(fn).catch(function (err) {
-    trailAdd(op === 'fs.lock' || op === 'fs.unlock' ? 'app:' + id : fsActor(id, a), op, (a.ws || a.as || '') + ':' + (a.path || a.to || a.from || '') + ' → refused: ' + (err.message || String(err)));
+    var quota = err && (err.name === 'QuotaExceededError' || (typeof DOMException !== 'undefined' && err instanceof DOMException && err.code === 22));
+    trailAdd(op === 'fs.lock' || op === 'fs.unlock' ? 'app:' + id : fsActor(id, a), op, (a.ws || a.as || '') + ':' + (a.path || a.to || a.from || '') + ' → refused: ' + (quota ? 'quota (storage full)' : (err && (err.message || err.name)) || String(err)));
     throw err;
   });
 }

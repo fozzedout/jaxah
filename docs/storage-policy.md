@@ -51,7 +51,7 @@ One widely repeated claim, that iOS writes fail at about 50 MB whatever `estimat
 
 ### What `navigator.storage.estimate()` reports
 
-- **Chromium:** quota is the computed share above. `usage` "can be impacted by internal compression techniques, fixed-size allocation blocks …, tombstone records …, [and] padding" for opaque cross-origin responses ([Chrome for Developers, Estimating available storage space](https://developer.chrome.com/blog/estimating-available-storage-space), undated). Treat `usage` as approximate, not byte-exact.
+- **Chromium:** quota is the computed share above. `usage` "can be impacted by internal compression techniques, fixed-size allocation blocks …, tombstone records …, [and] padding" for opaque cross-origin responses ([Chrome for Developers, Estimating available storage space](https://developer.chrome.com/blog/estimating-available-storage-space), undated). **Measured byte-accurate on Chromium/Linux** on 2026-11-15, using Playwright and CDP `Storage.overrideQuotaForOrigin` with writes through `lib/fs.js` `openFs()`: 15,000 versions of compressible text (30,092,500 logical bytes) reported 15,108,051 bytes, against 15,108,381 bytes on disk (362,500 in the IndexedDB blob store and 14,745,881 in LevelDB), a 0.002% discrepancy. The approximate caution applies to engines not yet measured.
 - **Safari 17+:** "Usage indicates how much space is already used, and the quota is the origin quota". The quota is an upper limit with "no guarantee that a site can store that much", and it "may change with existing usage and visit frequency" (WebKit 2023-08-10).
 - **Firefox:** I found no primary source for exactly what Firefox reports as `quota` in best-effort mode (group limit or per-origin). Measured in U2.
 
@@ -107,7 +107,7 @@ Units: 1 KB = 1,000 B, 1 MB = 10⁶ B. "Version" = one successful write = one ag
 - Versions: 150 × 100 = **15,000**
 - Raw content: 15,000 × 2,000 B = **30.0 MB**
 
-**Per-row metadata estimates.** These are *my estimates* from the row shapes in bench-design §3. I have not measured them, and engine overhead is unknown U1.
+**Per-row metadata estimates.** These are *my estimates* from the row shapes in bench-design §3; the per-row split is not measured. The total is: on Chromium/Linux, LevelDB overhead measured about 490 B per version+op record pair (U1, 2026-11-15).
 
 - **`versions` row:** `{ws, path, ver, blob, actor, runId, callId, t, parent}`. That is roughly 20 + 25 + 8 + 64 (hex) + 11 + 26 + 12 + 8 + 8 B of values, plus about 45 B of property names and structured-clone tags, so ≈ 230–250 B. Add the compound primary key `[ws, path, ver]` stored again (≈ 55 B) and one secondary index by `runId` (≈ 80 B). Total ≈ **400 B**.
 - **`ops` row:** `{actor, kind, path, from, to, callId, runId, t}` ≈ 200 B, plus a key of ≈ 30 B. Total ≈ **230 B**.
@@ -182,7 +182,7 @@ The original 1 GiB reasoning (pre-17 Safari prompt boundary and in-memory export
 
 **Assets count against the budget (2026-11-14).** Assets stored inside the workspace count against the 100–200 MB budget, and every export carries them. Streamed zip export still means export size does not drive the budget through memory, but the budget must account for asset bytes. Binaries are not compressed (PNG measured 0.996, §2), so an asset costs roughly its full size once per distinct version: content addressing stores identical bytes once.
 
-The percentage shown is `estimate().usage / L`, refreshed after each run and every 5 minutes while Bench is open. Chromium's `usage` is approximate (§1), so the thresholds carry slack.
+The percentage shown is `estimate().usage / L`, refreshed after each run and every 5 minutes while Bench is open. Chromium's `usage` measured byte-accurate (§1); the thresholds keep slack for other engines.
 
 ### The ladder
 
@@ -198,7 +198,7 @@ The 5% above 95% is a **reserve**. It exists so the in-flight write, its journal
 
 ### A quota error mid-run never loses a write
 
-- **One transaction per write.** Blob, version, head and op commit in a single IDB `readwrite` transaction. On `QuotaExceededError` the transaction aborts as a whole, so the store is never half-written. Handle it on `transaction.onabort` / `transaction.error`, not only on the request. *Unverified across engines whether the error surfaces on the request or only on the transaction: U6.*
+- **One transaction per write.** Blob, version, head and op commit in a single IDB `readwrite` transaction. On `QuotaExceededError` the transaction aborts as a whole, so the store is never half-written. Handle it on `transaction.onabort` / `transaction.error`, not only on the request. On Chromium the error surfaces only on the transaction (`onabort`); the request `onerror` does not fire. The abort is clean: 261 consecutive failures left zero dangling heads. Other engines remain unverified (U6).
 - **The caller keeps the bytes.** `fs.write` resolves to `{ok: false, error: 'quota', path, base}` and never throws away `content`. The shell holds the failed write in a memory-only **pending-writes list** and shows it as a card: **Retry**, **Download this file** (gets the bytes out of the browser right away), **Free space**.
 - **The agent is told, then stopped.** The tool result is `{ok:false, error:'quota_exceeded'}` and the run moves to `paused: storage`, with no further model calls. Retrying a model round trip into a full disk is pointless and spends the user's tokens.
 - **Journal writes are the second place it bites.** `emit()` in `airis-agent.js` awaits `log.append`, so a quota error there currently rejects out of `runAgent`. The required behaviour: catch it, keep `messages` in memory, pause the run, and offer **Download transcript**. A reload in that state loses only what was never written, and the card said so.
@@ -219,12 +219,12 @@ Two modes:
 
 | # | Unknown | Why it matters | Cheapest experiment |
 |---|---|---|---|
-| **U1** | Real bytes on disk per small IDB record and per 2 KB blob in each engine (Chromium's LevelDB/SQLite backend, Firefox SQLite, WebKit SQLite), and whether the engine compresses values itself | My row estimates (400 B, 230 B) could be off severalfold. If Chromium already compresses values, G saves less there. | One page that writes 15,000 synthetic version rows plus 2 KB blobs, compressed and uncompressed, and reads `estimate().usage` before and after. Run it on Chrome, Firefox, Safari macOS and a real iPhone. About 1 hour, reusing the pattern in the existing `idb-test.html`. |
-| **U2** | What Firefox and iOS Safari actually return from `estimate()`, and whether the iOS quota is close to 60% of disk | Sets `L` on those engines | The same page logs `estimate()` and `persisted()`. 10 minutes per device. |
+| **U1** | Real bytes on disk per small IDB record and per 2 KB blob in each engine (Chromium's LevelDB/SQLite backend, Firefox SQLite, WebKit SQLite), and whether the engine compresses values itself | My row estimates (400 B, 230 B) could be off severalfold. If Chromium already compresses values, G saves less there. | **Answered for Chromium/Linux (2026-11-15):** 15,000 versions of compressible text (30,092,500 logical bytes) used 15,108,051 reported bytes, about 1,007 B/version, including about 490 B LevelDB overhead per version+op pair. 2,000 versions of incompressible text (4,000,000 logical bytes) used 5,993,958 bytes, about 2,995 B/version. The 15,000 writes took 71.2 s, about 4.7 ms/write. Firefox and Safari (macOS and iPhone) remain unmeasured; run the same experiment there. |
+| **U2** | What Firefox and iOS Safari actually return from `estimate()`, and whether the iOS quota is close to 60% of disk | Sets `L` on those engines | **Answered for Chromium/Linux (2026-11-15):** `usage` reported 15,108,051 bytes against 15,108,381 bytes on disk, a 0.002% discrepancy: byte-accurate in this measurement. Firefox and Safari (macOS and iPhone) remain unmeasured. Log `estimate()` and `persisted()` on each device. |
 | **U3** | Whether `persist()` exempts a Safari tab from the 7-day ITP cap | Decides whether non-installed iPhone use is ever safe | A spare iPhone: open Airis in a Safari tab, create a workspace, call `persist()` and record the result, then use Safari on other sites for 8+ days without tapping Airis. Check whether the workspace survived. About 8 days of elapsed time, minutes of effort. Run a Home Screen control at the same time. |
 | **U4** | Whether the iOS Home Screen app and Safari tabs share IndexedDB | If separate, a workspace made in one is invisible in the other. The UI must say so, and export/import is the migration path. | Create a workspace in a Safari tab, open the Home Screen app, and look for it. 2 minutes. |
 | **U5** | Real bytes per agent step (versions + journal) in Bench runs, as opposed to my 3.7 KB estimate | **This is the number that decides the whole policy** (§6) | Instrument the first ten real Bench v0 runs to log bytes written per step by table. Free once Bench runs. |
-| **U6** | Where `QuotaExceededError` surfaces per engine (request `onerror` or only transaction `onabort`) and whether the transaction aborts cleanly | The no-silent-loss guarantee rests on it | Shrink the quota artificially: Chrome DevTools → Application → Storage → "Simulate custom storage quota". Firefox's `dom.quotaManager.temporaryStorage.fixedLimit` pref (*name from memory, verify*). Fill until failure and log which handler fires. 30 minutes. |
+| **U6** | Where `QuotaExceededError` surfaces per engine (request `onerror` or only transaction `onabort`) and whether the transaction aborts cleanly | The no-silent-loss guarantee rests on it | **Partially answered (Chromium):** On Linux (2026-11-15), the error surfaced on transaction `onabort`, not request `onerror`, and the abort was clean. After 261 consecutive failures, an integrity sweep found 139 heads, 139 versions and 139 blobs, zero dangling heads, and earlier files still readable. Before the fix, `fs.write` threw a `QuotaExceededError` DOMException with an empty message; after the fix it resolves `{ok:false, error:'quota', path, base}`. Other engines remain unverified. Shrink quota and log which handler fires; Firefox's `dom.quotaManager.temporaryStorage.fixedLimit` pref is a candidate (*name from memory, verify*). |
 | **U7** | `CompressionStream` latency per 2 KB blob on an older iPhone | Compression is on the write path of every agent step | Time 1,000 compress/decompress cycles on device. 10 minutes. I expect well under a millisecond each, but that is not measured. |
 | **U8** | Private-window quotas (Chrome Incognito, Firefox private, Safari Private) | Users in private windows lose everything on close, and may hit a small quota early | Same page as U2, in private mode. Show a "private window: nothing here will be kept" notice regardless. |
 
@@ -238,7 +238,7 @@ Two modes:
 - At **≈ 6.4 KB/step** (as currently designed), it holds about 170,000 at 1 GiB, or about 31,000 at 200 MB. That is still fine, but journal hygiene (H) is the cheap fix.
 - **Above ~20 KB/step**, it holds under ~54,000 at 1 GiB, or under ~10,000 at 200 MB. Run-aware squash plus cold delta packing (C + E) move from optional to required.
 
-U5 measures it on the first real Bench runs.
+The ≈ 1.65 KB/step estimate is conservative-but-right for compressible text against the measured ≈ 1.0 KB/version on Chromium, and about 2× low for incompressible text at ≈ 3.0 KB/version. These are filesystem version measurements, not all-in agent steps. U5 still measures bytes per agent step on the first real Bench runs.
 
 ---
 
