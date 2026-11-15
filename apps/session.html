@@ -567,8 +567,8 @@ call('hello').then(function (h) {
       return id + '{' + rectText(r) + ' h=' + round(r.height) + ' bg=' + css.backgroundColor +
         ' backdrop=' + css.backdropFilter + ' webkit=' + css.getPropertyValue('-webkit-backdrop-filter') +
         ' pos=' + css.position + ' z=' + css.zIndex + ' hidden=' + el.hidden +
-        ' folded=' + el.classList.contains('folded') + ' key=' + (el.getAttribute('data-key') || 'pending') +
-        ' foldby=' + (el.getAttribute('data-foldby') || 'none') + '}';
+        ' folded=' + el.classList.contains('folded') + (id === 'strip' ? ' key=' + (el.getAttribute('data-key') || 'pending') +
+        ' foldby=' + (el.getAttribute('data-foldby') || 'none') : '') + '}';
     } catch (e) { return id + '{ERR ' + ((e && e.message) || String(e)) + '}'; }
   }
   window.addEventListener('load', function () {
