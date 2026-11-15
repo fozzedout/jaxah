@@ -107,19 +107,19 @@
   },
 
   "sandbox": {
-    "iframe": "allow-scripts allow-forms allow-modals allow-downloads",
-    "never": ["allow-same-origin", "allow-top-navigation", "allow-top-navigation-by-user-activation", "allow-popups-to-escape-sandbox"],
+    "iframe": "allow-scripts allow-forms allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox",
+    "never": ["allow-same-origin", "allow-top-navigation", "allow-top-navigation-by-user-activation"],
     "why": "Opaque origin: an app cannot touch the shell DOM, the shell's localStorage (where keys and install records live), or another app. All privilege goes through the bridge, which checks capabilities and writes the trail."
   },
 
   "csp": {
-    "shell": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data:; frame-src 'self' https://lexfall.com; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'",
+    "shell": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data:; frame-src 'self' https://xefig.com https://her.xefig.com; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'",
     "where": "index.html <meta http-equiv=Content-Security-Policy>. srcdoc code apps inherit it.",
     "why": {
       "script-src 'unsafe-inline'": "code apps are single inline files running under the inherited policy",
       "connect-src https: localhost": "the shell performs net.stream for apps: same-origin /api/go, or a user-configured OpenAI-compatible endpoint (OpenRouter over https, LM Studio on localhost)",
       "img-src blob:": "Store export builds a Blob download URL",
-      "frame-src lexfall.com": "kept for compatibility; Lexfall itself launches standalone because it sends frame-ancestors 'none'"
+      "frame-src xefig.com her.xefig.com": "permits these apps to be framed; Lexfall stays standalone because it sends frame-ancestors 'none'"
     },
     "apiHeaders": "Worker /api responses carry cache-control: no-store and never set-cookie."
   },

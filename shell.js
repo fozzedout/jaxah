@@ -264,6 +264,8 @@ function focusWin(id) {
   if (openWins[id] && location.hash !== '#app/' + id) history.replaceState(null, '', '#app/' + id);
 }
 
+// The shell does not enforce the new-tab rule. Each framed app is responsible
+// for opening off-origin links with target="_blank" rel="noopener".
 function sandboxFrame(title, code, url) {
   var frame = document.createElement('iframe');
   frame.setAttribute('sandbox', CONTRACT.sandbox.iframe);
