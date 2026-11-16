@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Airis OS: a shared room for a human and an agent</title>
+<meta name="description" content="Airis OS is a browser-based desktop where you and an AI agent work on the same surface. Bring your own key; it stays in your browser.">
+<link rel="icon" type="image/png" href="/assets/icons/icon-512.png">
+<style>*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#070d12;color:#e6f0ee;font:1rem/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-wrap:anywhere}a{color:#5eead4;text-underline-offset:.2em}a:hover{color:#e6f0ee}a:focus-visible{outline:3px solid #83e9ad;outline-offset:4px}.wrap{width:min(100% - 2rem,44rem);margin-inline:auto}header{border-bottom:1px solid #34534f;padding:1rem 0}.brand{color:#83e9ad;font:600 .9rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-decoration:none}main{padding-block:3rem}h1,h2{line-height:1.2}h1{font-size:clamp(2.5rem,8vw,4rem);margin:0 0 1rem}h2{font-size:1.4rem;margin:0 0 1rem}p{margin:0 0 1rem}section{margin-top:2.5rem}.lede{font-size:1.25rem}.muted{color:#9fb3ae}.actions{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin:1.5rem 0}.button{display:inline-block;background:#0f766e;color:#fff;padding:.7rem 1rem;border-radius:.4rem;font-weight:700;text-decoration:none}.button:hover{background:#115e59;color:#fff}ul{padding-left:1.3rem}li{margin-bottom:1rem}footer{border-top:1px solid #34534f;padding:2rem 0;color:#9fb3ae}footer nav{display:flex;flex-wrap:wrap;gap:.75rem 1.25rem}footer p{margin-top:1.5rem}.skip{position:absolute;left:1rem;top:-10rem;background:#0e1f26;color:#fff;padding:.5rem;z-index:1}.skip:focus{top:1rem}code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#83e9ad}@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto}}</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header><div class="wrap"><a class="brand" href="/about">Airis OS</a></div></header>
+<main id="main" class="wrap">
+<h1>Airis OS</h1>
+<p class="lede">A small desktop in your browser, shared by you and an agent.</p>
+<div class="actions"><a class="button" href="/">Open Airis OS</a><a href="/#app/session">Start a Session</a></div>
+<p class="muted">No account, no sign-up. Nothing to install.</p>
+<section id="what"><h2>What this is</h2>
+<p>Airis OS is a personal, open-source project that runs entirely in your browser at jaxah.com. It is a desktop of small apps. You and an agent act on the same surface through the same set of actions, and every action, whoever took it, is written to one visible Trail (human, agent, app or system). It is not a bank, a shop or a sign-in page: it has no accounts and no sign-in.</p></section>
+<section><h2>What you get</h2><ul>
+<li><strong>Session:</strong> a blank chat with a live agent. You bring your own API key (OpenCode Go, OpenRouter, or any OpenAI-compatible endpoint you choose, including one on your own machine). The key is stored in this browser only.</li>
+<li><strong>Apps that run sandboxed:</strong> each app runs in an isolated iframe with no access to the desktop, your keys or other apps; anything privileged goes through the shell, which checks what the app is allowed to do.</li>
+<li><strong>Install records:</strong> an installed app is a record kept in your browser, code included. Store lets you install, remove, export everything as one JSON file and import it again.</li>
+<li><strong>The terminal floor:</strong> a plain text terminal underneath the desktop with scripted, local replies. It keeps working even if the rest fails; press the backtick key, or open <a href="/?terminal=1">/?terminal=1</a>.</li>
+<li><strong>Small apps and experiments already installed:</strong> Lexfall (word game), To Do, Persona, House, Desk, Fuel Calc, LSB Lab, JEB Gallery and others.</li>
+</ul></section>
+<section><h2>About keys</h2><p>You only need a key for Session. Other apps work without one. For OpenRouter and custom endpoints the browser talks to the provider directly. OpenCode Go does not accept direct browser calls, so this site relays those requests: your key passes through and is not logged or stored.</p><p><a href="/privacy">Full privacy &amp; terms</a></p></section>
+<section><h2>How it is built</h2><p>One Cloudflare Worker serves static files from a public repository. There is no database and no server-side storage: the Worker has none, on purpose. The rules for the whole site are published as data in <a href="/airis.contract.json">/airis.contract.json</a>.</p></section>
+</main>
+<footer><div class="wrap">
+<nav aria-label="Footer"><a href="/about">Home</a><a href="/privacy">Privacy &amp; terms</a><a href="/">Open Airis OS</a></nav>
+<p>Airis OS is a personal project by fozzedout. Source and contact: <a href="https://github.com/fozzedout/jaxah">github.com/fozzedout/jaxah</a>. <a href="https://github.com/fozzedout/jaxah/issues">Report a problem</a></p>
+</div></footer>
+</body>
+</html>

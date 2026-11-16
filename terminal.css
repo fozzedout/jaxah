@@ -31,6 +31,7 @@ body.term #os { display: none; }
 }
 #term-form :focus-visible { outline: 2px solid #83e9ad; outline-offset: 3px; }
 #term-hint { margin-top: 12px; color: #8aa695; font-size: 12px; }
+#term-hint a { color: #83e9ad; text-underline-offset: 3px; }
 .term-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .nojs { padding: 40px; color: #83e9ad; background: #020604; font-family: system-ui, sans-serif; }
 .nojs a { color: inherit; }

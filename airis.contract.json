@@ -43,6 +43,7 @@
 
   "layout": {
     "index.html": "the OS shell page (served at /). Terminal floor markup first, OS chrome hidden until boot succeeds.",
+    "about.html / privacy.html": "public landing and privacy/terms pages (served at /about and /privacy). Static, no JavaScript, own strict CSP (default-src 'none'). Linked from the terminal floor, the noscript block and the About catalogue tile. / stays the OS shell.",
     "terminal.js / terminal.css": "the floor. No dependency on shell, manifest, contract, storage or network. Must keep working if everything else fails.",
     "shell.js / shell.css": "window manager, bridge host, action registry, event trail, install records. Reads manifest.json and this file.",
     "diagnostic.js": "shared measurements and report for the /diagnostic route and the in-page overlay.",
@@ -335,7 +336,7 @@
       "/settings.html", "/breaking-firefox.html", "/art/jeb/index.html",
       "/os/", "/os/index.html", "/os/manifest.json",
       "/os/apps/house.html", "/os/apps/persona.html", "/os/apps/todo.html", "/os/apps/desk.html",
-      "/os/assets/airis-scripted.mp3"
+      "/os/assets/airis-scripted.mp3", "/about.html", "/privacy.html"
     ],
     "apiMustRefuse": [
       { "method": "GET", "path": "/api/tape", "status": 405 },

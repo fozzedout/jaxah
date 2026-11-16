@@ -458,6 +458,21 @@
       "size": "large",
       "desktop": { "width": 900, "height": 640 },
       "phone": { "slot": "sheet" }
+    },
+    {
+      "id": "about",
+      "name": "About",
+      "icon": "ℹ️",
+      "url": "about.html",
+      "version": "1",
+      "install": "link",
+      "preinstalled": true,
+      "launch": "standalone",
+      "category": "Airis",
+      "description": "What Airis OS is, how keys and data are handled, privacy and terms.",
+      "size": "window",
+      "desktop": { "width": 640, "height": 720 },
+      "phone": { "slot": "sheet" }
     }
   ]
 }

@@ -13,6 +13,8 @@
 <title>Airis OS</title>
 <meta name="description" content="Airis OS — a shared room for a human and an agent. Bring your own key; open Session.">
 <link rel="describedby" href="./airis.contract.json" type="application/json">
+<link rel="help" href="/about">
+<link rel="privacy-policy" href="/privacy">
 <!--
   Airis OS. No build step. The Worker stamps #build-stamp with its deployed version tag.
   AGENTS: every rule (manifest schema, app conventions, sandbox, CSP, install
@@ -50,13 +52,14 @@
              spellcheck="false" aria-label="terminal input" enterkeyhint="send">
       <button type="submit">Send</button>
     </form>
-    <div id="term-hint">Scripted, local replies · try: hello or help</div>
+    <div id="term-hint">Scripted, local replies · try: hello or help · <a href="/about">What is Airis OS?</a> · <a href="/privacy">Privacy</a></div>
   </div>
 
   <noscript>
     <style>#terminal { display: none; }</style>
     <div class="nojs">
       <h1>Airis OS</h1>
+      <p><a href="/about">What is Airis OS?</a> · <a href="/privacy">Privacy &amp; terms</a></p>
       <p>The shell needs JavaScript. The apps don't — plain links:</p>
       <ul>
         <li><a href="https://lexfall.com">Lexfall</a> · <a href="./lexfall.html">local copy</a></li>

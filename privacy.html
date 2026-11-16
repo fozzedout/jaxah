@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Privacy &amp; terms · Airis OS</title>
+<link rel="icon" type="image/png" href="/assets/icons/icon-512.png">
+<style>*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#070d12;color:#e6f0ee;font:1rem/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-wrap:anywhere}a{color:#5eead4;text-underline-offset:.2em}a:hover{color:#e6f0ee}a:focus-visible{outline:3px solid #83e9ad;outline-offset:4px}.wrap{width:min(100% - 2rem,44rem);margin-inline:auto}header{border-bottom:1px solid #34534f;padding:1rem 0}.brand{color:#83e9ad;font:600 .9rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-decoration:none}main{padding-block:3rem}h1,h2{line-height:1.2}h1{font-size:clamp(2.5rem,8vw,4rem);margin:0 0 1rem}h2{font-size:1.4rem;margin:0 0 1rem}p{margin:0 0 1rem}section{margin-top:2.5rem}.lede{font-size:1.25rem}.muted{color:#9fb3ae}.actions{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin:1.5rem 0}.button{display:inline-block;background:#0f766e;color:#fff;padding:.7rem 1rem;border-radius:.4rem;font-weight:700;text-decoration:none}.button:hover{background:#115e59;color:#fff}ul{padding-left:1.3rem}li{margin-bottom:1rem}footer{border-top:1px solid #34534f;padding:2rem 0;color:#9fb3ae}footer nav{display:flex;flex-wrap:wrap;gap:.75rem 1.25rem}footer p{margin-top:1.5rem}.skip{position:absolute;left:1rem;top:-10rem;background:#0e1f26;color:#fff;padding:.5rem;z-index:1}.skip:focus{top:1rem}code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#83e9ad}@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto}}</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header><div class="wrap"><a class="brand" href="/about">Airis OS</a></div></header>
+<main id="main" class="wrap">
+<h1>Privacy &amp; terms</h1>
+<p class="muted">Last updated 16 November 2026.</p>
+<section><h2>Short version</h2><p>Your keys, apps and app data live in your browser. This site has no accounts, no database and no analytics, and it sets no cookies of its own.</p></section>
+<section><h2>What stays in your browser</h2><p>API keys you enter (browser localStorage on jaxah.com); installed apps and their data; your files in the shell workspace (IndexedDB); the Trail; theme and window layout. Clearing site data for jaxah.com, or using a private window, removes them. Export from Store is the backup. Nobody, including the site owner, can recover them for you.</p></section>
+<section><h2>What passes through the server</h2><p>Static files are served by Cloudflare, which, like any host, processes your IP address and request details to deliver and protect the site. If you pick the OpenCode Go provider in Session, your requests and key are relayed through this site's Worker to OpenCode; the key is forwarded only to that provider and is not logged, stored or echoed. With OpenRouter or a custom endpoint, your browser contacts that provider directly and this site sees nothing. Whatever provider you choose handles your messages under its own terms.</p></section>
+<section><h2>Diagnostic reports</h2><p>Being honest about one thing that does leave your browser: when Session opens inside the desktop, and when you open the Diagnostic screen (or visit <a href="/diagnostic">/diagnostic</a>), the page sends a short layout report to the site owner's debugging service, relayed by this site. It contains screen size, pixel ratio, element positions and styles, and whether a key is set (yes/no). It never contains the key itself, your messages or your files. Its purpose is to fix layout bugs on phones.</p></section>
+<section><h2>Terms</h2><p>Airis OS is a personal project provided free and as is, without warranty. The code is under the <a href="https://github.com/fozzedout/jaxah/blob/main/LICENSE">MIT License</a>. You are responsible for your own API keys and for what you send to the provider you choose. Do not use the site for anything unlawful. Third-party apps or links (for example Lexfall on its own site) have their own terms.</p></section>
+<section><h2>Contact</h2><p>Questions or problems: open an issue at <a href="https://github.com/fozzedout/jaxah/issues">https://github.com/fozzedout/jaxah/issues</a>.</p></section>
+</main>
+<footer><div class="wrap">
+<nav aria-label="Footer"><a href="/about">Home</a><a href="/privacy">Privacy &amp; terms</a><a href="/">Open Airis OS</a></nav>
+<p>Airis OS is a personal project by fozzedout. Source and contact: <a href="https://github.com/fozzedout/jaxah">github.com/fozzedout/jaxah</a>. <a href="https://github.com/fozzedout/jaxah/issues">Report a problem</a></p>
+</div></footer>
+</body>
+</html>

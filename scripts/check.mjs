@@ -95,6 +95,20 @@ for (const e of M.apps) for (const u of e.legacyUrls || []) ok(C.tests.legacyUrl
 
 // ── CSP, sandbox, worker config, code obeys registry
 const idx = read('index.html');
+for (const page of ['about.html', 'privacy.html']) {
+  const present = exists(page);
+  ok(present, `${page} exists`);
+  const html = present ? read(page) : '';
+  ok(!/<script/i.test(html), `${page} has no script`);
+  ok(/<meta\s+http-equiv="Content-Security-Policy"\s+content="default-src 'none'/i.test(html), `${page} has a strict CSP`);
+}
+const aboutPage = exists('about.html') ? read('about.html') : '';
+const privacyPage = exists('privacy.html') ? read('privacy.html') : '';
+ok(/href="\/"/.test(aboutPage) && /href="\/privacy"/.test(aboutPage), 'about links to the shell and privacy');
+ok(/diagnostic/i.test(privacyPage) && /href="https:\/\/github\.com\/fozzedout\/jaxah\/issues"/.test(privacyPage), 'privacy mentions diagnostics and links to issues');
+const hint = idx.match(/<div\s+id="term-hint"[^>]*>([\s\S]*?)<\/div>/i)?.[1] || '';
+ok(/href="\/about"/.test(hint) && /href="\/privacy"/.test(hint), 'terminal hint links to about and privacy');
+ok(M.apps.some((a) => a.id === 'about' && a.install === 'link' && a.launch === 'standalone' && a.url === 'about.html'), 'manifest has standalone About link');
 const csp = (idx.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/) || [])[1];
 ok(csp === C.csp.shell, 'index.html CSP equals contract.csp.shell');
 for (const bad of C.sandbox.never) ok(!C.sandbox.iframe.split(/\s+/).includes(bad), `sandbox does not grant ${bad}`);
